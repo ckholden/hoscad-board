@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#070a0f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="HOSCAD" />
+  <title>SCMC HOSCAD/EMS TRACKING</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/x-icon" href="icons/favicon.ico?v=2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=2" />
+  <link rel="stylesheet" href="styles.css" />
+  <link id="leafletCss" rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+<header>
+  <div class="topbar">
+    <div class="brand">SCMC HOSCAD/EMS TRACKING</div>
+    <div id="clockPill" class="pill clock-pill">--:--:--</div>
+    <div id="livePill" class="pill">...</div>
+    <div class="pill">USER: <span id="userLabel">-</span></div>
+    <div id="msgBadge" class="msgBadge" onclick="openMessages()" style="display:none;">MSG (<span id="msgCount">0</span>)</div>
+    <div class="row right">
+      <input id="search" placeholder="SEARCH UNIT / NOTE" />
+      <label class="pill" style="display:flex;gap:8px;align-items:center;">
+        <input id="showInactive" type="checkbox" style="width:16px;height:16px;" />
+        SHOW INACTIVE
+      </label>
+      <button class="btn-good" onclick="openLogon()">LOGON</button>
+      <button class="btn-secondary" onclick="forceRefresh()">REFRESH</button>
+      <span id="ppSyncBadge" style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#4fa3e0;opacity:.4;margin-left:6px;cursor:default;" title="PulsePoint last sync">PP: --</span>
+      <span id="lfnSyncBadge" style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#4fa3e0;opacity:.4;margin-left:4px;cursor:default;" title="LifeFlight ADS-B last sync">ADS-B: --</span>
+      <span id="dc911SyncBadge" style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#4fa3e0;opacity:.4;margin-left:4px;cursor:default;" title="Deschutes 911 CAD last sync">DC911: --</span>
+      <a id="adminLink" href="admin/" class="btn-secondary" style="display:none;font-size:11px;padding:4px 10px;text-decoration:none;">ADMIN</a>
+      <span id="scopeIndicator" style="display:none; font-size:11px; font-weight:700; color:#ffd66b; background:rgba(255,214,107,.12); border:1px solid rgba(255,214,107,.3); border-radius:2px; padding:3px 8px; margin-left:8px; letter-spacing:.04em;"></span>
+      <a href="help/" target="_blank" class="btn-secondary" style="font-size:11px;padding:4px 10px;text-decoration:none;">HELP</a>
+    </div>
+  </div>
+
+  <!-- Toolbar Bar -->
+  <div class="toolbar" id="toolbar">
+    <div class="toolbar-group">
+      <label class="toolbar-label">STATUS:</label>
+      <select id="tbFilterStatus" class="toolbar-select" onchange="tbFilterChanged()">
+        <option value="">ALL</option>
+        <option value="D">D</option>
+        <option value="DE">DE</option>
+        <option value="OS">OS</option>
+        <option value="F">F</option>
+        <option value="FD">FD</option>
+        <option value="T">T</option>
+        <option value="TH">TH</option>
+        <option value="AV">AV</option>
+        <option value="UV">UV</option>
+        <option value="BRK">BRK</option>
+        <option value="OOS">OOS</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <label class="toolbar-label">SORT:</label>
+      <select id="tbSort" class="toolbar-select" onchange="tbSortChanged()">
+        <option value="status">STATUS</option>
+        <option value="unit">UNIT</option>
+        <option value="elapsed">ELAPSED</option>
+        <option value="updated">UPDATED</option>
+      </select>
+    </div>
+    <div class="toolbar-sep"></div>
+    <button class="toolbar-btn" id="tbBtnINC" onclick="toggleView('incidents')" title="Toggle Incident Queue">INC</button>
+    <button class="toolbar-btn" id="tbBtnSIDE" onclick="toggleView('sidebar')" title="Toggle Side Panel">SIDE</button>
+    <button class="toolbar-btn" id="tbBtnMSG" onclick="toggleView('messages')" title="Toggle Messages">MSG</button>
+    <button class="toolbar-btn" onclick="runQuickCmd('WHO')" title="Dispatchers Online">WHO</button>
+    <button class="toolbar-btn" onclick="runQuickCmd('UR')" title="Unit Roster">UR</button>
+    <div class="toolbar-sep"></div>
+    <button class="toolbar-btn" id="tbBtnDEN" onclick="cycleDensity()" title="Cycle Density">DEN: NORMAL</button>
+    <button class="toolbar-btn" id="tbBtnNight" onclick="toggleNightMode()" title="Toggle Night Mode">NIGHT</button>
+    <button class="toolbar-btn" id="tbBtnMAP" onclick="toggleBoardMap()" title="Toggle Map">MAP</button>
+    <div class="toolbar-sep"></div>
+    <button class="toolbar-btn toolbar-btn-accent" onclick="openNewIncident()" title="New Incident (F2)">+ NEW INC <span class="shortcut-hint">F2</span></button>
+    <div class="toolbar-sep"></div>
+    <button id="btnToggleAssisting" class="btn-sm" onclick="toggleAssisting()" title="Show/hide assisting agency units (law/dot/support)" style="font-size:10px;padding:2px 8px;opacity:1;">AUX ON</button>
+    <button id="btnTogglePP" class="btn-sm" onclick="togglePP()" title="Toggle PulsePoint mutual aid feed" style="font-size:10px;padding:2px 8px;opacity:1;">PP ON</button>
+    <button id="btnToggleDC911" class="btn-sm" onclick="toggleDc911()" title="Toggle Deschutes 911 CAD feed visibility" style="font-size:10px;padding:2px 8px;opacity:1;">DC911 ON</button>
+    <div class="toolbar-sep"></div>
+    <button class="btn-sm" onclick="openBugReport()" title="Report a bug or system issue" style="font-size:10px;padding:2px 8px;opacity:1;color:#e09000;">BUG</button>
+  </div>
+
+  <!-- Quick-Action Bar (shown when a unit is selected) -->
+  <div id="quickBar" class="quick-bar" style="display:none;">
+    <span id="qbUnit" class="qb-unit-label"></span>
+    <span id="qbStatus" class="qb-status-label"></span>
+    <div class="qb-buttons">
+      <button class="qb-btn qb-D"   onclick="qbStatus('D')">DISPATCH</button>
+      <button class="qb-btn qb-DE"  onclick="qbStatus('DE')">ENROUTE</button>
+      <button class="qb-btn qb-OS"  onclick="qbStatus('OS')">ON SCENE</button>
+      <button class="qb-btn qb-T"   onclick="qbStatus('T')">TRANSPORT</button>
+      <button class="qb-btn qb-TH"  onclick="qbStatus('TH')">AT HOSP</button>
+      <button class="qb-btn qb-AV"  onclick="qbStatus('AV')">AVAILABLE</button>
+      <button class="qb-btn qb-IQ"  onclick="qbStatus('IQ')">IN QTRS</button>
+      <button class="qb-btn qb-OOS" onclick="qbStatus('OOS')">OOS</button>
+    </div>
+    <input id="qbNote" class="qb-note" placeholder="NOTE (OPTIONAL)" />
+    <button class="qb-deselect" onclick="selectUnit(null)">&#10005; DESELECT</button>
+  </div>
+
+  <!-- Status Summary Bar -->
+  <div id="statusSummary" class="status-summary">
+    <span class="sum-item sum-av" onclick="quickFilter('AV')">AV: <strong>-</strong></span>
+    <span class="sum-item sum-d" onclick="quickFilter('D')">D: <strong>-</strong></span>
+    <span class="sum-item sum-de" onclick="quickFilter('DE')">DE: <strong>-</strong></span>
+    <span class="sum-item sum-os" onclick="quickFilter('OS')">OS: <strong>-</strong></span>
+    <span class="sum-item sum-t" onclick="quickFilter('T')">T: <strong>-</strong></span>
+    <span class="sum-item sum-th" onclick="quickFilter('TH')">TH: <strong>-</strong></span>
+    <span class="sum-item sum-f" onclick="quickFilter('F')">F: <strong>-</strong></span>
+    <span class="sum-item sum-brk" onclick="quickFilter('BRK')">BRK: <strong>-</strong></span>
+    <span class="sum-item sum-oos" onclick="quickFilter('OOS')">OOS: <strong>-</strong></span>
+    <span class="sum-item sum-total" onclick="quickFilter('')">TOTAL: <strong>-</strong></span>
+  </div>
+
+  <div id="alertBanner" class="banner alert" style="display:none;"></div>
+  <div id="noteBanner" class="banner note" style="display:none;"></div>
+</header>
+
+<div class="wrap">
+  <div id="staleBanner" class="banner alert" style="display:none; margin-bottom:10px;"></div>
+
+  <!-- Board Map Panel (collapsed by default, toggled by MAP button or POPMAP command) -->
+  <div id="boardMapPane">
+    <div id="boardMapContainer"></div>
+  </div>
+
+    <!-- CAD Map Console (shown after login, replaces embedded board) -->
+    <div id="cadMapWrap" style="display:none;flex:1;min-height:0;position:relative;">
+      <div id="cadMapContainer" style="width:100%;height:100%;"></div>
+    </div>
+
+  <!-- Active Calls Bar — compact incident cards for all ACTIVE incidents -->
+  <div id="activeCallsBar" style="display:none;"></div>
+
+  <!-- AIR RESOURCES panel — LifeFlight ADS-B telemetry -->
+  <div id="lfnPanel" class="lfn-panel" style="display:none;">
+    <div class="lfn-panel-header" onclick="toggleLfnPanel()">
+      <span class="lfn-panel-title">&#9992; AIR RESOURCES</span>
+      <span style="font-size:9px;color:#555;margin-left:6px;font-weight:normal;">ADS-B — INFORMATIONAL ONLY — VERIFY WITH LFN COMMS</span>
+      <span id="lfnAlertBadge" class="lfn-alert-badge" style="display:none;">INBOUND</span>
+      <span class="lfn-panel-toggle" id="lfnPanelToggle" style="margin-left:auto;">&#9660;</span>
+    </div>
+    <div id="lfnPanelBody" class="lfn-panel-body" style="display:none;"></div>
+  </div>
+
+  <!-- Diversion Banner — shown when any destination is on diversion -->
+  <div id="diversionBar">&#9888; DIVERSION ACTIVE: <span id="diversionList"></span></div>
+
+  <div id="legacyBoardWrap">
+
+  <!-- Collapsible Incident Queue -->
+  <div class="collapsible-panel" id="incidentQueueCard">
+    <div class="collapsible-header" onclick="toggleIncidentQueue()">
+      <span>INCIDENT QUEUE <span id="incQueueCount" class="muted" style="font-size:11px;"></span></span>
+      <span class="collapse-arrow" id="incQueueArrow">&#9660;</span>
+    </div>
+    <div class="collapsible-body" id="incidentQueueBody">
+      <div id="incidentQueue" style="overflow:auto;"></div>
+    </div>
+  </div>
+
+  <!-- Board + Side Panel — hidden on main page (units shown in viewer popout only) -->
+  <div class="board-layout" style="display:none;">
+    <div class="board-main" id="boardMain">
+      <div class="board-header-row">
+        <span>RESOURCE BOARD <span id="boardCount" class="muted" style="font-size:11px;"></span></span>
+      </div>
+      <div style="overflow:auto;">
+        <table class="board-table" id="boardTable">
+          <thead>
+            <tr>
+              <th class="col-unit sortable" data-sort="unit">UNIT<div class="col-resize-handle"></div></th>
+              <th class="col-status sortable" data-sort="status">STATUS<div class="col-resize-handle"></div></th>
+              <th class="col-elapsed sortable" data-sort="elapsed">ELAPSED<div class="col-resize-handle"></div></th>
+              <th class="col-dest">LOCATION<div class="col-resize-handle"></div></th>
+              <th class="col-note">NOTES</th>
+              <th class="col-inc">INC#<div class="col-resize-handle"></div></th>
+              <th class="col-updated sortable" data-sort="updated">UPDATED<div class="col-resize-handle"></div></th>
+            </tr>
+          </thead>
+          <tbody id="boardBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- POPOUT Placeholder — shown when status board is on secondary monitor -->
+    <div id="popoutPlaceholder" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;min-height:400px;background:var(--surface);border-radius:4px;border:1px solid var(--border);padding:40px;">
+      <div style="text-align:center;color:var(--text);">
+        <div style="font-size:28px;font-weight:900;letter-spacing:4px;margin-bottom:6px;">SCMC HOSCAD</div>
+        <div style="font-size:13px;letter-spacing:3px;color:var(--muted);margin-bottom:36px;">TRANSPORTATION COORDINATION</div>
+        <div id="popoutClock" style="font-size:72px;font-weight:900;letter-spacing:8px;font-variant-numeric:tabular-nums;color:var(--text);line-height:1;margin-bottom:8px;">--:--</div>
+        <div id="popoutDate" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:36px;"></div>
+        <div style="font-size:18px;color:var(--accent);letter-spacing:2px;margin-bottom:36px;">HAVE A GREAT SHIFT :)</div>
+        <div id="popoutStats" style="display:inline-block;padding:8px 24px;background:var(--bg);border:1px solid var(--border);border-radius:3px;font-size:13px;color:var(--muted);letter-spacing:1px;margin-bottom:20px;">-- UNITS ACTIVE  ·  -- QUEUED</div>
+        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;margin-top:12px;">BOARD ON SECONDARY MONITOR — TYPE POPIN TO RESTORE</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Side Panel (slide-out) — outside .board-layout so it's always accessible -->
+  <div class="side-panel" id="sidePanel">
+    <div class="side-panel-inner">
+      <div class="side-section" id="sideMsgSection">
+        <h3>MESSAGES <span class="muted" style="font-size:11px;" id="msgPanelCount"></span></h3>
+        <div id="messagesPanel" class="messagesPanel"></div>
+      </div>
+      <div class="side-section" id="sideScratchSection">
+        <h3>SCRATCH NOTES</h3>
+        <textarea id="scratchPadSide" class="scratch-textarea" style="min-height:120px;width:100%;box-sizing:border-box;" placeholder="PERSONAL NOTES — SAVED LOCALLY PER USER" oninput="saveScratchSide()"></textarea>
+      </div>
+    </div>
+  </div>
+  </div><!-- /legacyBoardWrap -->
+</div>
+
+<!-- Login Modal -->
+<div id="loginBack" class="loginBack">
+  <div class="card login">
+    <h3 style="margin-top:0;">LOGIN</h3>
+    <div class="muted" style="margin-bottom:10px;">SELECT POSITION · CAD ID (FORMAT: CAD-XXXX) · PASSWORD</div>
+    <div class="row">
+      <select id="loginRole" style="flex:1">
+        <option value="">SELECT POSITION...</option>
+        <option value="STA1">STA1</option>
+        <option value="STA2">STA2</option>
+        <option value="STA3">STA3</option>
+        <option value="STA4">STA4</option>
+        <option value="STA5">STA5</option>
+        <option value="STA6">STA6</option>
+        <option value="SUPV1">SUPV1</option>
+        <option value="SUPV2">SUPV2</option>
+        <option value="MGR1">MGR1</option>
+        <option value="MGR2">MGR2</option>
+        <option value="EMS">EMS</option>
+        <option value="TCRN">TCRN</option>
+        <option value="PLRN">PLRN</option>
+        <option value="IT">IT</option>
+      </select>
+    </div>
+    <div class="row">
+      <input id="loginCadId" placeholder="CAD-XXXX" autocomplete="username" maxlength="10" style="flex:1" />
+    </div>
+    <div class="row" id="loginPasswordRow">
+      <input id="loginPassword" type="password" placeholder="PASSWORD" autocomplete="current-password" maxlength="50" style="flex:1" />
+    </div>
+    <div class="row">
+      <button class="btn-good" onclick="login()">ENTER</button>
+      <div id="loginErr" class="muted"></div>
+    </div>
+    <div class="muted" style="font-size:10px;text-align:center;margin-top:8px;line-height:1.5;">
+      YOUR CAD ID IS ON YOUR CREDENTIALS CARD (E.G. CAD-0012).<br>IF YOU DON'T HAVE ONE, CONTACT YOUR SUPERVISOR.
+    </div>
+  </div>
+</div>
+
+<!-- Edit Unit Modal -->
+<div id="modalBack" class="modalBack">
+  <div class="modal">
+    <h2 id="modalTitle">EDIT UNIT</h2>
+    <div class="twoCol">
+      <div>
+        <div class="row">
+          <input id="mUnitId" placeholder="UNIT (E.G. EMS1 / JC / ADVMED CC)" style="flex:1" />
+          <input id="mDisplayName" placeholder="DISPLAY NAME (OPTIONAL)" style="flex:1" />
+        </div>
+        <div class="row">
+          <select id="mStatus" style="flex:1"></select>
+          <input id="mDestination" placeholder="LOCATION / DESTINATION [RM/NOTE]" style="flex:1" autocomplete="off" />
+        </div>
+        <div class="row">
+          <input id="mIncident" placeholder="INCIDENT (BLANK = AUTO ON D)" style="flex:1" />
+          <input id="mType" placeholder="TYPE (OPTIONAL)" style="flex:1" />
+        </div>
+        <div class="row">
+          <input id="mNote" placeholder="STATUS NOTE (VISIBLE ON BOARD)" style="flex:1" />
+        </div>
+        <div class="row">
+          <input id="mLocation" placeholder="LOCATION (ADDRESS OR SHORTCODE — FOR MAP)" style="flex:1" autocomplete="off" />
+        </div>
+        <div class="row">
+          <select id="mLevel" style="flex:1">
+            <option value="">CERT LEVEL</option>
+            <option value="CCT">CCT (CRITICAL CARE)</option>
+            <option value="ALS">ALS</option>
+            <option value="AEMT">AEMT</option>
+            <option value="BLS">BLS</option>
+            <option value="EMT">EMT</option>
+            <option value="AMB">AMB (AMBULATORY)</option>
+          </select>
+          <input id="mStation" placeholder="HOME STATION (E.G. STA1)" style="flex:1" />
+        </div>
+      </div>
+      <div>
+        <div class="muted" style="margin-bottom:6px;">CREW</div>
+        <div class="row" style="margin-bottom:4px;">
+          <input id="mCrew1Name" placeholder="CREW 1 — LAST, FIRST" style="flex:1" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+          <select id="mCrew1Cert" style="flex:0 0 100px;">
+            <option value="">CERT</option>
+            <option value="EMT">EMT</option>
+            <option value="AEMT">AEMT</option>
+            <option value="MEDIC">MEDIC</option>
+            <option value="RN">RN</option>
+            <option value="OTHER">OTHER</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="mCrew2Name" placeholder="CREW 2 — LAST, FIRST (OPTIONAL)" style="flex:1" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+          <select id="mCrew2Cert" style="flex:0 0 100px;">
+            <option value="">CERT</option>
+            <option value="EMT">EMT</option>
+            <option value="AEMT">AEMT</option>
+            <option value="MEDIC">MEDIC</option>
+            <option value="RN">RN</option>
+            <option value="OTHER">OTHER</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:6px;">
+        <div class="muted" style="margin-bottom:6px;">UNIT NOTES (PHONE #, SPECIAL INFO — NOT SHOWN ON BOARD)</div>
+        <input id="mUnitNotes" placeholder="OPTIONAL NOTES..." style="width:100%;" autocomplete="off" />
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn-good" onclick="saveModal()">SAVE</button>
+      <button class="btn-secondary" onclick="closeModal()">CANCEL</button>
+      <div class="right actions">
+        <button class="btn-secondary mini" onclick="confirmRidoff()">RIDOFF</button>
+        <button class="btn-danger mini" onclick="confirmLogoff()">LOGOFF</button>
+      </div>
+    </div>
+    <div class="muted" id="modalFoot"></div>
+  </div>
+</div>
+
+<!-- Incident Review Modal -->
+<div id="incBack" class="modalBack">
+  <div class="modal">
+    <h2 id="incTitle">INCIDENT</h2>
+    <div class="row">
+      <div class="pill">UNITS: <span id="incUnits">-</span></div>
+      <div class="pill">DEST: <input id="incDestEdit" style="width:140px;padding:2px 6px;font-size:12px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:var(--green);font-family:inherit;text-transform:uppercase;" placeholder="DESTINATION" autocomplete="off" /></div>
+      <div class="pill" style="align-items:center;gap:3px;">TYPE:&nbsp;<select id="incEditCat" onchange="onIncEditCatChange()" style="padding:2px 4px;font-size:11px;font-weight:700;background:#0b1018;border:1px solid var(--line);color:var(--yellow);font-family:inherit;"><option value="">—</option></select><select id="incEditNature" onchange="onIncEditNatureChange()" style="display:none;padding:2px 4px;font-size:11px;font-weight:700;background:#0b1018;border:1px solid var(--line);color:var(--yellow);font-family:inherit;margin-left:3px;"><option value="">—</option></select><input id="incTypeEdit" type="hidden" value="" /></div>
+      <div class="pill" style="align-items:center;gap:3px;">PRI:&nbsp;<select id="incPriorityEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#ff7b72;font-family:inherit;"><option value="">—</option><option value="PRI-1">PRI-1</option><option value="PRI-2">PRI-2</option><option value="PRI-3">PRI-3</option><option value="PRI-4">PRI-4</option></select></div>
+      <div class="pill">UPDATED: <span id="incUpdated">-</span></div>
+      <div class="pill">BY: <span id="incBy">-</span></div>
+      <div class="pill" id="incCbPill" style="display:none;" title="Click to copy">CB: <span id="incCbNumber" style="color:#e6edf3;cursor:pointer;font-weight:900;text-decoration:underline dotted;" onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='#3fb950';setTimeout(()=>this.style.color='#e6edf3',1200)})">-</span></div>
+    </div>
+    <div id="incTimingRow" style="display:none;margin:4px 0;font-size:11px;color:var(--muted);font-family:monospace;"></div>
+    <div id="incUnitsDetail" style="display:none;margin:4px 0 2px;font-size:11px;font-family:monospace;border-top:1px solid rgba(255,255,255,.06);padding-top:4px;"></div>
+    <div id="incDispositionBadge" style="display:none;margin:4px 0 2px;font-size:11px;font-weight:900;letter-spacing:.06em;color:#79c0ff;font-family:monospace;"></div>
+    <div class="row" style="margin-top:6px;">
+      <div class="pill" style="flex:1;display:flex;align-items:center;gap:6px;">SCENE: <input id="incSceneAddress" list="addrHistList2" style="background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--text);font-family:inherit;font-size:11px;flex:1;padding:2px 0;text-transform:uppercase;" placeholder="SCENE ADDRESS" /><datalist id="addrHistList2"></datalist><button type="button" onclick="openMapModal('incSceneAddress')" style="font-size:10px;padding:1px 6px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#4fa3e0;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">MAP</button><button type="button" id="btnCopyScene" onclick="(function(){const v=document.getElementById('incSceneAddress').value.trim();if(!v)return;navigator.clipboard.writeText(v).then(()=>{const b=document.getElementById('btnCopyScene');b.textContent='✓';setTimeout(()=>b.textContent='COPY',1200);});})()" style="font-size:10px;padding:1px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#8b949e;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">COPY</button></div>
+    </div>
+    <div id="incRelated" style="display:none;margin:6px 0 2px;font-size:11px;font-family:monospace;"></div>
+    <div id="incSuggestResult" style="display:none;margin:6px 0 2px;"></div>
+    <div class="muted" style="margin-top:10px;margin-bottom:6px;">INCIDENT NOTE</div>
+    <textarea id="incNote" placeholder="E.G. PT IN WTG RM"></textarea>
+    <div class="muted" style="margin-top:10px;margin-bottom:6px;">INCIDENT HISTORY (MOST RECENT LAST)</div>
+    <div id="incAudit" class="card" style="max-height: 260px; overflow-y: auto; overflow-x: hidden; background: #0b1018; padding: 6px;"></div>
+    <div class="row">
+      <button class="btn-good" onclick="saveIncidentNote()">SAVE NOTE</button>
+      <button class="btn-secondary" onclick="suggestUnits()">SUGGEST UNITS</button>
+      <button style="background:rgba(192,57,43,.18);border:1px solid rgba(192,57,43,.4);color:#e74c3c;font-family:inherit;font-size:11px;font-weight:900;padding:4px 10px;cursor:pointer;letter-spacing:.04em;" onclick="alertAllIncident()">ALERT ALL</button>
+      <button class="btn-warn" onclick="closeIncidentAction()">CLOSE INCIDENT</button>
+      <button class="btn-secondary" onclick="reopenIncidentAction()">REOPEN</button>
+      <button class="btn-secondary" onclick="closeIncidentPanel()">DISMISS</button>
+    </div>
+    <div class="muted">COMMANDS: R 0001 (REVIEW) | U 0001; MESSAGE (ADD NOTE) | CLOSE 0001 | RQ 0001</div>
+  </div>
+</div>
+
+<!-- Unit History Modal -->
+<div id="uhBack" class="modalBack">
+  <div class="modal">
+    <h2 id="uhTitle">UNIT HISTORY</h2>
+    <div class="row">
+      <div class="pill">UNIT: <span id="uhUnit">-</span></div>
+      <div class="pill">WINDOW:
+        <select id="uhHours" style="padding:8px 10px; font-size:12px;">
+          <option value="6">6H</option>
+          <option value="12" selected>12H</option>
+          <option value="24">24H</option>
+          <option value="48">48H</option>
+          <option value="72">72H</option>
+          <option value="168">7D</option>
+        </select>
+      </div>
+      <div class="right actions">
+        <button class="btn-secondary mini" onclick="reloadUH()">RELOAD</button>
+        <button class="btn-secondary mini" onclick="closeUH()">CLOSE</button>
+      </div>
+    </div>
+    <div style="overflow:auto; border:2px solid var(--line); background:#0b1018; max-height:400px;">
+      <table class="uhTable">
+        <thead>
+          <tr>
+            <th>TIME</th>
+            <th>ACTION</th>
+            <th>STATUS</th>
+            <th>NOTE</th>
+            <th>INC</th>
+            <th>DEST</th>
+            <th>BY</th>
+          </tr>
+        </thead>
+        <tbody id="uhBody">
+          <tr><td colspan="7" class="muted">LOAD HISTORY...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="uhLine">COMMANDS: <b>UH EMS1 24</b> OR <b>EMS1 UH 24</b></div>
+  </div>
+</div>
+
+<!-- New Incident Modal -->
+<div id="newIncBack" class="modalBack">
+  <div class="modal">
+    <h2>CREATE NEW INCIDENT</h2>
+    <div class="row">
+      <input id="newIncScene" placeholder="SCENE / PICKUP LOCATION" style="flex:1" autocomplete="off" list="addrHistList1" />
+      <datalist id="addrHistList1"></datalist>
+      <button type="button" onclick="openMapModal('newIncScene')" style="font-size:10px;padding:4px 8px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#4fa3e0;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;">MAP</button>
+    </div>
+    <div class="row">
+      <input id="newIncDest" placeholder="TRANSPORT TO (DESTINATION)" style="flex:1" autocomplete="off" />
+    </div>
+    <div class="row">
+      <select id="newIncCat" style="flex:0 0 auto" onchange="onIncCatChange()">
+        <option value="">CATEGORY...</option>
+      </select>
+      <select id="newIncNature" style="flex:1;display:none" onchange="onIncNatureChange()">
+        <option value="">NATURE...</option>
+      </select>
+      <select id="newIncDet" style="flex:0 0 auto;display:none" onchange="onIncDetChange()">
+        <option value="">DET...</option>
+      </select>
+      <select id="newIncPriority" style="flex:0 0 auto" onchange="renderIncSuggest()">
+        <option value="">PRIORITY (OPT)</option>
+        <option value="PRI-1">PRI-1 (ALS/CCT CRITICAL)</option>
+        <option value="PRI-2">PRI-2 (ALS URGENT)</option>
+        <option value="PRI-3">PRI-3 (BLS STABLE)</option>
+        <option value="PRI-4">PRI-4 (BLS ROUTINE)</option>
+        <option value="NONE">NONE (ADMIN/EXCEPTION)</option>
+      </select>
+    </div>
+    <div class="row">
+      <input type="text" id="newIncType" placeholder="TYPE CODE — AUTO-FILLED ABOVE OR ENTER CUSTOM (E.G. IFT-ALS-CARDIAC-PRI-2)" style="flex:1" autocomplete="off" />
+    </div>
+    <div class="row">
+      <input type="tel" id="newIncCallback" placeholder="CALLBACK # (OPTIONAL)" style="flex:1" autocomplete="off" />
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer;padding:4px 8px;border:1px solid var(--line);">
+        <input type="checkbox" id="newIncMA" style="width:14px;height:14px;" />
+        MUTUAL AID
+      </label>
+    </div>
+    <div class="row">
+      <select id="newIncUnit" style="flex:1">
+        <option value="">ASSIGN UNIT (OPTIONAL)</option>
+      </select>
+    </div>
+    <div id="incSuggest"></div>
+    <div class="muted" style="margin-top:10px;margin-bottom:6px;">INCIDENT NOTE (OPTIONAL)</div>
+    <textarea id="newIncNote" placeholder="E.G. 67 YOF C/O CHEST PAIN"></textarea>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn-good" onclick="createNewIncident()">CREATE</button>
+      <button class="btn-secondary" onclick="closeNewIncident()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Messages Modal -->
+<div id="msgBack" class="modalBack">
+  <div class="modal msgModal">
+    <h2>MESSAGES <span class="muted" style="font-size:12px;">(<span id="msgModalCount">0</span>)</span></h2>
+    <div class="msgList" id="msgList">
+      <div class="muted" style="padding:20px; text-align:center;">NO MESSAGES</div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn-secondary" onclick="closeMessages()">CLOSE</button>
+      <button class="btn-danger mini" onclick="deleteAllMessages()">DEL ALL MSG</button>
+    </div>
+    <div class="muted" style="margin-top:8px;">
+      COMMANDS: MSG STA2; TEXT | HTMSG STA3; URGENT | MSG1 (OPEN) | DEL MSG1 | DEL ALL MSG
+    </div>
+  </div>
+</div>
+
+<!-- Disposition Picker — shown on incident close to capture structured close reason -->
+<div id="dispositionOverlay" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.82);align-items:center;justify-content:center;">
+  <div style="background:#0d1117;border:2px solid #1a3a5c;padding:24px 28px;min-width:320px;max-width:94vw;">
+    <div style="font-size:13px;font-weight:900;letter-spacing:.08em;color:#e6edf3;margin-bottom:4px;">CLOSE INCIDENT</div>
+    <div id="dispositionIncLabel" style="font-size:11px;color:#8b949e;margin-bottom:14px;letter-spacing:.04em;"></div>
+    <div style="font-size:11px;font-weight:700;color:#8b949e;letter-spacing:.06em;margin-bottom:8px;">SELECT DISPOSITION:</div>
+    <div id="dispositionBtns" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;"></div>
+    <button id="btnDispositionCancel" onclick="cancelDisposition()" style="width:100%;padding:8px;background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;">CANCEL — DON'T CLOSE</button>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div id="confirmDialog" class="confirmDialog">
+  <div class="confirmBox">
+    <div class="confirmTitle" id="confirmTitle">CONFIRM</div>
+    <div class="confirmMessage" id="confirmMessage">Are you sure?</div>
+    <div class="confirmButtons">
+      <button class="btn-good" id="confirmOk">OK</button>
+      <button class="btn-secondary" id="confirmClose" style="display:none;">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alert Dialog (info only, just CLOSE button) -->
+<div id="alertDialog" class="confirmDialog">
+  <div class="confirmBox">
+    <div class="confirmTitle" id="alertTitle">INFO</div>
+    <div class="confirmMessage" id="alertMessage">Information</div>
+    <div class="confirmButtons">
+      <button class="btn-secondary" id="alertClose">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Panels: Message Inbox + Scratch Notes -->
+<div class="bottom-panels">
+  <div class="bottom-panel" id="msgInboxPanel">
+    <div class="collapsible-header" onclick="toggleBottomPanel('msgInbox')">
+      <span>INBOX <span id="inboxBadge" class="muted" style="font-size:11px;"></span></span>
+      <span class="collapse-arrow" id="msgInboxArrow">&#9660;</span>
+    </div>
+    <div class="collapsible-body open" id="msgInboxBody">
+      <div id="msgInboxList" class="bottom-panel-scroll"></div>
+    </div>
+  </div>
+  <div class="bottom-panel" id="scratchPanel">
+    <div class="collapsible-header" onclick="toggleBottomPanel('scratch')">
+      <span>SCRATCH NOTES</span>
+      <span class="collapse-arrow" id="scratchArrow">&#9660;</span>
+    </div>
+    <div class="collapsible-body open" id="scratchBody">
+      <textarea id="scratchPad" class="scratch-textarea" placeholder="PERSONAL NOTES — SAVED LOCALLY PER USER"></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- Command Bar (Fixed at Bottom) -->
+<div class="cmdbar">
+  <div id="cmdHints" class="cmd-hints"></div>
+  <div class="row">
+    <span class="cmd-prompt">CMD&gt;</span>
+    <input id="cmd" placeholder="D JC; MADRAS ED | V SIDE | F OS | SORT ELAPSED | DEN | PRESET DISPATCH" style="flex:1" autocomplete="off" />
+    <button class="btn-good" onclick="runCommand()">EXECUTE</button>
+    <button class="btn-secondary" onclick="showHelp()">HELP</button>
+  </div>
+  <div class="cmdhint">CTRL+K / F1 / F3 FOCUS CMD | CTRL+L LOGON | CTRL+D DENSITY | F2 NEW INC | F4 MESSAGES | UP/DOWN HISTORY | CLICK=SELECT | DBLCLICK=EDIT | SELECTED+STATUS CODE=APPLY</div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="globalTip"></div>
+
+<!-- OOS Reason Dialog -->
+<div id="oosReasonDialog" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.7);align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border);padding:24px;min-width:280px;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:16px;letter-spacing:.05em;">OOS REASON — <span id="oosUnitLabel"></span></div>
+    <div id="oosReasonBtns" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <button onclick="cancelOOSReason()" style="margin-top:16px;width:100%;" class="btn-secondary">CANCEL</button>
+  </div>
+</div>
+
+<!-- New Unit Confirmation Dialog -->
+<div id="newUnitDialog" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.75);align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--yellow);padding:24px;min-width:320px;max-width:440px;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:.05em;color:var(--yellow);">NEW UNIT — <span id="newUnitDialogId"></span></div>
+    <div id="newUnitDialogMsg" style="font-size:12px;color:var(--muted);white-space:pre-wrap;margin-bottom:20px;line-height:1.6;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="_newUnitBack()" class="btn-secondary" style="flex:1">BACK</button>
+      <button onclick="_newUnitOpen()" class="btn-good" style="flex:1">LOG ON NEW UNIT</button>
+    </div>
+  </div>
+</div>
+
+<!-- Map Modal -->
+<div id="mapModalBack" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:8000;align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;width:560px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);flex-shrink:0;">
+      <input id="mapSearchInput" type="text" placeholder="SEARCH ADDRESS..." autocomplete="off"
+        style="flex:1;padding:6px 8px;background:var(--input-bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:12px;border-radius:2px;"
+        onkeydown="if(event.key==='Enter')_mapSearch()" />
+      <button onclick="_mapSearch()" style="padding:6px 12px;background:rgba(91,163,230,.2);border:1px solid rgba(91,163,230,.4);color:#4fa3e0;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;">SEARCH</button>
+      <button onclick="closeMapModal()" style="padding:6px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:inherit;font-size:11px;cursor:pointer;border-radius:2px;">✕</button>
+    </div>
+    <div id="mapResults" style="max-height:140px;overflow-y:auto;border-bottom:1px solid var(--line);flex-shrink:0;display:none;"></div>
+    <div id="mapContainer" style="flex:1;min-height:320px;"></div>
+    <div style="padding:8px 12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <span id="mapSelectedAddr" style="font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">SELECT A RESULT TO USE IT</span>
+      <button id="mapUseBtn" onclick="_mapUseSelected()" disabled style="margin-left:10px;padding:5px 14px;background:rgba(91,163,230,.2);border:1px solid rgba(91,163,230,.4);color:#4fa3e0;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;opacity:.5;">USE ADDRESS</button>
+    </div>
+  </div>
+</div>
+
+<!-- Load Scripts -->
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator && !window.desktopAPI) {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(function(reg) {
+        // Check for updates every 5 minutes
+        setInterval(function() { reg.update(); }, 5 * 60 * 1000);
+        // Auto-reload when new service worker activates
+        reg.addEventListener('updatefound', function() {
+          var newSW = reg.installing;
+          if (newSW) {
+            newSW.addEventListener('statechange', function() {
+              if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+                console.log('[SW] New version activated — reloading');
+                window.location.reload();
+              }
+            });
+          }
+        });
+      })
+      .catch(function() {});
+  }
+</script>
+
+<!-- Report Issue Modal -->
+<div id="bugReportBack" class="modalBack" style="display:none;">
+  <div class="modal" style="max-width:480px;">
+    <h2>REPORT ISSUE</h2>
+    <div class="muted" style="margin-bottom:12px;font-size:11px;">
+      REPORTER: <span id="bugReporterLabel">—</span> &nbsp;|&nbsp;
+      PAGE: BOARD &nbsp;|&nbsp;
+      TIME: <span id="bugTimeLabel">—</span>
+    </div>
+    <div class="row">
+      <label class="muted" style="font-size:11px;width:80px;flex-shrink:0;">SEVERITY</label>
+      <select id="bugSeverity" style="flex:1;">
+        <option value="LOW">LOW — Minor / cosmetic</option>
+        <option value="MED" selected>MED — Functional problem</option>
+        <option value="HIGH">HIGH — Critical / blocking</option>
+      </select>
+    </div>
+    <div class="muted" style="margin-top:10px;margin-bottom:4px;font-size:11px;">DESCRIPTION</div>
+    <textarea id="bugDescription"
+      placeholder="DESCRIBE THE ISSUE. WHAT HAPPENED? WHAT DID YOU EXPECT?"
+      style="width:100%;box-sizing:border-box;min-height:100px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;padding:8px;resize:vertical;text-transform:uppercase;"
+      autocorrect="off" autocapitalize="characters"></textarea>
+    <details style="margin-top:8px;">
+      <summary class="muted" style="font-size:10px;cursor:pointer;user-select:none;letter-spacing:.05em;">AUTO-CAPTURED CONTEXT (SENT WITH REPORT)</summary>
+      <pre id="bugContextPreview" style="margin:4px 0 0;padding:6px 8px;background:#0b1018;border:1px solid var(--line);font-size:10px;color:#6e7681;white-space:pre-wrap;word-break:break-all;font-family:monospace;"></pre>
+    </details>
+    <div class="row" style="margin-top:10px;align-items:center;gap:10px;">
+      <button class="btn-good" onclick="submitBugReport()">SUBMIT</button>
+      <button class="btn-secondary" onclick="closeBugReport()">CANCEL</button>
+      <div id="bugStatus" class="muted" style="font-size:11px;flex:1;"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

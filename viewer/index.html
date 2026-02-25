@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#070a0f" />
+  <title>SCMC HOSCAD — CAD VIEWER</title>
+  <link rel="icon" type="image/x-icon" href="../icons/favicon.ico?v=2" />
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    /* ── Viewer-specific overrides and additions ──────────────── */
+
+    /* Full-screen layout with footer pinned */
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+    #viewerWrap {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #viewerHeader {
+      flex-shrink: 0;
+    }
+    #viewerContent {
+      flex: 1;
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+      padding: 10px;
+      padding-bottom: 0;
+      gap: 10px;
+    }
+    #viewerFooter {
+      flex-shrink: 0;
+      background: rgba(7,10,15,.98);
+      border-top: 2px solid var(--line);
+      padding: 6px 14px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: .06em;
+    }
+    #viewerFooter .footer-sep { color: var(--line); }
+
+    /* ── Board pane (full width — incident queue moved to popout) */
+    #boardPane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+      background: var(--panel2);
+      border: 2px solid var(--line);
+    }
+    #boardPaneHeader {
+      padding: 8px 12px;
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--hi);
+      border-bottom: 2px solid var(--line);
+      flex-shrink: 0;
+    }
+    #boardPaneScroll {
+      overflow: auto;
+      flex: 1;
+    }
+
+    /* #incPane removed — incident queue now lives in popout-inc/ */
+
+    /* ── Viewer incident card (right panel) ───────────────────── */
+    .viewer-inc-card {
+      background: var(--panel);
+      border: 2px solid var(--line);
+      padding: 8px 10px;
+      margin-bottom: 6px;
+    }
+    .viewer-inc-card.inc-urgent { border-color: var(--red); }
+    .viewer-inc-card.inc-mutual-aid { background: rgba(160,80,0,.07); }
+    .viewer-inc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .viewer-inc-id {
+      font-weight: 900;
+      color: var(--yellow);
+      font-size: 13px;
+    }
+    .viewer-inc-dest {
+      font-weight: 900;
+      color: var(--hi);
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+    .viewer-inc-type {
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .viewer-inc-note {
+      font-size: 11px;
+      color: var(--text);
+      line-height: 1.3;
+      margin-bottom: 3px;
+      word-break: break-word;
+    }
+    .viewer-inc-meta {
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Diversion bar ──────────────────────────────────────────*/
+    #diversionBar {
+      display: none;
+      margin: 0 10px 0 10px;
+      padding: 7px 12px;
+      background: rgba(192,57,43,.15);
+      border: 2px solid #c0392b;
+      color: #ff6b6b;
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing: .06em;
+    }
+
+    /* ── Alert/note banner below header ──────────────────────── */
+    .viewer-alert-bar {
+      margin: 6px 10px 0 10px;
+      padding: 8px 12px;
+      background: rgba(255,107,107,.12);
+      border: 2px solid #5b2727;
+      color: #ffb0b0;
+      font-weight: 900;
+      font-size: 12px;
+    }
+    .viewer-note-bar {
+      margin: 6px 10px 0 10px;
+      padding: 8px 12px;
+      background: rgba(255,214,107,.10);
+      border: 2px solid #6a5220;
+      color: var(--yellow);
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    /* ── Overlays ────────────────────────────────────────────── */
+    .viewer-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .viewer-overlay.active { display: flex; }
+
+    /* Signal lost — amber, semi-transparent */
+    #signalOverlay {
+      background: rgba(0,0,0,.6);
+      pointer-events: none;
+    }
+    #signalOverlay .overlay-box {
+      background: #2a1e00;
+      border: 2px solid #6a5220;
+      color: var(--yellow);
+      padding: 18px 28px;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-align: center;
+    }
+    #signalOverlay .overlay-box .overlay-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      font-weight: 400;
+    }
+
+    /* Session expired — red, blocks interaction */
+    #expiredOverlay {
+      background: rgba(0,0,0,.82);
+    }
+    #expiredOverlay .overlay-box {
+      background: #2a0f0f;
+      border: 2px solid #6a2020;
+      color: #ff6b6b;
+      padding: 24px 36px;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-align: center;
+    }
+    #expiredOverlay .overlay-box .overlay-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      font-weight: 400;
+    }
+    #expiredOverlay .overlay-box button {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: #2a0f0f;
+      border: 2px solid #6a2020;
+      color: #ff6b6b;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    #expiredOverlay .overlay-box button:hover { filter: brightness(1.15); }
+
+    /* ── Password screen ─────────────────────────────────────── */
+    #passwordScreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #passwordScreen.active { display: flex; }
+    .pw-card {
+      background: var(--panel2);
+      border: 2px solid var(--line);
+      padding: 32px 36px;
+      width: min(380px, 90vw);
+      text-align: center;
+    }
+    .pw-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--hi);
+      letter-spacing: .12em;
+      margin-bottom: 4px;
+    }
+    .pw-subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 28px;
+      letter-spacing: .08em;
+    }
+    .pw-card input[type="password"],
+    .pw-card input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      font-size: 14px;
+      background: var(--panel);
+      border: 2px solid var(--line);
+      color: var(--text);
+      font-family: inherit;
+      text-transform: none;
+      letter-spacing: .1em;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    .pw-card input[type="password"]:focus,
+    .pw-card input[type="text"]:focus { border-color: var(--blue); }
+    .pw-card input[type="password"]::placeholder,
+    .pw-card input[type="text"]::placeholder {
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-size: 12px;
+      color: #657892;
+    }
+    .pw-btn {
+      width: 100%;
+      padding: 13px;
+      background: #0f2518;
+      border: 2px solid #214434;
+      color: #7fffb2;
+      font-size: 14px;
+      font-weight: 900;
+      cursor: pointer;
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+    .pw-btn:hover { filter: brightness(1.1); }
+    .pw-btn:disabled { opacity: .4; cursor: default; filter: none; }
+    .pw-err {
+      margin-top: 12px;
+      min-height: 18px;
+      color: var(--red);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .pw-readonly-tag {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 4px 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+
+    /* ── Summary bar ──────────────────────────────────────────── */
+    #viewerSummary {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 3px 12px;
+      background: rgba(7,10,15,.95);
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .viewer-sum-item {
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      border-right: 1px solid var(--line);
+    }
+    .viewer-sum-item:last-child { border-right: none; }
+
+    /* Board table — read-only (no cursor:pointer on rows) */
+    .viewer-board-table tbody tr { cursor: default !important; }
+    .viewer-board-table tbody tr:hover { background: rgba(255,255,255,.02) !important; }
+
+    /* Countdown bar */
+    #countdownBar {
+      height: 2px;
+      background: var(--line);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #countdownFill {
+      height: 100%;
+      background: var(--blue);
+      opacity: .5;
+      transition: width 1s linear;
+    }
+
+    @media (max-width: 820px) {
+      #viewerContent { flex-direction: column; }
+    }
+
+    /* Night mode */
+    body.night { --bg:#000000; --panel:#03050a; --text:#8e9aaa; --line:rgba(255,255,255,.05); }
+    body.night #viewerHeader,
+    body.night #viewerSummary { background:rgba(0,0,0,.98); }
+
+    /* Night / ShowAll controls */
+    .viewer-ctrl-btn {
+      padding:2px 9px; font-size:10px; font-weight:700; font-family:inherit;
+      letter-spacing:.05em; border:1px solid var(--border); border-radius:2px;
+      background:transparent; color:var(--muted); cursor:pointer;
+    }
+    .viewer-ctrl-btn.active { background:rgba(91,163,230,.15); border-color:rgba(91,163,230,.4); color:#4fa3e0; }
+
+    /* ── Map pane (toggleable below board) ──────────────── */
+    #mapPane {
+      flex-shrink: 0;
+      height: 0;
+      overflow: hidden;
+      transition: height .25s ease;
+      position: relative;
+      isolation: isolate;   /* contain Leaflet z-index within this pane */
+    }
+    #viewerWrap.map-open #mapPane {
+      height: 320px;
+      border-top: 2px solid var(--line);
+    }
+    #mapContainer { width: 100%; height: 100%; background: #0d1a0d; position: relative; }
+    /* Leaflet layer z-index — kept low so they stay inside isolation context */
+    .leaflet-pane { z-index: 10 !important; }
+    .leaflet-top, .leaflet-bottom, .leaflet-control { z-index: 20 !important; }
+    /* Unit label overlays on map */
+    .v-map-label {
+      background: rgba(0,0,0,.9);
+      border: 1px solid rgba(255,255,255,.5);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 900;
+      font-family: inherit;
+      padding: 2px 5px;
+      white-space: nowrap;
+      transform: translate(-50%, -150%);
+      position: relative;
+      pointer-events: none;
+      text-shadow: 0 0 4px #000, 0 1px 2px #000;
+      letter-spacing: .04em;
+    }
+
+    /* Active calls section */
+    #activeCallsSection { border-bottom:1px solid var(--line); }
+    #activeCallsHeader {
+      padding:5px 10px; font-size:11px; font-weight:700; letter-spacing:.06em;
+      color:var(--muted); background:rgba(0,0,0,.2); display:flex; align-items:center; gap:6px;
+    }
+    .viewer-active-card {
+      padding:7px 10px; border-bottom:1px solid var(--line); font-size:11px;
+    }
+    .viewer-active-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
+    .viewer-active-id { font-weight:900; color:var(--hi); font-size:12px; }
+    .viewer-active-timing { display:flex; gap:10px; flex-wrap:wrap; margin-top:3px; }
+    .viewer-active-timing span { font-size:10px; color:var(--muted); }
+    .viewer-active-timing strong { color:var(--text); }
+
+    /* Priority badge colors */
+    .priority-PRI-1 { color: #f04040; font-weight: 900; }
+    .priority-PRI-2 { color: #e07000; font-weight: 900; }
+    .priority-PRI-3 { color: #e0b830; }
+    .priority-PRI-4 { color: #30d080; }
+
+    /* Zoom controls — hover to discover */
+    .viewer-zoom-bar { display:flex; align-items:center; gap:4px; margin-left:8px; opacity:0.4; transition:opacity 0.15s; }
+    .viewer-zoom-bar:hover { opacity:1; }
+    .viewer-zoom-bar.zoom-active { opacity:0.85; }
+    .viewer-zoom-btn { background:transparent; border:1px solid var(--line); color:var(--muted); font-size:14px; font-weight:900; width:26px; height:26px; cursor:pointer; font-family:inherit; line-height:1; }
+    .viewer-zoom-btn:hover { color:var(--hi); border-color:var(--hi); }
+    .viewer-zoom-label { font-size:10px; color:var(--muted); min-width:32px; text-align:center; }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     PASSWORD SCREEN
+     ============================================================ -->
+<div id="passwordScreen" class="active">
+  <div class="pw-card">
+    <div class="pw-title">SCMC HOSCAD</div>
+    <div class="pw-subtitle">CAD VIEWER — READ-ONLY ACCESS</div>
+    <input type="text" id="pwInput" placeholder="CAD ID" inputmode="numeric" autocomplete="off" maxlength="10" />
+    <button class="pw-btn" id="pwBtn" onclick="doPasswordLogin()">CONNECT</button>
+    <div class="pw-err" id="pwErr"></div>
+    <div class="pw-readonly-tag">READ-ONLY ACCESS</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN VIEWER (hidden until authenticated)
+     ============================================================ -->
+<div id="viewerWrap" style="display:none;">
+
+  <!-- HEADER -->
+  <header id="viewerHeader">
+    <div class="topbar">
+      <div class="brand">SCMC HOSCAD</div>
+      <div class="pill" style="color:var(--muted);font-size:11px;letter-spacing:.06em;">TRANSPORTATION COORDINATION</div>
+      <div id="livePill" class="pill">CONNECTING...</div>
+      <div class="row right">
+        <div id="clockPill" class="pill clock-pill">--:--</div>
+        <button class="viewer-ctrl-btn" id="btnViewerNight" onclick="toggleNightMode()" title="TOGGLE NIGHT MODE">NIGHT</button>
+        <button class="viewer-ctrl-btn" id="btnViewerIncQ" onclick="toggleViewerIncQ()" title="TOGGLE INCIDENT QUEUE">INC Q</button>
+        <button class="viewer-ctrl-btn" id="btnViewerMap" onclick="toggleViewerMap()" title="TOGGLE MAP">MAP</button>
+      </div>
+    </div>
+
+    <!-- Status summary bar -->
+    <div id="viewerSummary">
+      <span class="viewer-sum-item sum-av">AV: <strong id="sumAV">-</strong></span>
+      <span class="viewer-sum-item sum-d">D: <strong id="sumD">-</strong></span>
+      <span class="viewer-sum-item sum-de">DE: <strong id="sumDE">-</strong></span>
+      <span class="viewer-sum-item sum-os">OS: <strong id="sumOS">-</strong></span>
+      <span class="viewer-sum-item sum-t">T: <strong id="sumT">-</strong></span>
+      <span class="viewer-sum-item sum-oos">OOS: <strong id="sumOOS">-</strong></span>
+      <span class="viewer-sum-item sum-total">TOTAL: <strong id="sumTotal">-</strong></span>
+    </div>
+
+    <!-- Countdown progress bar -->
+    <div id="countdownBar"><div id="countdownFill" style="width:100%;"></div></div>
+
+    <!-- Alert banner -->
+    <div id="alertBar" class="viewer-alert-bar" style="display:none;"></div>
+    <!-- Note banner -->
+    <div id="noteBar" class="viewer-note-bar" style="display:none;"></div>
+    <!-- Diversion bar -->
+    <div id="diversionBar">DIVERSION ACTIVE: <span id="diversionList"></span></div>
+  </header>
+
+  <!-- CONTENT: Board + Incident Queue -->
+  <div id="viewerContent">
+
+    <!-- LEFT: Unit status board -->
+    <div id="boardPane">
+      <div id="boardPaneHeader" style="display:flex;align-items:center;">
+        RESOURCE BOARD <span id="boardCount" class="muted" style="font-size:11px;margin-left:4px;"></span>
+        <div class="viewer-zoom-bar">
+          <button class="viewer-zoom-btn" onclick="viewerZoom(-10)" title="ZOOM OUT">-</button>
+          <span class="viewer-zoom-label" id="viewerZoomLabel">100%</span>
+          <button class="viewer-zoom-btn" onclick="viewerZoom(10)" title="ZOOM IN">+</button>
+        </div>
+        <label style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10px;font-weight:400;color:var(--muted);cursor:pointer;">
+          <input type="checkbox" id="showInactiveCheck" onchange="renderBoard()" style="width:13px;height:13px;vertical-align:middle;" />
+          SHOW ALL
+        </label>
+      </div>
+      <div id="boardPaneScroll">
+        <table class="board-table viewer-board-table" id="boardTable">
+          <thead>
+            <tr>
+              <th class="col-unit">UNIT<div class="col-resize-handle"></div></th>
+              <th class="col-status">STATUS<div class="col-resize-handle"></div></th>
+              <th class="col-elapsed">ELAPSED<div class="col-resize-handle"></div></th>
+              <th class="col-dest">LOCATION<div class="col-resize-handle"></div></th>
+              <th class="col-note">NOTES</th>
+              <th class="col-inc">INC#<div class="col-resize-handle"></div></th>
+              <th class="col-updated">UPDATED<div class="col-resize-handle"></div></th>
+            </tr>
+          </thead>
+          <tbody id="boardBody">
+            <tr><td colspan="7" class="muted" style="padding:20px;text-align:center;">CONNECTING...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Active calls section (rendered by renderActiveIncidents) -->
+      <div id="activeCallsSection" style="display:none;">
+        <div id="activeCallsHeader">ACTIVE CALLS <span id="activeCallsCount"></span></div>
+        <div id="activeCallsBody"></div>
+      </div>
+    </div>
+
+  </div><!-- /viewerContent -->
+
+  <!-- MAP PANE (collapsed by default, toggled by MAP button) -->
+  <div id="mapPane">
+    <div id="mapContainer"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <div id="viewerFooter">
+    <span>AUTO-REFRESH IN <strong id="footCountdown">15</strong>S</span>
+    <span class="footer-sep">&middot;</span>
+    <span>LAST UPDATE: <strong id="footLastUpdate">--:--:--</strong></span>
+    <span class="footer-sep">&middot;</span>
+    <span style="color:var(--muted);">READ-ONLY VIEWER</span>
+  </div>
+
+</div><!-- /viewerWrap -->
+<div id="globalTip"></div>
+
+<!-- ============================================================
+     OVERLAYS
+     ============================================================ -->
+
+<!-- Signal lost overlay (amber, semi-transparent) -->
+<div id="signalOverlay" class="viewer-overlay">
+  <div class="overlay-box">
+    SIGNAL LOST &mdash; RECONNECTING...
+    <div class="overlay-sub">LAST SUCCESSFUL POLL: <span id="signalLostTime">--:--:--</span></div>
+  </div>
+</div>
+
+<!-- Session expired overlay (red, full block) -->
+<div id="expiredOverlay" class="viewer-overlay">
+  <div class="overlay-box">
+    SESSION EXPIRED
+    <div class="overlay-sub">YOUR VIEWER SESSION HAS ENDED.</div>
+    <button onclick="window.location.reload()">REFRESH TO RECONNECT</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script src="../api.js"></script>
+<script>
+'use strict';
+
+// ============================================================
+// SECTION: Constants & State
+// ============================================================
+const POLL_INTERVAL = 15;        // seconds between polls
+const STALE_THRESHOLD = 45;      // seconds before "signal lost" overlay
+const RELAY_WAIT = 2000;         // ms to wait for postMessage relay token
+
+let _token = null;               // active auth token
+let _loginFailCount = 0;         // failed viewer login attempts (brute-force protection)
+let _loginLockUntil = 0;         // timestamp (ms) until login is unlocked
+let _state = null;               // last received state object
+let _lastPollOk = null;          // Date of last successful poll
+let _polling = false;            // prevents overlapping polls
+let _expired = false;            // session expired flag
+let _countdown = POLL_INTERVAL;  // seconds until next poll
+let _pollTimer = null;           // setInterval handle for poll
+let _tickTimer = null;           // setInterval handle for 1s tick
+let _viewerZoom = 100;           // board zoom level (percent)
+let _incQVisible = false;        // incident queue toggle state (off by default)
+
+// ============================================================
+// SECTION: Utilities
+// ============================================================
+
+/** HTML-escape a value */
+function esc(s) {
+  return String(s ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+}
+
+/** Format an ISO timestamp as HH:MM:SS (24-hour) */
+function fmtTime24(iso) {
+  if (!iso) return '\u2014';
+  const d = new Date(iso);
+  if (!isFinite(d.getTime())) return '\u2014';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
+/** Format an ISO timestamp as HH:MM (24-hour, no seconds) — for the clock */
+function fmtClock(d) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/** Minutes since an ISO timestamp; null if invalid */
+function minutesSince(iso) {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return null;
+  return (Date.now() - t) / 60000;
+}
+
+/**
+ * Format elapsed minutes as a short human string.
+ * e.g. 3 -> "3M", 90 -> "1H30M"
+ */
+function formatElapsed(minutes) {
+  if (minutes == null) return '\u2014';
+  const m = Math.floor(minutes);
+  if (m >= 60) {
+    const hrs = Math.floor(m / 60);
+    const mins = m % 60;
+    return hrs + 'H' + (mins > 0 ? String(mins).padStart(2, '0') + 'M' : '');
+  }
+  return m + 'M';
+}
+
+/** Status sort rank (lower = more active/urgent) */
+const STATUS_RANK = { D: 1, DE: 2, OS: 3, T: 4, AV: 5, OOS: 6 };
+function statusRank(code) {
+  return STATUS_RANK[String(code || '').toUpperCase()] ?? 99;
+}
+
+/** Derive CSS class for incident type string */
+function getIncidentTypeClass(type) {
+  const t = String(type || '').toUpperCase().trim();
+  const priMatch = t.match(/PRI-?(\d)$/);
+  if (priMatch) {
+    const n = priMatch[1];
+    if (n === '1') return 'inc-type-delta';
+    if (n === '2') return 'inc-type-charlie';
+    if (n === '3') return 'inc-type-bravo';
+    if (n === '4') return 'inc-type-alpha';
+  }
+  const det = t.split('-').pop();
+  if (det === 'DELTA')   return 'inc-type-delta';
+  if (det === 'CHARLIE') return 'inc-type-charlie';
+  if (det === 'BRAVO')   return 'inc-type-bravo';
+  if (det === 'ALPHA')   return 'inc-type-alpha';
+  if (t.startsWith('CCT'))         return 'inc-type-delta';
+  if (t.startsWith('IFT-ALS'))     return 'inc-type-charlie';
+  if (t.startsWith('IFT'))         return 'inc-type-bravo';
+  if (t.startsWith('DISCHARGE') || t.includes('STRETCHER') || t.includes('WHEELCHAIR')) return 'inc-type-alpha';
+  if (t.startsWith('DIALYSIS'))    return 'inc-type-alpha';
+  if (t) return 'inc-type-other';
+  return '';
+}
+
+/** Group border colors keyed by type class */
+const INC_GROUP_BORDER = {
+  'inc-type-delta':   '#ff4444',
+  'inc-type-charlie': '#ff6600',
+  'inc-type-bravo':   '#ffd700',
+  'inc-type-alpha':   '#4fa3e0',
+  'inc-type-other':   '#6a7a8a',
+};
+
+/** Resolve a destination code to a display name using state.destinations */
+function resolveDestName(code) {
+  if (!code || !_state) return code || '';
+  const v = String(code).trim().toUpperCase();
+  const dest = (_state.destinations || []).find(d => d.code === v);
+  if (dest && dest.name) return dest.name;
+  return v;
+}
+
+/** Viewer board zoom — transform: scale() approach */
+function viewerZoom(delta) {
+  _viewerZoom = Math.max(50, Math.min(200, _viewerZoom + delta));
+  applyViewerZoom();
+}
+function applyViewerZoom() {
+  const table = document.getElementById('boardTable');
+  if (!table) return;
+  const s = _viewerZoom / 100;
+  table.style.transform = s !== 1 ? 'scale(' + s + ')' : '';
+  table.style.transformOrigin = 'top left';
+  table.style.width = s !== 1 ? (10000 / _viewerZoom) + '%' : '';
+  const label = document.getElementById('viewerZoomLabel');
+  if (label) label.textContent = _viewerZoom + '%';
+  const zbar = document.querySelector('.viewer-zoom-bar');
+  if (zbar) zbar.classList.toggle('zoom-active', _viewerZoom !== 100);
+  try { localStorage.setItem('hoscad_viewer_zoom', String(_viewerZoom)); } catch(e) {}
+}
+function loadViewerZoom() {
+  try {
+    const saved = localStorage.getItem('hoscad_viewer_zoom');
+    if (saved) _viewerZoom = Math.max(50, Math.min(200, parseInt(saved, 10) || 100));
+  } catch(e) {}
+  applyViewerZoom();
+}
+
+/** Parse [HOLD:HH:MM] tag from incident note. Returns {time, isDue} or null. */
+function parseHoldTag(note) {
+  const m = (note || '').match(/\[HOLD:(\d{1,2}:\d{2})\]/i);
+  if (!m) return null;
+  const parts = m[1].split(':');
+  const hh = parseInt(parts[0], 10), mm = parseInt(parts[1], 10);
+  const now = new Date();
+  const holdDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+  return { time: m[1], isDue: now >= holdDate };
+}
+
+/** Parse bracket/paren note: "SCMC [BED 4]" → { base, note } */
+function _parseBracketNote(val) {
+  if (!val) return { base: '', note: '' };
+  let idx = val.indexOf('[');
+  let close = ']';
+  if (idx < 0) { idx = val.lastIndexOf('('); close = ')'; }
+  if (idx < 0) return { base: val, note: '' };
+  const base = val.substring(0, idx).trim();
+  let note = val.substring(idx + 1).trim();
+  if (note.endsWith(close)) note = note.substring(0, note.length - 1).trim();
+  return { base: base || val, note };
+}
+
+function _noteBadge(note) {
+  return note ? ' ' + esc(note) : '';
+}
+
+/** Format destination HTML for the board (name + [DIV] badge + bracket note if any) */
+function formatDestHtml(code) {
+  if (!code) return '<span class="muted">\u2014</span>';
+  const v = String(code).trim().toUpperCase();
+  const { base, note } = _parseBracketNote(v);
+  const lookupKey = base || v;
+  const destObj = _state ? (_state.destinations || []).find(d => d.code === lookupKey) : null;
+  const divBadge = destObj && destObj.diverted ? ' <span class="div-badge">DIV</span>' : '';
+  const nBadge = _noteBadge(note);
+  const name = destObj && destObj.name ? destObj.name : lookupKey;
+  return '<span class="destBig">' + esc(name) + '</span>' + nBadge + divBadge;
+}
+
+/** Format contextual LOCATION for a unit — scene addr for D/DE/OS, transport dest for T/AT/TH */
+function formatLocationHtml(unit) {
+  const st = String(unit.status || '').toUpperCase();
+  if (['D', 'DE', 'OS'].includes(st) && unit.incident && _state) {
+    const inc = (_state.incidents || []).find(i => i.incident_id === unit.incident);
+    if (inc && inc.scene_address) {
+      const raw = String(inc.scene_address).trim().toUpperCase();
+      const { base, note } = _parseBracketNote(raw);
+      // No JS truncation — let CSS text-overflow:ellipsis clip to column width,
+      // which expands correctly when the user resizes the column.
+      return '<span class="destBig" title="' + esc(raw) + '">' + esc(base) + '</span>' + _noteBadge(note);
+    }
+  }
+  if (['T', 'AT', 'TH'].includes(st) && unit.destination) return formatDestHtml(unit.destination);
+  if (unit.destination) return formatDestHtml(unit.destination);
+  const locTag = (unit.note || '').match(/\[LOC:([^\]]+)\]/);
+  if (locTag) {
+    const raw = locTag[1].trim().toUpperCase();
+    const { base, note } = _parseBracketNote(raw);
+    return '<span class="destBig" title="' + esc(raw) + '">' + esc(base) + '</span>' + _noteBadge(note);
+  }
+  return '<span class="muted">\u2014</span>';
+}
+
+// ============================================================
+// SECTION: Clock
+// ============================================================
+// SECTION: Night mode
+// ============================================================
+function toggleNightMode() {
+  const isNight = document.body.classList.toggle('night');
+  const btn = document.getElementById('btnViewerNight');
+  if (btn) btn.classList.toggle('active', isNight);
+  try { localStorage.setItem('hoscad_viewer_night', isNight ? '1' : '0'); } catch(e) {}
+}
+
+function loadNightMode() {
+  try {
+    if (localStorage.getItem('hoscad_viewer_night') === '1') {
+      document.body.classList.add('night');
+      const btn = document.getElementById('btnViewerNight');
+      if (btn) btn.classList.add('active');
+    }
+  } catch(e) {}
+}
+
+// ============================================================
+function tickClock() {
+  const now = new Date();
+  const el = document.getElementById('clockPill');
+  if (el) el.textContent = fmtClock(now);
+}
+
+// ============================================================
+// SECTION: Authentication
+// ============================================================
+
+/**
+ * Attempt to login with the shared viewer password.
+ * Calls API.call('viewerLogin', password).
+ * On success, stores token in sessionStorage and starts the board.
+ */
+async function doPasswordLogin() {
+  const input = document.getElementById('pwInput');
+  const btn   = document.getElementById('pwBtn');
+  const errEl = document.getElementById('pwErr');
+  const cadId = input ? input.value.trim() : '';
+
+  // Brute-force lockout check
+  const now = Date.now();
+  if (_loginLockUntil > now) {
+    const mins = Math.ceil((_loginLockUntil - now) / 60000);
+    errEl.textContent = 'TOO MANY FAILED ATTEMPTS — TRY AGAIN IN ' + mins + ' MINUTE' + (mins === 1 ? '' : 'S') + '.';
+    return;
+  }
+
+  if (!cadId) {
+    errEl.textContent = 'ENTER CAD ID.';
+    return;
+  }
+
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'CONNECTING...';
+
+  try {
+    const res = await API.viewerLogin(cadId);
+    if (res && res.ok && res.token) {
+      _loginFailCount = 0;
+      _loginLockUntil = 0;
+      sessionStorage.setItem('viewer_token', res.token);
+      _token = res.token;
+      startBoard();
+    } else {
+      _loginFailCount++;
+      if (_loginFailCount >= 10) {
+        _loginLockUntil = Date.now() + 15 * 60 * 1000;
+        _loginFailCount = 0;
+        errEl.textContent = 'TOO MANY FAILED ATTEMPTS — LOCKED FOR 15 MINUTES.';
+      } else {
+        errEl.textContent = ((res && res.error) ? res.error : 'CAD ID NOT RECOGNIZED.') +
+          ' (' + _loginFailCount + '/10)';
+      }
+      btn.disabled = false;
+      btn.textContent = 'CONNECT';
+    }
+  } catch (e) {
+    errEl.textContent = 'NETWORK ERROR — CHECK CONNECTION.';
+    btn.disabled = false;
+    btn.textContent = 'CONNECT';
+  }
+}
+
+/** Check sessionStorage for an existing viewer token */
+function tryStoredToken() {
+  const t = sessionStorage.getItem('viewer_token');
+  if (t) {
+    _token = t;
+    return true;
+  }
+  return false;
+}
+
+/** Accept a relay token from window.opener via postMessage */
+function setupRelayListener(resolve) {
+  function handler(e) {
+    // Only accept from same origin
+    if (e.origin !== window.location.origin) return;
+    const d = e.data;
+    if (d && d.type === 'HOSCAD_RELAY_TOKEN' && d.token) {
+      window.removeEventListener('message', handler);
+      resolve(d.token);
+    }
+  }
+  window.addEventListener('message', handler);
+}
+
+// ============================================================
+// SECTION: Board Bootstrap
+// ============================================================
+
+/** Show the main board, hide the password screen, start polling */
+function startBoard() {
+  document.getElementById('passwordScreen').classList.remove('active');
+  document.getElementById('viewerWrap').style.display = 'flex';
+  loadNightMode();
+  loadViewerZoom();
+
+  // Immediately poll, then set up interval
+  doPoll();
+
+  // 1-second tick: clock + countdown + stale check
+  _tickTimer = setInterval(onTick, 1000);
+}
+
+/** Show the password screen */
+function showPasswordScreen() {
+  document.getElementById('passwordScreen').classList.add('active');
+  document.getElementById('viewerWrap').style.display = 'none';
+  const input = document.getElementById('pwInput');
+  if (input) setTimeout(() => input.focus(), 100);
+}
+
+// ============================================================
+// SECTION: Polling
+// ============================================================
+
+/** Execute a single poll cycle */
+async function doPoll() {
+  if (_expired || _polling || !_token) return;
+  _polling = true;
+
+  try {
+    const res = await API.getState(_token);
+
+    if (!res || !res.ok) {
+      // Session expired
+      if (res && res.error && /NOT AUTHENTICATED|TOKEN EXPIRED|SESSION EXPIRED|PLEASE LOG IN/i.test(res.error)) {
+        handleExpired();
+      }
+      // Otherwise signal lost — will be shown by tick
+    } else {
+      _state = res;
+      _lastPollOk = new Date();
+      _countdown = POLL_INTERVAL;
+      updateFooter();
+      renderAll();
+      setLivePill(true);
+      hideSignalOverlay();
+    }
+  } catch (e) {
+    console.error('[Viewer] Poll error:', e);
+  } finally {
+    _polling = false;
+  }
+}
+
+/** 1-second tick handler */
+function onTick() {
+  tickClock();
+
+  if (_expired) return;
+
+  // Countdown
+  _countdown = Math.max(0, _countdown - 1);
+  const footEl = document.getElementById('footCountdown');
+  if (footEl) footEl.textContent = _countdown;
+
+  // Progress bar fill (100% = just polled, 0% = about to poll)
+  const fillEl = document.getElementById('countdownFill');
+  if (fillEl) fillEl.style.width = ((_countdown / POLL_INTERVAL) * 100) + '%';
+
+  // Trigger poll when countdown hits 0
+  if (_countdown <= 0 && !_polling) {
+    _countdown = POLL_INTERVAL;
+    doPoll();
+  }
+
+  // Stale check
+  if (_lastPollOk) {
+    const secSince = (Date.now() - _lastPollOk.getTime()) / 1000;
+    if (secSince > STALE_THRESHOLD) {
+      showSignalOverlay();
+    }
+  }
+}
+
+// ============================================================
+// SECTION: Live / Signal Overlays
+// ============================================================
+
+function setLivePill(ok) {
+  const el = document.getElementById('livePill');
+  if (!el) return;
+  if (ok) {
+    el.className = 'pill live';
+    el.textContent = 'LIVE';
+  } else {
+    el.className = 'pill offline';
+    el.textContent = 'OFFLINE';
+  }
+}
+
+function showSignalOverlay() {
+  const el = document.getElementById('signalOverlay');
+  if (el) el.classList.add('active');
+  const tEl = document.getElementById('signalLostTime');
+  if (tEl && _lastPollOk) tEl.textContent = fmtTime24(_lastPollOk.toISOString());
+  setLivePill(false);
+}
+
+function hideSignalOverlay() {
+  const el = document.getElementById('signalOverlay');
+  if (el) el.classList.remove('active');
+}
+
+function handleExpired() {
+  _expired = true;
+  sessionStorage.removeItem('viewer_token');
+  const el = document.getElementById('expiredOverlay');
+  if (el) el.classList.add('active');
+}
+
+// ============================================================
+// SECTION: Footer
+// ============================================================
+function updateFooter() {
+  const el = document.getElementById('footLastUpdate');
+  if (el && _lastPollOk) {
+    el.textContent = fmtTime24(_lastPollOk.toISOString());
+  }
+}
+
+// ============================================================
+// SECTION: Render — Master
+// ============================================================
+function renderAll() {
+  if (!_state) return;
+  renderBanners();
+  renderDiversion();
+  renderSummaryBar();
+  renderBoard();
+  renderActiveIncidents();
+  renderIncidentQueue();
+  renderMap();
+}
+
+// ============================================================
+// SECTION: Render — Active Incidents (with timing)
+// ============================================================
+function renderActiveIncidents() {
+  if (!_state) return;
+  const section  = document.getElementById('activeCallsSection');
+  const body     = document.getElementById('activeCallsBody');
+  const countEl  = document.getElementById('activeCallsCount');
+  if (!section || !body) return;
+
+  const active = (_state.incidents || []).filter(i => i.status === 'ACTIVE');
+  if (!active.length || !_incQVisible) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  if (countEl) countEl.textContent = '(' + active.length + ')';
+
+  // Sort: most recently updated first
+  active.sort((a, b) => new Date(b.last_update || b.created_at) - new Date(a.last_update || a.created_at));
+
+  let html = '';
+  active.forEach(inc => {
+    const shortId  = inc.incident_id.replace(/^\d{2}-/, '');
+    const pri      = inc.priority || '';
+    const incType  = inc.incident_type || '';
+    const typeCl   = getIncidentTypeClass(incType);
+    const destName = resolveDestName(inc.destination) || inc.destination || '';
+    const linkedUnits = (_state.units || []).filter(u => u.incident === inc.incident_id && u.active);
+    const unitsStr = linkedUnits.map(u => esc(u.unit_id)).join(', ');
+
+    const rawNote  = inc.incident_note || '';
+    const isMa     = /\[MA\]/i.test(rawNote);
+    const cleanNote = rawNote.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();
+    const holdInfo = parseHoldTag(rawNote);
+
+    const priBadge = pri ? '<span class="priority-' + esc(pri) + '" style="font-size:10px;font-weight:900;margin-left:4px;">' + esc(pri) + '</span>' : '';
+    const maBadge  = isMa ? '<span class="ma-badge" style="margin-left:4px;">MA</span>' : '';
+    const ppBadge  = inc.pp_incident_id ? '<span class="pp-rel-badge" title="PulsePoint Link">PP:' + esc(inc.pp_incident_id) + '</span>' : '';
+    const relIds   = Array.isArray(inc.related_incidents) ? inc.related_incidents : [];
+    const relBadge = relIds.map(rid => '<span class="rel-badge" title="Linked Incident">REL:' + esc(String(rid).replace(/^\d{2}-/, '')) + '</span>').join('');
+    const holdBadge = holdInfo
+      ? '<span class="hold-badge' + (holdInfo.isDue ? ' hold-badge-due' : '') + '" style="margin-left:4px;font-size:10px;">&#9200; ' + esc(holdInfo.time) + '</span>'
+      : '';
+    const dispM    = rawNote.match(/\[DISP:([^\]]+)\]/i);
+    const dispBadge = dispM ? '<span class="disp-badge">' + esc(dispM[1].trim().toUpperCase()) + '</span>' : '';
+
+    html += '<div class="viewer-active-card">';
+    html += '<div class="viewer-active-header">';
+    html += '<span class="viewer-active-id">INC' + esc(shortId) + priBadge + holdBadge + dispBadge + maBadge + ppBadge + relBadge + '</span>';
+    if (destName) html += '<span style="font-size:11px;color:var(--muted);">' + esc(destName) + '</span>';
+    html += '</div>';
+
+    if (incType) html += '<div style="margin-bottom:3px;"><span class="inc-type ' + typeCl + '">' + esc(incType) + '</span></div>';
+    if (inc.scene_address) html += '<div style="font-size:10px;color:var(--muted);margin-bottom:3px;">' + esc(inc.scene_address) + '</div>';
+    if (cleanNote) html += '<div style="font-size:11px;margin-bottom:3px;">' + esc(cleanNote) + '</div>';
+
+    // Timing row — all 6 EMS milestones
+    const timingItems = [];
+    if (inc.dispatch_time)    timingItems.push('<span><strong>D:</strong> '   + fmtTime24(inc.dispatch_time)    + '</span>');
+    if (inc.enroute_time)     timingItems.push('<span><strong>DE:</strong> '  + fmtTime24(inc.enroute_time)     + '</span>');
+    if (inc.arrival_time)     timingItems.push('<span><strong>OS:</strong> '  + fmtTime24(inc.arrival_time)     + '</span>');
+    if (inc.transport_time)   timingItems.push('<span><strong>T:</strong> '   + fmtTime24(inc.transport_time)   + '</span>');
+    if (inc.at_hospital_time) timingItems.push('<span><strong>AT:</strong> '  + fmtTime24(inc.at_hospital_time) + '</span>');
+    if (inc.handoff_time)     timingItems.push('<span><strong>HO:</strong> '  + fmtTime24(inc.handoff_time)     + '</span>');
+    if (timingItems.length) html += '<div class="viewer-active-timing">' + timingItems.join('') + '</div>';
+
+    if (unitsStr) html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;">UNITS: ' + unitsStr + '</div>';
+    html += '</div>';
+  });
+
+  body.innerHTML = html;
+}
+
+// ============================================================
+// SECTION: Render — Banners
+// ============================================================
+function renderBanners() {
+  if (!_state) return;
+
+  // Alert banner
+  const alertMsg = (_state.banners && _state.banners.alert && _state.banners.alert.message) || '';
+  const alertBar = document.getElementById('alertBar');
+  if (alertBar) {
+    if (alertMsg) {
+      alertBar.style.display = 'block';
+      alertBar.textContent = alertMsg;
+    } else {
+      alertBar.style.display = 'none';
+    }
+  }
+
+  // Note banner
+  const noteMsg = (_state.banners && _state.banners.note && _state.banners.note.message) || '';
+  const noteBar = document.getElementById('noteBar');
+  if (noteBar) {
+    if (noteMsg) {
+      noteBar.style.display = 'block';
+      noteBar.textContent = noteMsg;
+    } else {
+      noteBar.style.display = 'none';
+    }
+  }
+}
+
+// ============================================================
+// SECTION: Render — Diversion Bar
+// ============================================================
+function renderDiversion() {
+  if (!_state) return;
+  const divBar   = document.getElementById('diversionBar');
+  const divList  = document.getElementById('diversionList');
+  if (!divBar || !divList) return;
+
+  const diverted = (_state.destinations || []).filter(d => d.diverted);
+  if (diverted.length) {
+    divBar.style.display = 'block';
+    divList.textContent = diverted.map(d => d.name || d.code).join(' / ');
+  } else {
+    divBar.style.display = 'none';
+    divList.textContent = '';
+  }
+}
+
+// ============================================================
+// SECTION: Render — Summary Bar
+// ============================================================
+function renderSummaryBar() {
+  if (!_state) return;
+  const units = (_state.units || []).filter(u => u.active);
+
+  const counts = { AV: 0, D: 0, DE: 0, OS: 0, T: 0, OOS: 0 };
+  units.forEach(u => {
+    const st = String(u.status || '').toUpperCase();
+    if (counts.hasOwnProperty(st)) counts[st]++;
+  });
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('sumAV',    counts.AV);
+  set('sumD',     counts.D);
+  set('sumDE',    counts.DE);
+  set('sumOS',    counts.OS);
+  set('sumT',     counts.T);
+  set('sumOOS',   counts.OOS);
+  set('sumTotal', units.length);
+}
+
+// ============================================================
+// SECTION: Render — Unit Board
+// ============================================================
+function renderBoard() {
+  if (!_state) return;
+  const tb       = document.getElementById('boardBody');
+  const countEl  = document.getElementById('boardCount');
+  if (!tb) return;
+
+  // Filter: active units only unless showAll is checked
+  const showAll = document.getElementById('showInactiveCheck')?.checked;
+  let units = showAll ? (_state.units || []) : (_state.units || []).filter(u => u.active);
+
+  // Sort by status priority, then unit ID
+  units.sort((a, b) => {
+    const ra = statusRank(a.status);
+    const rb = statusRank(b.status);
+    let cmp = ra - rb;
+    if (cmp === 0) {
+      // Within D: most recently dispatched first
+      const stA = String(a.status || '').toUpperCase();
+      if (stA === 'D') {
+        const tA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const tB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        cmp = tB - tA;
+      }
+    }
+    if (cmp === 0) cmp = String(a.unit_id || '').localeCompare(String(b.unit_id || ''));
+    return cmp;
+  });
+
+  if (countEl) countEl.textContent = '(' + units.length + ' ACTIVE)';
+
+  // Stale status set
+  const STALE_STATUSES = new Set(['D', 'DE', 'OS', 'T']);
+  const staleThresholds = _state.staleThresholds || { WARN: 10, ALERT: 20, CRITICAL: 30 };
+
+  tb.innerHTML = '';
+
+  units.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.dataset.unitId = String(u.unit_id || '').toUpperCase();
+    const mi = minutesSince(u.updated_at);
+    const stCode = String(u.status || '').toUpperCase();
+
+    // Status row tint
+    tr.classList.add('status-' + stCode);
+
+    // Stale row classes (D, DE, OS, T only)
+    if (STALE_STATUSES.has(stCode) && mi != null) {
+      if (mi >= staleThresholds.CRITICAL) tr.classList.add('stale30');
+      else if (mi >= staleThresholds.ALERT)    tr.classList.add('stale20');
+      else if (mi >= staleThresholds.WARN)     tr.classList.add('stale10');
+    }
+
+    // UNIT column — unit ID + level badge + crew sub-row
+    const uId = String(u.unit_id || '').toUpperCase();
+    const di  = String(u.display_name || '').toUpperCase();
+    const showDi = di && di !== uId;
+    const lvlBadge = u.level
+      ? ' <span class="level-badge level-' + esc(u.level) + '">' + esc(u.level) + '</span>'
+      : '';
+    const crewParts = u.unit_info
+      ? String(u.unit_info).split('|').filter(p => /^CM\d:/i.test(p))
+      : [];
+    const crewHtml = crewParts.length
+      ? '<div class="crew-sub">' +
+          crewParts.map(p => esc(p.replace(/^CM\d:/i, '').trim())).join(' / ') +
+        '</div>'
+      : '';
+    const unitHtml =
+      '<span class="unit">' + esc(uId) + '</span>' + lvlBadge +
+      (showDi ? ' <span class="muted" style="font-size:10px;">' + esc(di) + '</span>' : '') +
+      crewHtml;
+
+    // STATUS column — CAD reader board style: large code + dimmer label
+    const stLabel = (_state.statuses || []).find(s => s.code === u.status)?.label || u.status || '';
+    const statusHtml =
+      '<span class="statusCode status-text-' + esc(stCode) + '">' + esc(stCode) + '</span>' +
+      '<span class="statusLabel status-text-' + esc(stCode) + '">' + esc(stLabel) + '</span>';
+
+    // ELAPSED column
+    const elapsedVal = formatElapsed(mi);
+    let elapsedClass = 'elapsed-cell';
+    if (mi != null && STALE_STATUSES.has(stCode)) {
+      if (mi >= staleThresholds.CRITICAL) elapsedClass += ' elapsed-critical';
+      else if (mi >= staleThresholds.WARN)     elapsedClass += ' elapsed-warn';
+    }
+
+    // LOCATION column
+    const destHtml = formatLocationHtml(u);
+
+    // NOTES column — incident note if linked, else unit note
+    let noteText = '';
+    if (u.incident) {
+      const incObj = (_state.incidents || []).find(i => i.incident_id === u.incident);
+      if (incObj && incObj.incident_note) {
+        noteText = incObj.incident_note.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();
+      }
+    }
+    if (!noteText) noteText = (u.note || '').replace(/^\[OOS:[^\]]+\]\s*/, '').replace(/\[LOC:[^\]]*\]\s*/g, '').replace(/\[ETA:\d+\]\s*/g, '');
+    noteText = noteText.toUpperCase();
+
+    const oosMatch = (u.note || '').match(/^\[OOS:([^\]]+)\]/);
+    const oosBadge = oosMatch ? '<span class="oos-badge">' + esc(oosMatch[1]) + '</span>' : '';
+    const patMatch = (u.note || '').match(/\[PAT:([^\]]+)\]/);
+    const patBadge = patMatch ? '<span class="pat-badge">PAT:' + esc(patMatch[1]) + '</span>' : '';
+    const etaVMatch = (u.note || '').match(/\[ETA:(\d+)\]/);
+    const etaVBadge = etaVMatch ? '<span class="eta-badge" title="ETA SET">ETA:' + esc(etaVMatch[1]) + 'M</span>' : '';
+    const noteHtml =
+      (noteText ? '<span class="noteBig">' + esc(noteText) + '</span>' : '<span class="muted">\u2014</span>') +
+      oosBadge + patBadge + etaVBadge;
+
+    // INC# column — short ID + colored dot for type + group border
+    let incHtml = '<span class="muted">\u2014</span>';
+    let groupBorderColor = '';
+    if (u.incident) {
+      const shortInc = String(u.incident).replace(/^\d{2}-/, '');
+      let dotHtml = '';
+      const incObj = (_state.incidents || []).find(i => i.incident_id === u.incident);
+      if (incObj && incObj.incident_type) {
+        const typCl = getIncidentTypeClass(incObj.incident_type);
+        const dotCl = typCl.replace('inc-type-', 'inc-type-dot-');
+        if (dotCl) dotHtml = '<span class="inc-type-dot ' + dotCl + '"></span>';
+        // Group border if 2+ units share this incident
+        const sharedCount = (_state.units || []).filter(
+          ou => ou.active && ou.unit_id !== u.unit_id && ou.incident === u.incident
+        ).length;
+        if (sharedCount > 0) groupBorderColor = INC_GROUP_BORDER[typCl] || '#6a7a8a';
+      }
+      // Stack badge — count queued assignments beyond primary
+      const unitAssignments = (_state.assignments || []).filter(a => a.unit_id === u.unit_id);
+      const queuedCount = unitAssignments.filter(a => a.role !== 'primary').length;
+      const stackBadge = queuedCount > 0
+        ? ' <span class="stack-badge' + (queuedCount >= 2 ? ' stack-badge-urgent' : '') + '" title="' + queuedCount + ' queued">STACK:' + queuedCount + '</span>'
+        : '';
+      // No link — read-only, just show the ID as text
+      incHtml = dotHtml + '<span style="font-weight:900;color:var(--hi);">INC' + esc(shortInc) + '</span>' + stackBadge;
+    }
+    if (groupBorderColor) tr.style.borderLeft = '3px solid ' + groupBorderColor;
+
+    // UPDATED column
+    const updatedHtml = fmtTime24(u.updated_at) +
+      ' <span class="muted" style="font-size:10px;">' + esc(String(u.updated_by || '').toUpperCase()) + '</span>';
+
+    // Assemble row — no onclick, no cursor pointer
+    tr.innerHTML =
+      '<td>' + unitHtml + '</td>' +
+      '<td>' + statusHtml + '</td>' +
+      '<td class="' + elapsedClass + '">' + elapsedVal + '</td>' +
+      '<td>' + destHtml + '</td>' +
+      '<td>' + noteHtml + '</td>' +
+      '<td>' + incHtml + '</td>' +
+      '<td>' + updatedHtml + '</td>';
+
+    tb.appendChild(tr);
+  });
+
+  if (!units.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted" style="padding:20px;text-align:center;">NO ACTIVE UNITS</td></tr>';
+  }
+}
+
+// ============================================================
+// SECTION: Render — Incident Queue
+// ============================================================
+function renderIncidentQueue() {
+  if (!_state) return;
+  const body    = document.getElementById('incQueueBody');
+  const countEl = document.getElementById('incQueueCount');
+  if (!body) return;
+
+  const incidents = (_state.incidents || []).filter(i => i.status === 'QUEUED');
+
+  if (countEl) {
+    countEl.textContent = incidents.length > 0 ? '(' + incidents.length + ' QUEUED)' : '';
+  }
+
+  if (!incidents.length) {
+    body.innerHTML = '<div class="muted" style="padding:16px;text-align:center;font-size:11px;">NO QUEUED INCIDENTS</div>';
+    return;
+  }
+
+  // Sort newest first
+  incidents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  let html = '';
+  incidents.forEach(inc => {
+    const pri       = inc.priority || '';
+    const rawNote   = inc.incident_note || '';
+    const urgent    = rawNote.includes('[URGENT]') || pri === 'PRI-1' || pri === 'CRITICAL';
+    const isMa      = /\[MA\]/i.test(rawNote);
+    const cbMatch   = rawNote.match(/\[CB:([^\]]+)\]/i);
+    const waitMins  = Math.floor((Date.now() - new Date(inc.created_at).getTime()) / 60000);
+    const waitCls   = waitMins > 20 ? 'inc-overdue' : waitMins > 10 ? 'inc-wait' : '';
+    const shortId   = inc.incident_id.replace(/^\d{2}-/, '');
+    const incType   = inc.incident_type || '';
+    const typeCl    = getIncidentTypeClass(incType);
+
+    // Cleaned note (strip prefixes)
+    const cleanNote = rawNote
+      .replace(/^\[URGENT\]\s*/i, '')
+      .replace(/\[MA\]\s*/gi, '')
+      .replace(/\[CB:[^\]]+\]\s*/gi, '')
+      .trim();
+
+    // Destination
+    const destName = resolveDestName(inc.destination) || inc.destination || 'NO DEST';
+
+    // Units assigned (from state.units linked to this incident)
+    const linkedUnits = (_state.units || []).filter(u => u.incident === inc.incident_id && u.active);
+    const unitsStr = linkedUnits.length ? linkedUnits.map(u => esc(u.unit_id)).join(', ') : '';
+
+    // Badges
+    const maBadge   = isMa ? '<span class="ma-badge">MA</span>' : '';
+    const cbBadge   = cbMatch ? '<span class="cb-badge">CB:' + esc(cbMatch[1].trim()) + '</span>' : '';
+    const priBadge  = pri
+      ? '<span class="priority-' + esc(pri) + '" style="font-size:10px;font-weight:900;margin-left:4px;">' + esc(pri) + '</span>'
+      : '';
+    const ppBadge   = inc.pp_incident_id ? '<span class="pp-rel-badge" title="PulsePoint Link">PP:' + esc(inc.pp_incident_id) + '</span>' : '';
+    const relIds    = Array.isArray(inc.related_incidents) ? inc.related_incidents : [];
+    const relBadge  = relIds.map(rid => '<span class="rel-badge" title="Linked Incident">REL:' + esc(String(rid).replace(/^\d{2}-/, '')) + '</span>').join('');
+    const staleBadge = waitMins >= 240 ? '<span class="stale-badge" title="Queued over 4 hours">STALE</span>' : '';
+    const dispMatch  = rawNote.match(/\[DISP:([^\]]+)\]/i);
+    const dispBadge  = dispMatch ? '<span class="disp-badge">' + esc(dispMatch[1].trim().toUpperCase()) + '</span>' : '';
+
+    let cardCls = 'viewer-inc-card';
+    if (urgent) cardCls += ' inc-urgent';
+    if (isMa)   cardCls += ' inc-mutual-aid';
+
+    html += '<div class="' + cardCls + '" data-inc-id="' + esc(inc.incident_id) + '">';
+
+    // Header: INC# + wait time
+    html += '<div class="viewer-inc-header">';
+    html += '<span class="viewer-inc-id">' +
+      (urgent ? 'HOT ' : '') + 'INC' + esc(shortId) +
+      priBadge + maBadge + cbBadge + ppBadge + relBadge + staleBadge + dispBadge +
+    '</span>';
+    html += '<span class="' + waitCls + '" style="font-size:11px;">' + waitMins + 'M</span>';
+    html += '</div>';
+
+    // Destination
+    html += '<div class="viewer-inc-dest">' + esc(destName) + '</div>';
+
+    // Type
+    if (incType) {
+      html += '<div class="viewer-inc-type"><span class="inc-type ' + typeCl + '">' + esc(incType) + '</span></div>';
+    }
+
+    // Scene address
+    if (inc.scene_address) {
+      html += '<div style="font-size:10px;color:var(--muted);margin-bottom:2px;">' + esc(inc.scene_address) + '</div>';
+    }
+
+    // Note
+    if (cleanNote) {
+      html += '<div class="viewer-inc-note">' + esc(cleanNote) + '</div>';
+    }
+
+    // Meta: units + created time
+    html += '<div class="viewer-inc-meta">';
+    if (unitsStr) html += '<span>UNITS: ' + unitsStr + '</span>';
+    html += '<span>CREATED: ' + esc(fmtTime24(inc.created_at)) + '</span>';
+    html += '</div>';
+
+    html += '</div>'; // /viewer-inc-card
+  });
+
+  body.innerHTML = html;
+}
+
+// ============================================================
+// SECTION: Initialisation
+// ============================================================
+
+/**
+ * Main entry point.
+ *
+ * Priority order:
+ *   1. Check for relay token via postMessage from window.opener (wait up to RELAY_WAIT ms)
+ *   2. Check sessionStorage for existing token
+ *   3. Fall back to password screen
+ */
+async function init() {
+  // Start clock immediately
+  tickClock();
+
+  // Try relay token first (window opened by dispatcher)
+  const relayToken = await new Promise(resolve => {
+    // If no opener, skip wait
+    if (!window.opener) { resolve(null); return; }
+
+    let resolved = false;
+    setupRelayListener(t => {
+      if (!resolved) { resolved = true; resolve(t); }
+    });
+
+    // Also try asking opener to send the token
+    try {
+      window.opener.postMessage({ type: 'HOSCAD_REQUEST_RELAY_TOKEN' }, window.location.origin);
+    } catch (e) { /* cross-origin or closed opener — ignore */ }
+
+    setTimeout(() => { if (!resolved) { resolved = true; resolve(null); } }, RELAY_WAIT);
+  });
+
+  if (relayToken) {
+    _token = relayToken;
+    sessionStorage.setItem('viewer_token', relayToken);
+    startBoard();
+    return;
+  }
+
+  // Try stored token from sessionStorage
+  if (tryStoredToken()) {
+    startBoard();
+    return;
+  }
+
+  // Fall back to password screen
+  showPasswordScreen();
+}
+
+// ============================================================
+// SECTION: Viewer Map
+// ============================================================
+
+// ── Edit these to match your actual EMS station locations ──
+const STATION_COORDS = {
+  'STA1': [44.052, -121.283],  // Bend (St. Charles Bend area)
+  'STA2': [44.058, -121.315],  // Bend secondary
+  'STA3': [44.043, -121.270],  // Bend east
+  'STA4': [44.275, -121.148],  // Redmond (St. Charles Redmond)
+  'STA5': [44.632, -121.133],  // Madras (St. Charles Madras)
+  'STA6': [44.298, -120.841],  // Prineville (St. Charles Prineville)
+};
+const MAP_CENTER  = [44.05, -120.85];   // Tri-county center (Deschutes/Jefferson/Crook)
+const MAP_ZOOM    = 9;
+const MAP_VIEWBOX = '-122.5,43.0,-119.5,45.5';
+
+// Known address coordinates — pre-seeded so Nominatim is never called for these
+const KNOWN_COORDS = {
+  'ST CHARLES BEND':                         [44.0641, -121.2832],
+  'SAINT CHARLES BEND':                      [44.0641, -121.2832],
+  'ST CHARLES MEDICAL CENTER':               [44.0641, -121.2832],
+  'ST CHARLES MEDICAL CENTER BEND':          [44.0641, -121.2832],
+  'SCMC BEND':                               [44.0641, -121.2832],
+  'SCMC':                                    [44.0641, -121.2832],
+  '2500 NE NEFF RD':                         [44.0641, -121.2832],
+  '2500 NE NEFF RD BEND':                    [44.0641, -121.2832],
+  '2500 NE NEFF RD, BEND':                   [44.0641, -121.2832],
+  '2500 NE NEFF RD BEND OR':                 [44.0641, -121.2832],
+  '2500 NE NEFF RD, BEND OR':               [44.0641, -121.2832],
+  '2500 NE NEFF RD, BEND, OR':              [44.0641, -121.2832],
+  '2500 NE NEFF RD BEND, OR':               [44.0641, -121.2832],
+  'ST CHARLES REDMOND':                      [44.2704, -121.1417],
+  'SAINT CHARLES REDMOND':                   [44.2704, -121.1417],
+  'SCMC REDMOND':                            [44.2704, -121.1417],
+  '1253 N CANAL BLVD':                       [44.2704, -121.1417],
+  '1253 N CANAL BLVD REDMOND':               [44.2704, -121.1417],
+  '1253 N CANAL BLVD, REDMOND':              [44.2704, -121.1417],
+  '1253 N CANAL BLVD REDMOND OR':            [44.2704, -121.1417],
+  'ST CHARLES PRINEVILLE':                   [44.2997, -120.8367],
+  'SAINT CHARLES PRINEVILLE':                [44.2997, -120.8367],
+  'SCMC PRINEVILLE':                         [44.2997, -120.8367],
+  '384 SE COMBS FLAT RD':                    [44.2997, -120.8367],
+  '384 SE COMBS FLAT RD PRINEVILLE':         [44.2997, -120.8367],
+  '384 SE COMBS FLAT RD, PRINEVILLE':        [44.2997, -120.8367],
+  '384 SE COMBS FLAT RD PRINEVILLE OR':      [44.2997, -120.8367],
+  'ST CHARLES MADRAS':                       [44.6329, -121.1298],
+  'SAINT CHARLES MADRAS':                    [44.6329, -121.1298],
+  'SCMC MADRAS':                             [44.6329, -121.1298],
+  '470 NE A ST':                             [44.6329, -121.1298],
+  '470 NE A ST MADRAS':                      [44.6329, -121.1298],
+  '470 NE A ST, MADRAS':                     [44.6329, -121.1298],
+  '470 NE A ST MADRAS OR':                   [44.6329, -121.1298],
+  'WARM SPRINGS IHS':                        [44.7636, -121.2733],
+  'WARM SPRINGS HEALTH CENTER':              [44.7636, -121.2733],
+  'SKY LAKES MEDICAL CENTER':                [42.2530, -121.7851],
+  'SKY LAKES ED':                            [42.2530, -121.7851],
+  'MID-COLUMBIA MEDICAL CENTER':             [45.5980, -121.1525],
+  'MCMC ED':                                 [45.5980, -121.1525],
+  'LAKE DISTRICT HOSPITAL':                  [42.1818, -120.3515],
+  'ROBERTS FIELD':                           [44.2542, -121.1486],
+  'KRDM AIRPORT':                            [44.2542, -121.1486],
+  'REDMOND MUNICIPAL AIRPORT':               [44.2542, -121.1486],
+  'BEND MUNICIPAL AIRPORT':                  [44.0946, -121.2002],
+  'KBDN AIRPORT':                            [44.0946, -121.2002],
+  'PRINEVILLE AIRPORT':                      [44.2878, -120.9055],
+  'MADRAS MUNICIPAL AIRPORT':                [44.6702, -121.1552],
+  'KLAMATH FALLS AIRPORT':                   [42.1561, -121.7333],
+  'THE DALLES AIRPORT':                      [45.6194, -121.1683],
+  'DESCHUTES FAIRGROUNDS':                   [44.2665, -121.1775],
+  'JEFFERSON COUNTY FAIRGROUNDS':            [44.6196, -121.1380],
+  'CROOK COUNTY FAIRGROUNDS':                [44.2893, -120.8422],
+  'US97 AT BEND 3RD ST':                     [44.0582, -121.3063],
+  'US97 AT REDMOND':                         [44.2726, -121.1739],
+  'US97 AT MADRAS':                          [44.6335, -121.1295],
+  'US97 AT CHEMULT':                         [43.2165, -121.7828],
+  'MOUNTAIN VIEW HIGH SCHOOL':               [44.0773, -121.2647],
+  'SUMMIT HIGH SCHOOL':                      [44.0576, -121.3613],
+  'CROOK COUNTY HIGH SCHOOL':                [44.2928, -120.8331],
+  'DESCHUTES COUNTY COURTHOUSE':             [44.0587, -121.3124],
+  'WASCO COUNTY COURTHOUSE':                 [45.5998, -121.1841],
+};
+
+// Status → dot fill color
+const STATUS_DOT_COLOR = {
+  AV: '#4caf50', D: '#ff9800', DE: '#ff9800',
+  OS: '#f44336', T:  '#ffd700', AT: '#2196f3', OOS: '#607d8b',
+};
+
+// SVG divIcon — shape encodes unit type, color encodes status
+function getUnitMapIcon(unitType, color) {
+  const t = (unitType || '').toUpperCase();
+  let svg, w = 16, h = 16;
+  if (t === 'EMS') {
+    svg = '<svg width="16" height="16" viewBox="0 0 16 16">' +
+      '<rect x="1" y="4" width="14" height="9" rx="1.5" fill="' + color + '" stroke="#fff" stroke-width="1"/>' +
+      '<rect x="7" y="6" width="2" height="5" fill="#fff"/>' +
+      '<rect x="5" y="8" width="6" height="2" fill="#fff"/>' +
+      '</svg>';
+  } else if (t === 'FIRE') {
+    w = 18; h = 14;
+    svg = '<svg width="18" height="14" viewBox="0 0 18 14">' +
+      '<rect x="1" y="5" width="16" height="7" rx="1" fill="' + color + '" stroke="#fff" stroke-width="1"/>' +
+      '<rect x="1" y="2" width="7" height="5" rx="1" fill="' + color + '" stroke="#fff" stroke-width="1"/>' +
+      '</svg>';
+  } else if (t === 'AIR') {
+    svg = '<svg width="16" height="16" viewBox="0 0 16 16">' +
+      '<polygon points="8,1 15,8 8,15 1,8" fill="' + color + '" stroke="#fff" stroke-width="1"/>' +
+      '</svg>';
+  } else if (t === 'LAW') {
+    svg = '<svg width="16" height="16" viewBox="0 0 16 16">' +
+      '<polygon points="8,1 10,6 15,6 11,9.5 12.5,15 8,12 3.5,15 5,9.5 1,6 6,6" fill="' + color + '" stroke="#fff" stroke-width="1"/>' +
+      '</svg>';
+  } else if (t === 'SUPV') {
+    svg = '<svg width="16" height="16" viewBox="0 0 16 16">' +
+      '<circle cx="8" cy="8" r="7" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+      '<circle cx="8" cy="8" r="3.5" fill="none" stroke="#fff" stroke-width="1.5"/>' +
+      '</svg>';
+  } else {
+    w = 14; h = 14;
+    svg = '<svg width="14" height="14" viewBox="0 0 14 14">' +
+      '<circle cx="7" cy="7" r="6" fill="' + color + '" stroke="#fff" stroke-width="1"/>' +
+      '</svg>';
+  }
+  return L.divIcon({
+    html: '<div style="line-height:0;">' + svg + '</div>',
+    className: '', iconSize: [w, h], iconAnchor: [Math.round(w/2), Math.round(h/2)]
+  });
+}
+
+let _vmLoaded   = false;   // Leaflet script loaded
+let _vmLoading  = false;
+let _vmMap      = null;    // L.map instance
+let _vmMarkers  = [];      // all layers added per-render (cleared each cycle)
+let _vmGeoCache = Object.assign({}, KNOWN_COORDS);  // address -> [lat, lng]
+let _vmGeoQueue = [];      // addresses pending geocoding
+let _vmGeoTimer = null;    // setInterval handle
+
+/** Toggle incident queue section on/off */
+function toggleViewerIncQ() {
+  _incQVisible = !_incQVisible;
+  const btn = document.getElementById('btnViewerIncQ');
+  if (btn) btn.classList.toggle('active', _incQVisible);
+  renderActiveIncidents();
+}
+
+/** Toggle map pane open/closed */
+function toggleViewerMap() {
+  const wrap = document.getElementById('viewerWrap');
+  const btn  = document.getElementById('btnViewerMap');
+  if (!wrap) return;
+  const open = wrap.classList.toggle('map-open');
+  if (btn) btn.classList.toggle('active', open);
+  if (open) {
+    _loadViewerLeaflet(() => {
+      // Wait for CSS height transition (250ms) to finish before init/resize
+      // so Leaflet measures the correct container size for tile coverage
+      setTimeout(() => {
+        if (!_vmMap) _initViewerMap();
+        if (_vmMap) _vmMap.invalidateSize();
+        renderMap();
+        _startGeoQueue();
+      }, 300);
+    });
+  } else {
+    _stopGeoQueue();
+  }
+}
+
+/** Lazy-load Leaflet CSS + JS from CDN (excluded from APP_SHELL to avoid 206 cache issues) */
+function _loadViewerLeaflet(cb) {
+  if (_vmLoaded)   { cb(); return; }
+  if (_vmLoading)  { setTimeout(() => _loadViewerLeaflet(cb), 120); return; }
+  _vmLoading = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  document.head.appendChild(link);
+  const script = document.createElement('script');
+  script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  script.onload  = () => { _vmLoaded = true; _vmLoading = false; cb(); };
+  script.onerror = () => { _vmLoading = false; };
+  document.body.appendChild(script);
+}
+
+/** Create the Leaflet map instance */
+function _initViewerMap() {
+  const el = document.getElementById('mapContainer');
+  if (!el || !window.L) return;
+  _vmMap = L.map('mapContainer', { zoomControl: true, attributionControl: false })
+    .setView(MAP_CENTER, MAP_ZOOM);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, opacity: 0.7
+  }).addTo(_vmMap);
+
+  // Gray overlay outside tri-county area (Deschutes / Jefferson / Crook counties)
+  const TRICOUNTY_BOUNDS = [[43.3, -122.0], [45.0, -119.4]];
+  // GeoJSON "world minus tri-county" polygon for dimming overlay
+  const dimData = {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [
+        // Outer ring: whole world
+        [[-180,-90],[180,-90],[180,90],[-180,90],[-180,-90]],
+        // Inner ring (hole): the tri-county bounding box (counter-clockwise = hole)
+        [
+          [TRICOUNTY_BOUNDS[0][1], TRICOUNTY_BOUNDS[0][0]],
+          [TRICOUNTY_BOUNDS[0][1], TRICOUNTY_BOUNDS[1][0]],
+          [TRICOUNTY_BOUNDS[1][1], TRICOUNTY_BOUNDS[1][0]],
+          [TRICOUNTY_BOUNDS[1][1], TRICOUNTY_BOUNDS[0][0]],
+          [TRICOUNTY_BOUNDS[0][1], TRICOUNTY_BOUNDS[0][0]],
+        ]
+      ]
+    }
+  };
+  L.geoJSON(dimData, {
+    style: { fillColor: '#000', fillOpacity: 0.35, stroke: false, color: 'transparent', weight: 0 }
+  }).addTo(_vmMap);
+
+  // Subtle border around the tri-county area
+  L.rectangle(TRICOUNTY_BOUNDS, {
+    color: 'rgba(91,163,230,0.4)', weight: 2, fill: false, dashArray: '4 4'
+  }).addTo(_vmMap);
+
+  _vmMap.fitBounds(TRICOUNTY_BOUNDS, { padding: [20, 20] });
+}
+
+/** Render unit + incident markers from current _state */
+function renderMap() {
+  const wrap = document.getElementById('viewerWrap');
+  if (!wrap || !wrap.classList.contains('map-open')) return;
+  if (!_vmMap || !window.L || !_state) return;
+
+  // Clear previous markers
+  _vmMarkers.forEach(m => { try { _vmMap.removeLayer(m); } catch(e) {} });
+  _vmMarkers = [];
+
+  const units     = (_state.units || []).filter(u => u.active);
+  const incidents = (_state.incidents || []).filter(i => i.status === 'ACTIVE' || i.status === 'QUEUED');
+
+  // ── Incident pins ────────────────────────────────────────────
+  incidents.forEach(inc => {
+    const addr = (inc.scene_address || '').trim();
+    if (!addr) return;
+    const geo = _vmGeoCache[addr];
+    if (geo) {
+      const pri = inc.priority || '';
+      const color = pri === 'PRI-1' ? '#f44336' : pri === 'PRI-2' ? '#ff9800' : '#4fa3e0';
+      const shortId = String(inc.incident_id).replace(/^\d{2}-/, '');
+      const tip = '<b>INC' + shortId + '</b>' +
+        (inc.incident_type ? '<br>' + inc.incident_type : '') +
+        (addr ? '<br>' + addr : '');
+      const m = L.circleMarker(geo, {
+        radius: 9, color: color, weight: 2, fillColor: color, fillOpacity: 0.35
+      }).bindTooltip(tip, { permanent: false, direction: 'top' });
+      m.addTo(_vmMap);
+      _vmMarkers.push(m);
+    } else {
+      // Queue for geocoding if not already queued
+      if (!_vmGeoCache.hasOwnProperty(addr) && !_vmGeoQueue.includes(addr)) {
+        _vmGeoQueue.push(addr);
+      }
+    }
+  });
+
+  // ── Unit markers ─────────────────────────────────────────────
+  // Track how many units are at the same position (to stagger overlapping dots)
+  const posUsage = {};
+  units.forEach(u => {
+    let pos = null;
+    const stCode = String(u.status || '').toUpperCase();
+
+    // If dispatched/on scene, try to show at incident scene address
+    if (u.incident && ['D', 'DE', 'OS', 'T', 'AT'].includes(stCode)) {
+      const inc = (_state.incidents || []).find(i => i.incident_id === u.incident);
+      if (inc && inc.scene_address) {
+        const geo = _vmGeoCache[(inc.scene_address || '').trim()];
+        if (geo) pos = [geo[0], geo[1]];
+      }
+    }
+
+    // Priority 2: [LOC:address] tag in unit note (includes GPS lat,lon from field app)
+    if (!pos) {
+      const locM = (u.note || '').match(/\[LOC:([^\]]+)\]/i);
+      if (locM) {
+        const locAddr = locM[1].trim();
+        const geo = _vmGeoCache[locAddr];
+        if (geo) {
+          pos = [geo[0], geo[1]];
+        } else if (!_vmGeoCache.hasOwnProperty(locAddr) && !_vmGeoQueue.includes(locAddr)) {
+          _vmGeoQueue.push(locAddr);
+        }
+      }
+    }
+
+    // Priority 3: fall back to home station — if still no position, skip
+    if (!pos) {
+      const sta = String(u.station || '').toUpperCase();
+      pos = STATION_COORDS[sta] ? [STATION_COORDS[sta][0], STATION_COORDS[sta][1]] : null;
+    }
+    if (!pos) return;
+
+    // Stagger overlapping markers (small lat/lng offset per extra unit at same spot)
+    const posKey = pos[0].toFixed(4) + ',' + pos[1].toFixed(4);
+    const n = posUsage[posKey] = (posUsage[posKey] || 0) + 1;
+    if (n > 1) {
+      const angle = ((n - 1) * 137.5) * (Math.PI / 180);  // golden angle spread
+      pos = [pos[0] + Math.sin(angle) * 0.0012, pos[1] + Math.cos(angle) * 0.0012];
+    }
+
+    const dotColor = STATUS_DOT_COLOR[stCode] || '#607d8b';
+    const uId = String(u.unit_id || '').toUpperCase();
+    const tip = '<b>' + uId + '</b> — ' + stCode +
+      (u.destination ? '<br>' + u.destination : '');
+
+    // SVG marker with type-specific icon
+    const uIcon = getUnitMapIcon(u.type, dotColor);
+    const uMark = L.marker(pos, { icon: uIcon, zIndexOffset: 200 })
+      .bindTooltip(tip, { permanent: false, direction: 'top' });
+    uMark.addTo(_vmMap);
+    _vmMarkers.push(uMark);
+
+    // Text label above the marker
+    const label = L.marker(pos, {
+      icon: L.divIcon({ html: '<div class="v-map-label">' + uId + '</div>', className: '', iconSize: [0, 0] }),
+      interactive: false
+    }).addTo(_vmMap);
+    _vmMarkers.push(label);
+  });
+}
+
+/** Start processing the geocode queue (1 request every 1.5s) */
+function _startGeoQueue() {
+  if (_vmGeoTimer) return;
+  _vmGeoTimer = setInterval(_processGeoQueue, 1500);
+}
+
+/** Stop geocode queue processing */
+function _stopGeoQueue() {
+  if (_vmGeoTimer) { clearInterval(_vmGeoTimer); _vmGeoTimer = null; }
+}
+
+/** Geocode the next queued address via Nominatim */
+async function _processGeoQueue() {
+  if (!_vmGeoQueue.length) return;
+  const addr = _vmGeoQueue.shift();
+  if (_vmGeoCache.hasOwnProperty(addr)) return;  // already done
+
+  try {
+    const expanded = addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST').replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST').replace(/\s*\/\s*/g, ' & ');
+    const query = /oregon|,\s*or\b/i.test(expanded) ? expanded : expanded + ', Oregon';
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+      encodeURIComponent(query) + '&limit=1&viewbox=' + MAP_VIEWBOX +
+      '&bounded=0&countrycodes=us';
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.length) {
+      _vmGeoCache[addr] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      renderMap();  // re-render now that we have a location
+    } else {
+      _vmGeoCache[addr] = null;  // mark as attempted so we don't retry forever
+    }
+  } catch (e) { /* network error — will retry next cycle */ }
+}
+
+// ─── Resizable Columns ───────────────────────────────────────────────────────
+const _COL_NAMES = ['unit', 'status', 'elapsed', 'dest', 'note', 'inc', 'updated'];
+function _saveColWidths() {
+  const ths = document.querySelectorAll('#boardTable thead th');
+  const w = {};
+  ths.forEach((th, i) => {
+    if (_COL_NAMES[i] !== 'note') w[_COL_NAMES[i]] = th.offsetWidth;
+  });
+  try { localStorage.setItem('hoscad_col_widths', JSON.stringify(w)); } catch(e) {}
+}
+function _loadColWidths() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('hoscad_col_widths') || 'null');
+    if (!saved) return;
+    const ths = document.querySelectorAll('#boardTable thead th');
+    ths.forEach((th, i) => {
+      const name = _COL_NAMES[i];
+      if (name !== 'note' && saved[name]) th.style.width = saved[name] + 'px';
+    });
+  } catch(e) {}
+}
+function initColumnResize() {
+  _loadColWidths();
+  const ths = document.querySelectorAll('#boardTable thead th');
+  ths.forEach((th, i) => {
+    const handle = th.querySelector('.col-resize-handle');
+    if (!handle) return;
+    let startX, startW;
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      startX = e.clientX;
+      startW = th.offsetWidth;
+      handle.classList.add('is-resizing');
+      document.body.style.cursor = 'col-resize';
+      function onMove(ev) {
+        th.style.width = Math.max(36, startW + (ev.clientX - startX)) + 'px';
+      }
+      function onUp() {
+        handle.classList.remove('is-resizing');
+        document.body.style.cursor = '';
+        _saveColWidths();
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ============================================================
+// SECTION: Hover Tooltip System (ported from board app.js)
+// ============================================================
+let _tipTimer = null;
+
+function _hideTip() {
+  clearTimeout(_tipTimer);
+  const tip = document.getElementById('globalTip');
+  if (tip) tip.style.display = 'none';
+}
+
+function _showTip(anchorEl, html) {
+  clearTimeout(_tipTimer);
+  _tipTimer = setTimeout(() => {
+    const tip = document.getElementById('globalTip');
+    if (!tip) return;
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    const rect = anchorEl.getBoundingClientRect();
+    const tipW = 270;
+    let left = rect.left;
+    let top = rect.bottom + 6;
+    if (left + tipW > window.innerWidth - 8) left = Math.max(4, window.innerWidth - tipW - 8);
+    if (top + 220 > window.innerHeight) top = rect.top - tip.offsetHeight - 6;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }, 350);
+}
+
+function _buildUnitTip(unitId) {
+  if (!_state) return null;
+  const u = (_state.units || []).find(x => x.unit_id === unitId);
+  if (!u) return null;
+  const agencyStr = u.agency_id || '—';
+  const typeStr = [u.type ? u.type.toUpperCase() : null, u.level].filter(Boolean).join(' / ') || '—';
+  const stationStr = u.station || '—';
+  const mi = minutesSince(u.updated_at);
+  const elStr = mi != null ? formatElapsed(mi) + ' ago' : '—';
+  const updStr = fmtTime24(u.updated_at) + (u.updated_by ? ' by ' + u.updated_by.toUpperCase() : '');
+  const crewParts = u.unit_info ? String(u.unit_info).split('|').filter(p => /^CM\d:/i.test(p)) : [];
+  const etaVTipMatch = (u.note || '').match(/\[ETA:(\d+)\]/);
+  const rows = [];
+  if (crewParts.length) rows.push(['Crew', crewParts.map(p => p.replace(/^CM\d:/i, '').trim()).join(', ')]);
+  if (etaVTipMatch) rows.push(['ETA', etaVTipMatch[1] + ' min']);
+  rows.push(
+    ['Agency', agencyStr],
+    ['Type', typeStr],
+    ['Station', stationStr],
+    ['Updated', updStr],
+    ['Elapsed', elStr]
+  );
+  const titleLine = esc(String(u.unit_id || '').toUpperCase()) +
+    (u.display_name && u.display_name.toUpperCase() !== String(u.unit_id || '').toUpperCase()
+      ? ' — ' + esc(u.display_name.toUpperCase()) : '');
+  return '<div class="tip-title">' + titleLine + '</div>' +
+    rows.map(([k, v]) => '<div class="tip-row"><span class="tip-key">' + k + '</span><span class="tip-val">' + esc(String(v)) + '</span></div>').join('');
+}
+
+function _buildIncTip(incId) {
+  if (!_state) return null;
+  const inc = (_state.incidents || []).find(x => x.incident_id === incId);
+  if (!inc) return null;
+  const unitCount = (_state.units || []).filter(u => u.active && u.incident === incId).length;
+  const mi = minutesSince(inc.dispatch_time || inc.created_at);
+  const ageStr = mi != null ? formatElapsed(mi) + ' ago' : '—';
+  const note = (inc.incident_note || '')
+    .replace(/^\[URGENT\]\s*/i, '').replace(/\[MA\]\s*/gi, '').replace(/\[CB:[^\]]+\]\s*/gi, '').trim();
+  const rows = [
+    ['Type', inc.incident_type || '—'],
+    ['Priority', inc.priority || '—'],
+    ['Units', unitCount + ' assigned'],
+    ['Scene', inc.scene_address || '—'],
+    ['Dispatched', ageStr]
+  ];
+  if (note) rows.push(['Note', note.length > 90 ? note.substring(0, 90) + '…' : note]);
+  return '<div class="tip-title">INC' + esc(inc.incident_id.replace(/^\d{2}-/, '')) + '</div>' +
+    rows.map(([k, v]) => '<div class="tip-row"><span class="tip-key">' + k + '</span><span class="tip-val">' + esc(String(v)) + '</span></div>').join('');
+}
+
+function _initTooltipSystem() {
+  document.addEventListener('mouseover', e => {
+    if (e.target.closest('#globalTip')) return;
+    // Incident queue card
+    const incCard = e.target.closest('[data-inc-id]');
+    if (incCard) {
+      const html = _buildIncTip(incCard.dataset.incId);
+      if (html) { _showTip(incCard, html); return; }
+    }
+    // Unit board row
+    const unitTr = e.target.closest('tr[data-unit-id]');
+    if (unitTr) {
+      const html = _buildUnitTip(unitTr.dataset.unitId);
+      if (html) { _showTip(unitTr, html); return; }
+    }
+    _hideTip();
+  });
+  document.addEventListener('scroll', _hideTip, true);
+  document.addEventListener('click', _hideTip, true);
+}
+
+// ============================================================
+// SECTION: Keyboard — Enter key on password input
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  const pwInput = document.getElementById('pwInput');
+  if (pwInput) {
+    pwInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doPasswordLogin();
+    });
+  }
+  initColumnResize();
+  _initTooltipSystem();
+  init();
+});
+</script>
+</body>
+</html>

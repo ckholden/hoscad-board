@@ -1,0 +1,1723 @@
+/* ============================================================
+   HOSCAD/EMS TRACKING SYSTEM — Stylesheet
+   CAD Reader Board Aesthetic — v2 (2026-02-23)
+   Design principle: classic 1990s-2010s wall-mount dispatch board.
+   Full-row status coloring. Dense scan-line rows. Zero decorative chrome.
+   ============================================================ */
+
+/* ── CSS Variables ─────────────────────────────────────────── */
+:root {
+  /* Core surfaces — kept very dark, near-black */
+  --bg:      #050709;
+  --bg2:     #0a0d12;
+  --panel:   #080b10;
+  --panel2:  #060810;
+  --line:    #161e2a;
+  --border:  #1e2b3e;
+
+  /* Text */
+  --text:    #c8d8eb;
+  --muted:   #607080;
+  --hi:      #e8f0fa;
+
+  /* Status colors — saturated, readable on dark bg */
+  --blue:    #2060e0;
+  --yellow:  #e8b830;
+  --red:     #d43030;
+  --purple:  #a060e0;
+  --green:   #20b060;
+  --gray:    #607080;
+  --orange:  #c06010;
+  --teal:    #1878b0;
+
+  /* Row tint alphas — the DOMINANT visual element */
+  --tint-d:   rgba(32,96,224,.18);
+  --tint-de:  rgba(232,184,48,.14);
+  --tint-os:  rgba(212,48,48,.18);
+  --tint-f:   rgba(212,48,48,.22);
+  --tint-fd:  rgba(192,96,16,.16);
+  --tint-t:   rgba(160,96,224,.16);
+  --tint-th:  rgba(24,120,176,.16);
+  --tint-av:  rgba(32,176,96,.07);
+  --tint-iq:  rgba(32,176,96,.05);
+  --tint-uv:  rgba(96,112,128,.08);
+  --tint-brk: rgba(232,184,48,.10);
+  --tint-oos: rgba(96,112,128,.06);
+}
+
+/* ── Reset / Base ──────────────────────────────────────────── */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Consolas, Menlo, Monaco, "Courier New", monospace;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  /* Subtle CRT phosphor scanline texture — very faint, unobtrusive */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.04) 2px,
+    rgba(0,0,0,.04) 4px
+  );
+}
+input, select, button, textarea {
+  text-transform: uppercase;
+  font-family: inherit;
+  letter-spacing: .4px;
+}
+
+/* ── Global Form Elements ──────────────────────────────────── */
+input, select, button, textarea {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  font-size: 12px;
+  outline: none;
+  border-radius: 0;        /* Zero rounding everywhere */
+}
+textarea { min-height: 84px; resize: vertical; }
+input::placeholder, textarea::placeholder { color: #3a4a5a; }
+button { cursor: pointer; }
+button:hover { filter: brightness(1.12); }
+.btn-secondary { background: var(--panel2); }
+.btn-good     { background: #061a0e; border-color: #0f3020; color: #20b060; }
+.btn-danger   { background: #1a0808; border-color: #3a1010; color: #d43030; }
+.btn-warn     { background: #1a1400; border-color: #3a2c00; color: var(--yellow); }
+
+/* ── Header / Topbar ───────────────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.topbar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 5px 10px;
+}
+.brand {
+  font-weight: 900;
+  font-size: 12px;
+  color: var(--hi);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  letter-spacing: 1px;
+}
+.pill {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+}
+.pill.live    { color: var(--green);  border-color: #0f3020; }
+.pill.offline { color: var(--red);   border-color: #3a1010; }
+.pill.stale   { color: #f0a000;      border-color: #3a2800; }
+.clock-pill   { font-weight: 900; color: var(--hi); font-size: 12px; letter-spacing: 1px; }
+.row          { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.right        { margin-left: auto; }
+
+/* ── Message Badge ─────────────────────────────────────────── */
+.msgBadge {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--yellow);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 900;
+}
+.msgBadge:hover { filter: brightness(1.2); }
+.msgBadge.hasUrgent {
+  color: var(--red);
+  border-color: #3a1010;
+  animation: pulseBadge 1.2s infinite;
+}
+@keyframes pulseBadge {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .5; }
+}
+
+/* ── Toolbar ───────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.toolbar-label {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.toolbar-select {
+  padding: 3px 6px;
+  font-size: 11px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 0;
+}
+.toolbar-btn {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 0;
+  letter-spacing: .3px;
+}
+.toolbar-btn:hover  { background: var(--line); color: var(--hi); }
+.toolbar-btn.active { color: var(--hi); border-color: var(--blue); background: rgba(32,96,224,.12); }
+.toolbar-btn-accent {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  background: #061a0e;
+  border: 1px solid #0f3020;
+  color: var(--green);
+  cursor: pointer;
+  border-radius: 0;
+  letter-spacing: .5px;
+}
+.toolbar-btn-accent:hover { filter: brightness(1.2); }
+.toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 3px;
+}
+.shortcut-hint {
+  font-size: 9px;
+  color: var(--muted);
+  margin-left: 3px;
+  opacity: .6;
+}
+
+/* ── Status Summary Bar — classic CAD tally line ───────────── */
+.status-summary {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.sum-item {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  user-select: none;
+  border-right: 1px solid var(--border);
+  letter-spacing: .5px;
+  white-space: nowrap;
+  line-height: 1.6;
+  /* No hover animation — instant state */
+}
+.sum-item:last-child { border-right: none; }
+.sum-item:hover { background: rgba(255,255,255,.04); }
+.sum-item strong { font-size: 13px; }
+
+/* Status tally colors — full saturation, readable at a glance */
+.sum-av    { color: #30d080; }
+.sum-d     { color: #4090ff; background: rgba(32,96,224,.10); }
+.sum-de    { color: #e8c030; background: rgba(232,184,48,.08); }
+.sum-os    { color: #e04040; background: rgba(212,48,48,.10); }
+.sum-t     { color: #c070ff; background: rgba(160,96,224,.08); }
+.sum-th    { color: #40a0e0; }
+.sum-f     { color: #e04040; }
+.sum-brk   { color: #e8c030; }
+.sum-oos   { color: var(--muted); }
+.sum-total { color: var(--hi); border-left: 1px solid var(--border); margin-left: auto; }
+
+/* Coverage badge — only shown when AV count is low (≤3) */
+.coverage-badge { padding: 3px 8px; font-size: 10px; font-weight: 900; letter-spacing: .06em; border-left: 1px solid var(--border); cursor: default; }
+.coverage-critical { color: #ff4040; background: rgba(248,81,73,.12); animation: blink 1s step-start infinite; }
+.coverage-limited  { color: #ff8800; background: rgba(255,136,0,.10); }
+.coverage-reduced  { color: #e0c030; background: rgba(224,192,48,.08); }
+
+/* ── Active Calls Bar — compact cards for active incidents ─── */
+#activeCallsBar {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,.25);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.acb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: #0c1420;
+  border: 1px solid #1a2a3a;
+  border-left: 3px solid #3a6090;
+  min-width: 140px;
+  max-width: 200px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color .15s;
+}
+.acb-card:hover { border-color: #5ba3e6; border-left-color: #5ba3e6; background: #0f1e30; }
+.acb-card.acb-urgent { border-left-color: #f85149; background: rgba(248,81,73,.06); }
+.acb-card.acb-urgent:hover { border-left-color: #ff7b76; }
+.acb-id   { font-size: 11px; font-weight: 900; color: #c9d1d9; letter-spacing: .06em; }
+.acb-type { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #8b949e; margin-top: 1px; }
+.acb-elapsed { font-size: 10px; color: #6e7681; }
+.acb-elapsed.warn { color: #ffa500; }
+.acb-elapsed.stale { color: #f85149; font-weight: 700; }
+.acb-units { font-size: 10px; color: #8b949e; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acb-pri { font-size: 9px; font-weight: 900; margin-left: 5px; vertical-align: middle; }
+
+/* ── Banners ───────────────────────────────────────────────── */
+.banner {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--hi);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  border-bottom: 1px solid var(--border);
+}
+.banner.note {
+  border-color: #3a2c00;
+  background: rgba(232,184,48,.10);
+  color: var(--yellow);
+  font-weight: 900;
+}
+.banner.alert {
+  border-color: #3a1010;
+  background: rgba(212,48,48,.14);
+  color: #ff9090;
+  font-weight: 900;
+}
+/* Diversion bar — shown when any destination is diverted */
+#diversionBar {
+  display: none;
+  padding: 5px 10px;
+  background: rgba(192,57,43,.18);
+  border-bottom: 2px solid #c0392b;
+  color: #e05050;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .07em;
+}
+/* Clickable unit links inside stale banner */
+.stale-unit-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  color: #ffb0b0;
+  font-weight: 900;
+}
+.stale-unit-link:hover { color: #fff; text-decoration-style: solid; }
+.stale-welf-btn {
+  background: transparent; border: 1px solid #5b2020; color: #ff9090;
+  cursor: pointer; font-family: inherit; font-size: 9px; font-weight: 900;
+  padding: 1px 5px; margin-left: 3px; letter-spacing: .04em;
+  vertical-align: middle; line-height: 1.4;
+}
+.stale-welf-btn:hover { background: rgba(212,48,48,.2); border-color: #ff9090; }
+
+/* Banner acknowledgment */
+.banner-ack-btn {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 7px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  cursor: pointer;
+  border: 1px solid currentColor;
+  background: rgba(255,255,255,.08);
+  color: inherit;
+  vertical-align: middle;
+  border-radius: 0;
+}
+.banner-ack-btn:hover { background: rgba(255,255,255,.18); }
+.banner-acked {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.35);
+  vertical-align: middle;
+}
+
+/* ── Wrap / Layout ─────────────────────────────────────────── */
+.wrap {
+  padding: 0;        /* CAD boards have no padding — content goes edge to edge */
+  padding-bottom: 88px;
+}
+.grid { display: grid; grid-template-columns: 1.3fr .7fr; gap: 8px; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.card h3 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: var(--hi);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  font-weight: 900;
+  letter-spacing: .5px;
+}
+
+/* ── Collapsible Panels ────────────────────────────────────── */
+.collapsible-panel {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-top: none;     /* Panels butt up against each other, no gaps */
+}
+.collapsible-panel.collapsed .collapsible-body { display: none; }
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  font-weight: 900;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--line);
+  letter-spacing: .5px;
+}
+.collapsible-header:hover { background: rgba(255,255,255,.02); color: var(--hi); }
+.collapsible-body  { padding: 0; }
+.collapse-arrow {
+  font-size: 9px;
+  color: var(--muted);
+  /* No transition — instant, like a real terminal */
+}
+.collapsed .collapse-arrow { transform: rotate(-90deg); }
+
+/* ── Legacy Board Wrap ─────────────────────────────────────── */
+#legacyBoardWrap { display: flex; gap: 0; min-height: 0; }
+#legacyBoardWrap > .collapsible-panel { flex: 1; min-width: 0; }
+
+/* ── Board Layout ──────────────────────────────────────────── */
+.board-layout {
+  display: flex;
+  gap: 0;
+  min-height: 0;
+}
+.board-main {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: none;
+}
+.board-header-row {
+  padding: 4px 10px;
+  font-weight: 900;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  letter-spacing: .6px;
+}
+
+/* ============================================================
+   BOARD TABLE — The core CAD board display
+   Classic CAD look: dense rows, full-row status color,
+   hard column boundaries, zero decorative chrome.
+   ============================================================ */
+.board-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;   /* Fixed layout — hard column widths, no reflow */
+}
+.board-table th,
+.board-table td {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 0 8px;
+  vertical-align: middle;
+  line-height: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.board-table th:last-child,
+.board-table td:last-child { border-right: none; }
+.board-table th {
+  /* Column label row — classic CAD header: muted, smaller */
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: .8px;
+  user-select: none;
+  padding: 3px 8px;
+  background: var(--bg2);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  position: relative; /* needed for resize handle positioning */
+}
+/* Column resize handle — drag right edge of header to resize */
+.col-resize-handle {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  height: 100%;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.col-resize-handle:hover { background: rgba(64,144,216,.35); border-radius: 1px; }
+.col-resize-handle.is-resizing { background: rgba(64,144,216,.6); }
+.board-table tbody tr {
+  height: 26px;
+  min-height: 0;
+}
+/* Hover — minimal. Just a slight brightness lift. No color change. */
+.board-table tbody tr:hover { filter: brightness(1.08); }
+.board-table tbody tr.selected {
+  outline: 2px solid rgba(32,96,224,.7);
+  outline-offset: -2px;
+  filter: brightness(1.12);
+}
+
+/* Column widths — fixed, hard, no wrapping */
+.col-unit    { width: 88px;  }
+.col-status  { width: 72px; }
+.col-elapsed { width: 52px;  text-align: right; }
+.col-dest    { width: 160px; }
+.col-note    { }              /* flex fill */
+.col-inc     { width: 70px;  }
+.col-updated { width: 90px;  }
+
+/* Sortable headers */
+.sortable { cursor: pointer; }
+.sortable:hover { color: var(--hi); }
+.sortable.sort-active { color: var(--hi); }
+.sortable.sort-active::after      { content: ' \25B2'; font-size: 8px; }
+.sortable.sort-active.sort-desc::after { content: ' \25BC'; }
+
+/* ── Unit Cell ─────────────────────────────────────────────── */
+.unit {
+  font-weight: 900;
+  color: var(--hi);
+  font-size: 12px;
+  letter-spacing: .5px;
+}
+.muted { color: var(--muted); font-size: 10px; }
+
+/* ============================================================
+   STATUS DISPLAY — the single most important visual element.
+   Classic CAD: the entire ROW is colored by status.
+   The status code is large and bold. No small pills, no badges
+   as the primary indicator — the ROW ITSELF tells you the status.
+   ============================================================ */
+
+/* Status code text — large, bold, the dominant column element */
+.statusCode {
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 1px;
+  display: inline-block;
+  min-width: 28px;
+}
+/* Status label hidden — code only; full name shown via title= hover */
+.statusLabel { display: none; }
+
+/* Full-row status coloring — THE dominant visual treatment */
+tr.status-D   { background: var(--tint-d);   }
+tr.status-DE  { background: var(--tint-de);  }
+tr.status-OS  { background: var(--tint-os);  }
+tr.status-F   { background: var(--tint-f);   }
+tr.status-FD  { background: var(--tint-fd);  }
+tr.status-T   { background: var(--tint-t);   }
+tr.status-TH  { background: var(--tint-th);  }
+tr.status-AV  { background: var(--tint-av);  }
+tr.status-IQ  { background: var(--tint-iq);  }
+tr.status-UV  { background: var(--tint-uv);  }
+tr.status-BRK { background: var(--tint-brk); }
+tr.status-OOS { background: var(--tint-oos); }
+
+/* Status code colors — high saturation, instantly readable */
+.status-text-D   { color: #5090ff; font-size: 13px; font-weight: 900; }
+.status-text-DE  { color: #f0c040; font-size: 13px; font-weight: 900; }
+.status-text-OS  { color: #f05050; font-size: 13px; font-weight: 900; }
+.status-text-F   { color: #f05050; font-size: 13px; font-weight: 900; }
+.status-text-FD  { color: #e08030; font-size: 13px; font-weight: 900; }
+.status-text-T   { color: #c080ff; font-size: 13px; font-weight: 900; }
+.status-text-TH  { color: #50b0ff; font-size: 13px; font-weight: 900; }
+.status-text-AV  { color: #30d080; font-size: 13px; font-weight: 900; }
+.status-text-IQ  { color: #30d080; font-size: 13px; font-weight: 900; }
+.status-text-UV  { color: #8090a0; font-size: 13px; font-weight: 900; }
+.status-text-BRK { color: #f0c040; font-size: 13px; font-weight: 900; }
+.status-text-OOS { color: #8090a0; font-size: 13px; font-weight: 900; }
+
+/* ── DISPATCHED — flashing row (highest urgency) ───────────── */
+tr.status-D {
+  animation: flashDispatch 1.4s infinite alternate;
+}
+@keyframes flashDispatch {
+  from { background: rgba(32,96,224,.22); }
+  to   { background: rgba(32,96,224,.10); }
+}
+
+/* ── ON SCENE — solid saturated tint, no animation ────────── */
+/* tr.status-OS already defined above */
+
+/* ── Status badge (used in incident queue / secondary contexts only) */
+.status-badge {
+  display: inline-block;
+  padding: 1px 4px;
+  font-weight: 900;
+  font-size: 10px;
+  min-width: 24px;
+  text-align: center;
+  letter-spacing: .5px;
+}
+.status-badge-D   { color: #5090ff; }
+.status-badge-DE  { color: #f0c040; }
+.status-badge-OS  { color: #f05050; }
+.status-badge-F   { color: #f05050; }
+.status-badge-FD  { color: #e08030; }
+.status-badge-T   { color: #c080ff; }
+.status-badge-TH  { color: #50b0ff; }
+.status-badge-AV  { color: #30d080; }
+.status-badge-IQ  { color: #30d080; }
+.status-badge-UV  { color: #8090a0; }
+.status-badge-BRK { color: #f0c040; }
+.status-badge-OOS { color: #8090a0; }
+
+/* Legacy statusPill — kept for backward compat but visually flattened */
+.statusPill {
+  padding: 0;
+  background: transparent;
+  border: none;
+  display: inline;
+}
+.statusTop  { font-weight: 900; font-size: 12px; line-height: 1.2; }
+.statusMeta { color: var(--muted); font-size: 9px; line-height: 1.1; }
+
+/* ── Stale Row Indicators ──────────────────────────────────── */
+/* Stale uses left border — visible but not overriding status color */
+tr.stale10 { border-left: 3px solid rgba(232,184,48,.40) !important; }
+tr.stale20 { border-left: 3px solid rgba(232,184,48,.75) !important; }
+tr.stale30 {
+  border-left: 3px solid rgba(212,48,48,.90) !important;
+  animation: stalePulse 2.5s infinite;
+}
+@keyframes stalePulse {
+  0%, 100% { filter: brightness(1); }
+  50%       { filter: brightness(1.18); }
+}
+
+/* ── Elapsed time ──────────────────────────────────────────── */
+.elapsed-cell  { text-align: right; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.elapsed-warn  { color: var(--yellow); font-weight: 700; }
+.elapsed-os-warn  { color: #e0b040; font-weight: 700; }   /* OS ≥15m */
+.elapsed-os-alert { color: #e07020; font-weight: 900; }   /* OS ≥30m */
+.elapsed-critical { color: var(--red); font-weight: 900; } /* OS ≥45m or global CRITICAL */
+
+/* ── Dest / Note ───────────────────────────────────────────── */
+.destBig {
+  font-weight: 700;
+  color: var(--hi);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.noteBig {
+  font-weight: 700;
+  color: var(--yellow);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Clickable Elements ────────────────────────────────────── */
+.incidentIdLink {
+  cursor: pointer;
+  font-weight: 900;
+  color: var(--hi);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,.3);
+}
+.incidentIdLink:hover { color: var(--yellow); border-color: var(--yellow); }
+.clickableUnitId { cursor: pointer; user-select: none; }
+.clickableUnitId:hover { color: var(--yellow); }
+.clickableIncidentNum {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 900;
+  color: var(--hi);
+}
+.clickableIncidentNum:hover { color: var(--yellow); }
+
+/* ============================================================
+   INCIDENT QUEUE — looks like a dispatch queue stack,
+   not a card layout. Dense table rows, queue-number prominent.
+   ============================================================ */
+.incidentQueue { overflow-y: auto; }
+
+/* Queue table */
+.inc-queue-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: fixed;
+}
+.inc-queue-table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: .8px;
+  border-bottom: 2px solid var(--border);
+  background: var(--bg2);
+  white-space: nowrap;
+}
+.inc-queue-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.inc-queue-table tr:hover td { background: rgba(255,255,255,.03); }
+
+/* Queue row urgency tints */
+.inc-urgent    { background: rgba(212,48,48,.12);  }
+.inc-mutual-aid { background: rgba(192,96,16,.07); }
+
+/* Queue cell classes */
+.inc-id {
+  font-weight: 900;
+  font-size: 12px;
+  color: #f0c040;
+  letter-spacing: .5px;
+}
+.inc-note {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.inc-age  { color: var(--muted); font-variant-numeric: tabular-nums; }
+.inc-dest { color: var(--hi);   }
+
+/* Incident type badges */
+.inc-type {
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid;
+  letter-spacing: .3px;
+}
+.inc-type-med     { color: #4080e0; border-color: #4080e0; }
+.inc-type-trauma  { color: #e04040; border-color: #e04040; }
+.inc-type-fire    { color: #e06010; border-color: #e06010; }
+.inc-type-hazmat  { color: #f0c040; border-color: #f0c040; }
+.inc-type-rescue  { color: #b070f0; border-color: #b070f0; }
+.inc-type-other   { color: var(--muted); border-color: var(--muted); }
+.inc-type-delta   { color: #f04040; border-color: #f04040; }
+.inc-type-charlie { color: #e07000; border-color: #e07000; }
+.inc-type-bravo   { color: #f0c040; border-color: #f0c040; }
+.inc-type-alpha   { color: #4090d0; border-color: #4090d0; }
+
+/* Incident type color dots */
+.inc-type-dot { display:inline-block; width:7px; height:7px; border-radius:50%;
+                vertical-align:middle; margin-right:3px; background:var(--muted); }
+.inc-type-dot-med     { background: #4080e0; }
+.inc-type-dot-trauma  { background: #e04040; }
+.inc-type-dot-fire    { background: #e06010; }
+.inc-type-dot-hazmat  { background: #f0c040; }
+.inc-type-dot-rescue  { background: #b070f0; }
+.inc-type-dot-other   { background: var(--muted); }
+.inc-type-dot-delta   { background: #f04040; }
+.inc-type-dot-charlie { background: #e07000; }
+.inc-type-dot-bravo   { background: #f0c040; }
+.inc-type-dot-alpha   { background: #4090d0; }
+
+/* Wait time escalation */
+.inc-wait    { color: var(--yellow); font-weight: 700; }
+.inc-overdue { color: var(--red); font-weight: 900; animation: blink 1s step-start infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.inc-stale      { background: rgba(192,80,0,.07); }
+.stale-badge    { background: #802000; color: #ffaa60; font-size: 9px; font-weight: 900;
+                  padding: 1px 4px; margin-left: 4px; letter-spacing: .5px; }
+.inc-stale-wait { color: #c05010; font-weight: 900; }
+
+/* ── Legacy queued incident cards (not shown in current build) */
+.queuedIncident {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  cursor: pointer;
+}
+.queuedIncident:hover { border-color: var(--yellow); }
+.queuedIncident.urgent { border-left-color: var(--red); }
+@keyframes pulseQueue {
+  0%, 100% { border-left-color: var(--red); }
+  50%      { border-left-color: rgba(212,48,48,.3); }
+}
+.queuedIncident.urgent { animation: pulseQueue 1.5s infinite; }
+.queuedIncidentHeader   { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.queuedIncidentId       { font-weight: 900; color: var(--yellow); font-size: 12px; }
+.queuedIncidentTime     { color: var(--muted); font-size: 10px; }
+.queuedIncidentDest     { color: var(--hi); font-size: 11px; margin-bottom: 3px; }
+.queuedIncidentNote     { color: var(--text); font-size: 10px; line-height: 1.3; }
+
+/* ── Side Panel ────────────────────────────────────────────── */
+.side-panel {
+  width: 0;
+  overflow: hidden;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--panel2);
+  flex-shrink: 0;
+}
+.side-panel.open { width: 300px; }
+.side-panel-inner { padding: 8px; width: 300px; }
+.side-section {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.side-section:last-child { border-bottom: none; }
+.side-section h3 {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 900;
+  letter-spacing: .5px;
+}
+
+/* ── Bottom Panels ─────────────────────────────────────────── */
+.bottom-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 980px) { .bottom-panels { grid-template-columns: 1fr; } }
+.bottom-panel {
+  background: var(--panel2);
+  border: none;
+  border-right: 1px solid var(--border);
+}
+.bottom-panel:last-child { border-right: none; }
+.bottom-panel.collapsed .collapsible-body { display: none; }
+.bottom-panel .collapsible-body.open { display: block; }
+.bottom-panel-scroll {
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.scratch-textarea {
+  width: 100%;
+  min-height: 72px;
+  background: var(--bg);
+  border: none;
+  color: var(--text);
+  font-size: 11px;
+  padding: 6px 8px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Inbox */
+.inbox-msg {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  font-size: 11px;
+}
+.inbox-msg:hover      { background: rgba(255,255,255,.02); }
+.inbox-msg.unread     { background: rgba(32,96,224,.07); }
+.inbox-msg.urgent     { background: rgba(212,48,48,.10); border-color: #3a1010; }
+.inbox-from           { font-weight: 900; color: var(--hi); }
+.inbox-time           { color: var(--muted); font-size: 10px; float: right; }
+
+/* ── Actions ───────────────────────────────────────────────── */
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini {
+  padding: 5px 8px;
+  border-width: 1px;
+  font-size: 11px;
+  font-weight: 900;
+  background: var(--panel);
+  border-radius: 0;
+}
+
+/* ── Modals ────────────────────────────────────────────────── */
+.modalBack, .loginBack {
+  position: fixed; inset: 0; background: rgba(0,0,0,.82);
+  display: none; align-items: center; justify-content: center; z-index: 30;
+  padding: 12px;
+}
+.modal {
+  width: min(780px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 0;
+}
+.modal h2   { margin: 0 0 10px 0; font-size: 13px; font-weight: 900; letter-spacing: .5px; }
+.modal .row { margin: 8px 0; }
+.loginBack { display: flex; background: rgba(0,0,0,.82); }
+.login     { width: min(420px, 100%); }
+.twoCol    { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 900px) { .twoCol { grid-template-columns: 1fr; } }
+
+/* Unit History Modal */
+#uhBack .modal { width: min(960px, 100%); }
+.uhTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.uhTable th, .uhTable td {
+  border-bottom: 1px solid var(--border);
+  padding: 7px 8px;
+  vertical-align: top;
+}
+.uhTable th { color: var(--muted); font-weight: 900; font-size: 10px; letter-spacing: .5px; }
+.uhLine { color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+/* ── Messages ──────────────────────────────────────────────── */
+.msgModal .msgList { max-height: 400px; overflow-y: auto; }
+.msgItem {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.msgItem:hover        { background: rgba(255,255,255,.02); }
+.msgItem.unread       { background: rgba(32,96,224,.07); }
+.msgItem.urgent       { background: rgba(212,48,48,.10); border-color: #3a1010; }
+.msgHeader            { display: flex; justify-content: space-between; margin-bottom: 3px; }
+.msgFrom              { font-weight: 900; color: var(--hi); font-size: 12px; }
+.msgTime              { color: var(--muted); font-size: 10px; }
+.msgText              { color: var(--text); font-size: 11px; line-height: 1.3; }
+.msgUrgent            { color: var(--red); font-weight: 900; font-size: 11px; }
+
+/* Messages in main panel */
+.messagesPanel { max-height: 280px; overflow-y: auto; }
+.messageDisplayItem {
+  padding: 7px 8px;
+  margin-bottom: 4px;
+  border-left: 3px solid var(--border);
+  background: var(--panel);
+}
+.messageDisplayItem.urgent {
+  border-left-color: var(--red);
+  background: rgba(212,48,48,.10);
+  animation: pulseBadge 1.5s infinite;
+}
+.messageDisplayHeader { font-weight: 900; color: var(--yellow); margin-bottom: 3px; font-size: 11px; }
+.messageDisplayItem.urgent .messageDisplayHeader { color: var(--red); }
+.messageDisplayText  { color: var(--text); font-size: 11px; line-height: 1.3; }
+.messageDisplayTime  { color: var(--muted); font-size: 10px; margin-top: 3px; }
+
+/* ── Role Colors ───────────────────────────────────────────── */
+.roleColor-STA1 { color: #4080d8; }
+.roleColor-STA2 { color: #8050c0; }
+.roleColor-STA3 { color: #c04080; }
+.roleColor-STA4 { color: #c08020; }
+.roleColor-STA5 { color: #20a060; }
+.roleColor-STA6 { color: #20a0b0; }
+.roleColor-SUPV { color: #d0a020; }
+.roleColor-EMS  { color: #20a060; }
+.roleColor-MSC  { color: #9070c0; }
+
+/* ── Confirm Dialog ────────────────────────────────────────── */
+.confirmDialog {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.85);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 50;
+}
+.confirmDialog.active { display: flex; }
+.confirmBox {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--yellow);
+  padding: 16px;
+  max-width: 480px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.confirmTitle {
+  font-size: 13px; font-weight: 900; color: var(--hi);
+  margin-bottom: 10px; letter-spacing: .5px;
+}
+.confirmMessage {
+  color: var(--text);
+  margin-bottom: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  font-family: Consolas, Menlo, Monaco, "Courier New", monospace;
+  font-size: 12px;
+}
+.confirmButtons { display: flex; gap: 8px; }
+
+/* ── Command Bar ───────────────────────────────────────────── */
+.cmdbar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  background: var(--bg2);
+  border-top: 2px solid var(--border);
+  padding: 6px 10px;
+  z-index: 40;
+}
+.cmd-hints {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 3px;
+  min-height: 0;
+}
+.cmd-prompt {
+  font-weight: 900;
+  color: var(--green);
+  font-size: 13px;
+  padding: 8px 4px;
+  user-select: none;
+  letter-spacing: .5px;
+}
+.cmdhint { margin-top: 4px; color: var(--muted); font-size: 10px; letter-spacing: .2px; }
+
+/* ── Address Autocomplete ──────────────────────────────────── */
+.addr-ac-wrapper    { position: relative; flex: 1; }
+.addr-ac-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.addr-ac-dropdown.open { display: block; }
+.addr-ac-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.addr-ac-item:hover        { background: rgba(255,255,255,.04); }
+.addr-ac-item.active       { background: rgba(32,96,224,.14); }
+.addr-ac-id                { font-weight: 900; color: var(--hi); }
+.addr-ac-name              { color: var(--text); margin-left: 6px; }
+.addr-ac-detail            { color: var(--muted); font-size: 10px; }
+.addr-ac-cat               { color: var(--yellow); font-size: 10px; margin-left: 6px; }
+
+/* ── Old Table (legacy) ────────────────────────────────────── */
+.table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.table th, .table td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px;
+  vertical-align: top;
+}
+.table th { color: var(--muted); font-weight: 900; font-size: 10px; }
+
+/* ============================================================
+   DENSITY MODES
+   compact = 20-22px rows (maximum info density, wall display)
+   normal  = 26px rows (default, comfortable dispatcher use)
+   expanded = 38-42px rows (big screen / accessibility)
+   ============================================================ */
+
+/* ── COMPACT ───────────────────────────────────────────────── */
+.density-compact .board-table { font-size: 10px; }
+.density-compact .board-table th,
+.density-compact .board-table td { padding: 0 5px; line-height: 1; }
+.density-compact .board-table tbody tr { height: 20px; min-height: 0; }
+.density-compact .unit    { font-size: 10px; }
+.density-compact .statusCode  { font-size: 11px; }
+.density-compact .destBig  { font-size: 10px; }
+.density-compact .noteBig  { font-size: 10px; }
+.density-compact .status-badge { font-size: 9px; }
+.density-compact .level-badge  { font-size: 7px; padding: 0 2px; }
+.density-compact .crew-sub     { display: none; }
+
+/* ── EXPANDED ──────────────────────────────────────────────── */
+.density-expanded .board-table { font-size: 13px; }
+.density-expanded .board-table th,
+.density-expanded .board-table td { padding: 0 12px; }
+.density-expanded .board-table tbody tr { height: 40px; }
+.density-expanded .unit    { font-size: 14px; }
+.density-expanded .statusCode  { font-size: 15px; }
+.density-expanded .destBig  { font-size: 13px; }
+.density-expanded .noteBig  { font-size: 13px; }
+.density-expanded .status-badge { font-size: 12px; min-width: 32px; }
+
+/* ============================================================
+   NIGHT MODE — additional brightness reduction for low-light
+   ============================================================ */
+body.night-mode { filter: brightness(0.65) saturate(0.80); }
+body.night-mode header             { filter: none; }
+body.night-mode .cmdbar            { filter: none; }
+body.night-mode .modalBack,
+body.night-mode .loginBack,
+body.night-mode .confirmDialog     { filter: brightness(1.4); }
+
+/* ============================================================
+   RESPONSIVE — Large Screens (1600px+)
+   ============================================================ */
+@media (min-width: 1600px) {
+  .board-table { font-size: 13px; }
+  .board-table th,
+  .board-table td { padding: 0 10px; }
+  .board-table tbody tr { height: 28px; }
+  .unit         { font-size: 13px; }
+  .statusCode   { font-size: 14px; }
+  .destBig      { font-size: 12px; }
+  .noteBig      { font-size: 12px; }
+  .status-badge { font-size: 11px; }
+}
+@media (min-width: 2400px) {
+  .board-table { font-size: 14px; }
+  .board-table tbody tr { height: 30px; }
+  .unit         { font-size: 14px; }
+  .statusCode   { font-size: 15px; }
+  .destBig      { font-size: 13px; }
+  .noteBig      { font-size: 13px; }
+}
+
+/* ============================================================
+   LEVEL BADGES
+   ============================================================ */
+.level-badge {
+  font-size: 9px;
+  padding: 0 3px;
+  font-weight: 900;
+  vertical-align: middle;
+  display: inline-block;
+  line-height: 1.4;
+  letter-spacing: .3px;
+}
+.level-ALS  { background: rgba(32,176,96,.12);   color: #40d090; border: 1px solid #0f3020; }
+.level-BLS  { background: rgba(32,96,224,.12);   color: #5090ff; border: 1px solid #0c2060; }
+.level-AEMT { background: rgba(232,184,48,.12);  color: #e0b830; border: 1px solid #3a2c00; }
+.level-EMT  { background: rgba(96,112,128,.12);  color: #8090a0; border: 1px solid #303c48; }
+
+/* ============================================================
+   PRIORITY BADGES
+   ============================================================ */
+.priority-CRITICAL { color: #f04040; font-weight: 900; }
+.priority-HIGH     { color: #f06060; font-weight: 900; }
+.priority-MED      { color: #e0b830; }
+.priority-LOW      { color: #8090a0; }
+.priority-PRI-1    { color: #f04040; font-weight: 900; }
+.priority-PRI-2    { color: #e07000; font-weight: 900; }
+.priority-PRI-3    { color: #e0b830; }
+.priority-PRI-4    { color: #30d080; }
+
+/* ============================================================
+   QUICK-ACTION BAR
+   ============================================================ */
+.quick-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg2);
+  border-bottom: 2px solid var(--border);
+  flex-wrap: wrap;
+}
+.qb-unit-label   { font-weight: 900; color: var(--hi); font-size: 13px; letter-spacing: .5px; }
+.qb-status-label { color: var(--muted); font-size: 11px; }
+.qb-buttons      { display: flex; gap: 3px; flex-wrap: wrap; }
+.qb-btn {
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 900;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  border-radius: 0;
+  letter-spacing: .4px;
+}
+.qb-btn:disabled          { opacity: .3; cursor: default; }
+.qb-btn:not(:disabled):hover { filter: brightness(1.2); }
+.qb-note {
+  padding: 3px 7px;
+  font-size: 11px;
+  flex: 1;
+  min-width: 120px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+.qb-deselect {
+  padding: 3px 7px;
+  font-size: 10px;
+  color: var(--muted);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.qb-deselect:hover { color: var(--text); }
+
+/* Quick-action status button colors */
+.qb-D   { background: rgba(32,96,224,.14);  border-color: #2060d0; color: #5090ff; }
+.qb-DE  { background: rgba(232,184,48,.12); border-color: #c09010; color: #e8b830; }
+.qb-OS  { background: rgba(212,48,48,.14);  border-color: #b02020; color: #f05050; }
+.qb-T   { background: rgba(160,96,224,.12); border-color: #8050c0; color: #b070f0; }
+.qb-TH  { background: rgba(24,120,176,.12); border-color: #106090; color: #40a0e0; }
+.qb-AV  { background: rgba(32,176,96,.10);  border-color: #0f5030; color: #30d080; }
+.qb-IQ  { background: rgba(32,176,96,.08);  border-color: #0f4028; color: #30d080; }
+.qb-OOS { background: rgba(96,112,128,.10); border-color: #404c58; color: #8090a0; }
+
+/* ============================================================
+   FIELD APP: HANDOFF / DEST QUICK SELECT
+   ============================================================ */
+.btn-handoff {
+  width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  background: #061a0e;
+  border: 1px solid #0f3020;
+  color: #30d080;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 0;
+}
+.btn-handoff:hover { filter: brightness(1.1); }
+
+.dest-quick-row { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0; }
+.dest-quick-btn {
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  background: #080e18;
+  border: 1px solid #14304a;
+  color: #4a90c8;
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+.dest-quick-btn:hover { filter: brightness(1.15); }
+.dest-diverted { background: #180808 !important; border-color: #802020 !important; color: #e05050 !important; }
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+.toast-container {
+  position: fixed; bottom: 60px; right: 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  z-index: 9000; pointer-events: none;
+}
+.toast {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(6px);
+  /* No border-radius — flat, terminal aesthetic */
+  max-width: 320px;
+  pointer-events: none;
+  letter-spacing: .3px;
+  border-left: 3px solid transparent;
+  /* Minimal transition — snappy not smooth */
+  transition: opacity .15s, transform .15s;
+}
+.toast-visible { opacity: 1; transform: translateY(0); }
+.toast-info    { background: #0a1420; border-color: #1a4a78; color: #4a90d8; }
+.toast-success { background: #061a0e; border-color: #0f3820; color: #30d080; }
+.toast-warn    { background: #1a1200; border-color: #3a2800; color: #e8b830; }
+.toast-error   { background: #1a0808; border-color: #3a1010; color: #e04040; }
+
+/* ============================================================
+   ROW FLASH ON UPDATE
+   ============================================================ */
+@keyframes rowFlash { 0% { filter: brightness(2.0); } 100% { filter: brightness(1); } }
+.row-flash { animation: rowFlash .4s ease-out; }
+
+/* ============================================================
+   FOCUS VISIBLE
+   ============================================================ */
+:focus-visible { outline: 1px solid var(--blue); outline-offset: 1px; }
+
+/* ============================================================
+   KPI METRICS
+   ============================================================ */
+.metric-good { color: #30d080; }
+.metric-warn { color: var(--yellow); }
+.metric-bad  { color: var(--red); font-weight: 700; }
+
+/* ============================================================
+   BADGES — all flattened (no border-radius)
+   ============================================================ */
+.oos-badge {
+  display: inline-block;
+  background: #1a0c00;
+  border: 1px solid #3a2000;
+  color: var(--yellow);
+  font-size: 9px; font-weight: 700;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .04em;
+}
+.crew-sub { font-size: 8px; color: var(--muted); letter-spacing: .02em; margin-top: 1px; line-height: 1.1; }
+
+.div-badge {
+  display: inline-block;
+  background: #1a0808;
+  border: 1px solid #802020;
+  color: #e05050;
+  font-size: 9px; font-weight: 700;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .04em;
+}
+.pat-badge {
+  display: inline-block;
+  background: #08141a;
+  border: 1px solid #0a4060;
+  color: #4090c0;
+  font-size: 9px; font-weight: 700;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .04em;
+}
+.ma-badge {
+  display: inline-block;
+  background: #140c00;
+  border: 1px solid #604000;
+  color: #c07020;
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .06em;
+}
+.ma-active-badge {
+  display: inline-block;
+  background: #001a0a;
+  border: 1px solid #20603a;
+  color: #40c070;
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .06em;
+}
+.air-badge {
+  display: inline-block;
+  background: #001a2a;
+  border: 1px solid #2080b0;
+  color: #40a0d0;
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .06em;
+}
+.cb-badge {
+  display: inline-block;
+  background: #001408;
+  border: 1px solid #004828;
+  color: #00b060;
+  font-size: 9px; font-weight: 700;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .04em;
+}
+.stack-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(232,184,48,.14);
+  border: 1px solid rgba(232,184,48,.4);
+  color: var(--yellow);
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  margin-left: 3px;
+  letter-spacing: .5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stack-badge-urgent { background: rgba(212,48,48,.14); border-color: rgba(212,48,48,.4); color: #e05050; }
+.stack-row {
+  font-size: 10px; color: var(--muted);
+  background: rgba(255,255,255,.02);
+  border-left: 2px solid rgba(232,184,48,.3);
+  padding: 2px 6px 2px 18px;
+  display: flex; align-items: center; gap: 6px;
+}
+.stack-row-primary { border-left-color: rgba(64,144,216,.5); }
+.stack-row-btn {
+  font-size: 9px; padding: 1px 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.stack-row-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+.oos-queue-warn { color: var(--yellow); font-size: 10px; font-weight: 700; margin-left: 3px; }
+.stack-detail-row { background: rgba(90,160,255,.04); }
+.stack-detail-row td { padding: 3px 6px; border-bottom: none; font-size: 11px; }
+.stack-detail-role { font-size: 10px !important; font-weight: 700; color: #5ba3e6; letter-spacing: .06em; }
+.stack-detail-inc { color: #c9d1d9; }
+.stack-detail-actions { white-space: nowrap; }
+
+.cap-badge-assist {
+  display: inline-block;
+  padding: 0 3px;
+  font-size: 9px; font-weight: 900;
+  background: rgba(96,96,96,.12);
+  border: 1px solid rgba(96,96,96,.25);
+  color: #606870;
+  margin-left: 2px;
+  letter-spacing: .03em;
+}
+
+/* Unit type left border accents */
+.unit-type-law     { border-left: 3px solid #3a5a8a !important; }
+.unit-type-dot     { border-left: 3px solid #b06010 !important; }
+.unit-type-support { border-left: 3px solid #606060 !important; }
+
+/* ============================================================
+   SUGGEST CHIPS
+   ============================================================ */
+.inc-suggest-row {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 3px 0 5px; min-height: 0;
+}
+.suggest-chip {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 6px;
+  background: rgba(64,144,216,.08);
+  border: 1px solid rgba(64,144,216,.25);
+  cursor: pointer;
+  font-size: 10px; font-weight: 700;
+  font-family: inherit; color: var(--text);
+  line-height: 1.4;
+}
+.suggest-chip:hover { background: rgba(64,144,216,.20); border-color: rgba(64,144,216,.5); }
+.suggest-level { font-size: 9px; color: #4090c8; font-weight: 900; margin-left: 2px; }
+
+/* ============================================================
+   MAP SYSTEM
+   ============================================================ */
+.map-result-row {
+  padding: 6px 10px; font-size: 11px; cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.map-result-row:hover      { background: rgba(255,255,255,.04); }
+.map-result-row:last-child { border-bottom: none; }
+.map-result-selected       { background: rgba(64,144,216,.12) !important; color: #4090c8; }
+
+.leaflet-pane    { z-index: 400 !important; }
+.leaflet-control { z-index: 800 !important; }
+
+body.cad-console-mode { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+body.cad-console-mode .main-wrap,
+body.cad-console-mode #mainWrap { flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+#cadMapWrap       { flex:1; min-height:0; }
+#cadMapContainer  { width:100%; height:100%; }
+
+#boardMapPane {
+  height: 0;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  flex-shrink: 0;
+}
+body.board-map-open #boardMapPane {
+  height: 320px;
+  border-bottom: 2px solid var(--border);
+}
+#boardMapContainer { width:100%; height:100%; background:#080e08; }
+
+/* LOC / PulsePoint / related incident badges */
+.loc-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  background: rgba(64,144,216,.10);
+  border: 1px solid rgba(64,144,216,.25);
+  color: #50a0d8;
+  margin-left: 3px;
+  cursor: pointer;
+  letter-spacing: .04em;
+}
+.loc-note-inline { font-size: inherit; font-weight: inherit; color: inherit; margin-left: 3px; }
+
+/* ETA badge — shown when dispatcher sets ETA for a unit via ETA command */
+.eta-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  background: rgba(255,180,0,.12);
+  border: 1px solid rgba(255,180,0,.30);
+  color: #ffb400;
+  margin-left: 3px;
+  letter-spacing: .04em;
+}
+
+.map-focus-ring { animation: mapPulse 1s ease-in-out 3; }
+@keyframes mapPulse {
+  0%, 100% { opacity: .3; }
+  50%       { opacity: .9; }
+}
+
+.pp-agency-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 3px;
+  border: 1px solid;
+  margin-left: 2px;
+  letter-spacing: .04em;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+.pp-rel-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 3px;
+  border: 1px solid rgba(64,144,216,.45);
+  margin-left: 2px;
+  letter-spacing: .04em; vertical-align: middle; line-height: 1.4;
+  color: #4090c8; background: rgba(64,144,216,.07);
+}
+/* ── DC911 CadView feed badges ──────────────────────────────── */
+.dc911-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 3px;
+  border: 1px solid;
+  margin-left: 2px;
+  letter-spacing: .04em;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+.dc911-ems  { color: #60d8a0; border-color: rgba(96,216,160,.45); background: rgba(96,216,160,.07); }
+.dc911-fire { color: #f87171; border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.07); }
+.dc911-law  { color: #a78bfa; border-color: rgba(167,139,250,.45); background: rgba(167,139,250,.07); }
+.related-inc-chip {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 6px;
+  background: rgba(64,144,216,.07);
+  border: 1px solid rgba(64,144,216,.28);
+  cursor: pointer;
+  font-size: 10px; font-weight: 700;
+  font-family: inherit; color: #4090c8;
+  line-height: 1.4; margin: 1px 2px 1px 0;
+}
+.related-inc-chip:hover { background: rgba(64,144,216,.18); }
+/* Linked incident badge — shown on queue cards (non-clickable variant of related-inc-chip) */
+.rel-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 3px;
+  border: 1px solid rgba(80,190,140,.45);
+  border-radius: 2px;
+  margin-left: 2px;
+  letter-spacing: .04em; vertical-align: middle; line-height: 1.4;
+  color: #50be8c; background: rgba(80,190,140,.07);
+  cursor: pointer;
+}
+.rel-badge:hover { background: rgba(80,190,140,.18); }
+
+/* ─── HOLD Badge — scheduled call ───────────────────────────────────────── */
+.hold-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 0 4px;
+  border-radius: 2px;
+  margin-left: 3px;
+  letter-spacing: .04em; vertical-align: middle; line-height: 1.4;
+}
+.hold-badge-pending {
+  color: #8b949e;
+  border: 1px solid #30363d;
+  background: rgba(255,255,255,.04);
+}
+.hold-badge-due {
+  color: #ffa657;
+  border: 1px solid rgba(255,166,87,.5);
+  background: rgba(255,166,87,.1);
+}
+.inc-hold-pending { opacity: .65; }
+
+/* ─── Disposition Badge ──────────────────────────────────────────────────── */
+.disp-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 900;
+  padding: 1px 4px; margin-left: 4px;
+  background: rgba(100,100,120,.18);
+  border: 1px solid rgba(140,140,160,.35);
+  color: #9ca8bc;
+  letter-spacing: .04em; vertical-align: middle;
+}
+
+/* ─── Global Hover Tooltip ──────────────────────────────────────────────── */
+#globalTip {
+  display: none;
+  position: fixed;
+  z-index: 9800;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 8px 11px;
+  font-size: 11px;
+  max-width: 280px;
+  min-width: 170px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.55);
+  pointer-events: none;
+  line-height: 1.5;
+}
+.tip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: .4px;
+  margin-bottom: 5px;
+}
+.tip-row {
+  display: flex;
+  gap: 6px;
+  margin: 1px 0;
+}
+.tip-key {
+  color: var(--muted);
+  min-width: 66px;
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.tip-val {
+  color: var(--text);
+  word-break: break-word;
+}
+
+/* ── LifeFlight ADS-B Panel ──────────────────────────────────── */
+.lfn-panel { background: #0f1422; border-bottom: 1px solid #2a2a3a; }
+.lfn-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: #0c1020;
+  border-bottom: 1px solid #1e1e2e;
+}
+.lfn-panel-header:hover { background: rgba(255,255,255,.02); }
+.lfn-panel-title { font-size: 11px; font-weight: 900; color: #8090b0; letter-spacing: 1px; }
+.lfn-alert-badge {
+  background: #f59e0b;
+  color: #000;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 3px;
+  animation: lfnPulse 1s infinite alternate;
+}
+@keyframes lfnPulse {
+  from { opacity: 1; }
+  to   { opacity: 0.55; }
+}
+.lfn-panel-toggle { font-size: 9px; color: var(--muted); }
+.lfn-panel-body { padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 6px; }
+.lfn-provider-group { display: flex; flex-direction: column; gap: 4px; }
+.lfn-provider-label { font-size: 9px; font-weight: 900; color: #445; letter-spacing: 1px; text-transform: uppercase; padding: 2px 0 1px; }
+.lfn-provider-cards { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Aircraft status cards */
+.lfn-ac {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #181825;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  padding: 5px 10px;
+  min-width: 200px;
+}
+.lfn-ac.status-inbd { border-color: #f59e0b; background: #1e1600; animation: lfnPulse 1.2s infinite alternate; }
+.lfn-ac.status-air  { border-color: #22c55e; }
+.lfn-ac.status-ldg  { border-color: #3b82f6; }
+.lfn-ac.status-gnd  { border-color: #444; }
+.lfn-ac.status-nosig { opacity: 0.35; }
+.lfn-callsign { font-size: 13px; font-weight: 900; color: #d0d8e8; min-width: 52px; font-family: monospace; }
+.lfn-status-text { font-size: 11px; font-weight: 700; min-width: 68px; }
+.lfn-detail { font-size: 10px; color: #6a7a8a; }
+.lfn-board-link { font-size: 10px; color: #60a5fa; margin-left: 4px; }
+
+
+/* Helipad "H" marker on board map */
+.lfn-helipad {
+  width: 18px;
+  height: 18px;
+  background: #1a3a5a;
+  border: 1.5px solid #40a0d0;
+  border-radius: 50%;
+  color: #40a0d0;
+  font-size: 10px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: monospace;
+}
+
+/* Unit and aircraft callsign labels on board map — matches inline style in popout-map and viewer */
+.v-map-label {
+  background: rgba(0,0,0,.9);
+  border: 1px solid rgba(255,255,255,.5);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  font-family: 'Courier New', Courier, monospace;
+  padding: 2px 5px;
+  white-space: nowrap;
+  transform: translate(-50%, -150%);
+  position: relative;
+  pointer-events: none;
+  text-shadow: 0 0 4px #000, 0 1px 2px #000;
+  letter-spacing: .04em;
+}

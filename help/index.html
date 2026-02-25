@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#070a0f" />
+  <title>HOSCAD — Command Reference</title>
+  <link rel="icon" href="../download.png" />
+  <style>
+    :root {
+      --bg: #070a0f;
+      --surface: #0d1117;
+      --surface2: #131920;
+      --border: rgba(91,163,230,.15);
+      --text: #c8d8e8;
+      --muted: #6a8aaa;
+      --accent: #5ba3e6;
+      --good: #3d9970;
+      --warn: #e6a817;
+      --danger: #c0392b;
+      --header-bg: #0a0e15;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    header {
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand { font-size: 15px; font-weight: 900; letter-spacing: .08em; color: var(--accent); }
+    .sub { color: var(--muted); font-size: 11px; }
+    nav {
+      margin-left: auto;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      transition: color .15s, border-color .15s;
+    }
+    nav a:hover { color: var(--accent); border-color: var(--accent); }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+    h2 {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .1em;
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin: 32px 0 14px;
+    }
+    h2:first-child { margin-top: 0; }
+    h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .06em;
+      margin: 20px 0 8px;
+      text-transform: uppercase;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+    td, th {
+      padding: 5px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(91,163,230,.07);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding-bottom: 4px;
+    }
+    td:first-child {
+      color: var(--accent);
+      white-space: nowrap;
+      font-weight: 700;
+      width: 38%;
+      padding-right: 16px;
+    }
+    tr:hover td { background: rgba(91,163,230,.04); }
+    .badge {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .04em;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .badge-admin { background: rgba(192,57,43,.18); color: #e74c3c; border: 1px solid rgba(192,57,43,.3); }
+    .badge-field { background: rgba(61,153,112,.15); color: #3d9970; border: 1px solid rgba(61,153,112,.3); }
+    .badge-both  { background: rgba(91,163,230,.12); color: var(--accent); border: 1px solid rgba(91,163,230,.25); }
+    .note {
+      background: var(--surface2);
+      border-left: 3px solid var(--accent);
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .note strong { color: var(--text); }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 6px;
+      margin: 8px 0;
+    }
+    .status-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 6px 10px;
+    }
+    .status-code { font-weight: 900; color: var(--accent); }
+    .status-desc { color: var(--muted); font-size: 11px; }
+    .info-block {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 12px 16px;
+      margin: 8px 0;
+      white-space: pre-line;
+      line-height: 1.7;
+      font-size: 12px;
+    }
+    .info-block .title { font-weight: 900; color: var(--accent); margin-bottom: 6px; display: block; }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 8px 0;
+    }
+    @media (max-width: 600px) {
+      .info-grid { grid-template-columns: 1fr; }
+      td:first-child { width: auto; }
+      nav { display: none; }
+    }
+    .toc {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+      columns: 2;
+      column-gap: 24px;
+    }
+    .toc a {
+      display: block;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 2px 0;
+      font-size: 12px;
+      transition: color .15s;
+    }
+    .toc a:hover { color: var(--accent); }
+    @media (max-width: 500px) { .toc { columns: 1; } }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="brand">SCMC HOSCAD</div>
+    <div class="sub">COMMAND REFERENCE</div>
+  </div>
+  <nav>
+    <a href="#status-codes">STATUS</a>
+    <a href="#board-view">VIEW</a>
+    <a href="#board-units">UNITS</a>
+    <a href="#incidents">INCIDENTS</a>
+    <a href="#messaging">MSG</a>
+    <a href="#reports">REPORTS</a>
+    <a href="#banners">BANNERS</a>
+    <a href="#diversion">DIVERSION</a>
+    <a href="#scope">SCOPE</a>
+    <a href="#field">FIELD</a>
+    <a href="#admin">ADMIN</a>
+    <a href="#keyboard">KEYS</a>
+    <a href="#info">INFO DIR</a>
+    <a href="#" onclick="window.close();return false;" title="Close this tab (ESC)">← BOARD</a>
+  </nav>
+</header>
+<div class="container">
+
+  <div class="toc">
+    <a href="#status-codes">Status Codes</a>
+    <a href="#board-view">View / Display (Board)</a>
+    <a href="#board-units">Unit Operations (Board)</a>
+    <a href="#incidents">Incident Management</a>
+    <a href="#stacking">Stacked Assignment Commands</a>
+    <a href="#messaging">Messaging System</a>
+    <a href="#reports">Reports &amp; Utilization</a>
+    <a href="#banners">Banners</a>
+    <a href="#diversion">Diversion Management</a>
+    <a href="#scope">Multi-Agency Scope</a>
+    <a href="#users">User Management</a>
+    <a href="#general">General Commands</a>
+    <a href="#field">Field App Commands</a>
+    <a href="#admin">Admin Commands</a>
+    <a href="#keyboard">Keyboard Shortcuts</a>
+    <a href="#info">INFO Directory</a>
+  </div>
+
+  <div class="note">
+    <strong>COMMAND BAR:</strong> Press <strong>Ctrl+K</strong>, <strong>F1</strong>, or <strong>F3</strong> to focus the command bar.
+    Commands are case-insensitive. Use <strong>;</strong> to separate command from note/text.
+    Up/Down arrows scroll command history. Tab autocompletes unit IDs and commands.
+  </div>
+
+  <!-- STATUS CODES -->
+  <h2 id="status-codes">STATUS CODES</h2>
+  <div class="status-grid">
+    <div class="status-item"><span class="status-code">D</span><br><span class="status-desc">Dispatched (pending response)</span></div>
+    <div class="status-item"><span class="status-code">DE</span><br><span class="status-desc">Dispatched Enroute</span></div>
+    <div class="status-item"><span class="status-code">OS</span><br><span class="status-desc">On Scene</span></div>
+    <div class="status-item"><span class="status-code">F</span><br><span class="status-desc">Follow Up</span></div>
+    <div class="status-item"><span class="status-code">FD</span><br><span class="status-desc">Flagged Down</span></div>
+    <div class="status-item"><span class="status-code">T</span><br><span class="status-desc">Transporting</span></div>
+    <div class="status-item"><span class="status-code">TH</span><br><span class="status-desc">At Hospital (crew w/ patient)</span></div>
+    <div class="status-item"><span class="status-code">AV</span><br><span class="status-desc">Available (clears incident)</span></div>
+    <div class="status-item"><span class="status-code">IQ</span><br><span class="status-desc">In Quarters (at station)</span></div>
+    <div class="status-item"><span class="status-code">UV</span><br><span class="status-desc">Unavailable</span></div>
+    <div class="status-item"><span class="status-code">BRK</span><br><span class="status-desc">Break / Lunch</span></div>
+    <div class="status-item"><span class="status-code">OOS</span><br><span class="status-desc">Out of Service</span></div>
+  </div>
+  <div class="note">Setting a unit to <strong>AV</strong> automatically clears its incident assignment. Going <strong>OOS</strong> prompts for a reason (logged in audit).</div>
+  <div class="note"><strong>AV FORCE:</strong> If a unit has an active incident, <code>AV &lt;UNIT&gt;</code> will warn you. Add FORCE to bypass: <code>AV EMS1 FORCE</code>. Force is logged in the audit trail.</div>
+  <div class="note"><strong>Syntax flexibility:</strong> <code>STATUS UNIT</code> or <code>UNIT STATUS</code> both work. Select a row first, then just type the status code to apply it to the selected unit.</div>
+
+  <!-- VIEW / DISPLAY -->
+  <h2 id="board-view">VIEW / DISPLAY — BOARD</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>V SIDE</td><td>Toggle sidebar panel</td></tr>
+    <tr><td>V MSG</td><td>Toggle message inbox in sidebar</td></tr>
+    <tr><td>V INC</td><td>Toggle incident queue panel</td></tr>
+    <tr><td>V ALL</td><td>Show all panels</td></tr>
+    <tr><td>V NONE</td><td>Hide all panels</td></tr>
+    <tr><td>F &lt;STATUS&gt;</td><td>Filter board by status (e.g. F OS, F AV, F OOS)</td></tr>
+    <tr><td>F ALL</td><td>Clear status filter</td></tr>
+    <tr><td>CLR</td><td>Clear all filters + search</td></tr>
+    <tr><td>SORT STATUS</td><td>Sort by status</td></tr>
+    <tr><td>SORT UNIT</td><td>Sort by unit ID</td></tr>
+    <tr><td>SORT ELAPSED</td><td>Sort by elapsed time in status</td></tr>
+    <tr><td>SORT UPDATED</td><td>Sort by last updated time</td></tr>
+    <tr><td>SORT REV</td><td>Reverse current sort direction</td></tr>
+    <tr><td>DEN</td><td>Cycle density (compact / normal / expanded)</td></tr>
+    <tr><td>DEN COMPACT</td><td>Set compact row density</td></tr>
+    <tr><td>DEN NORMAL</td><td>Set normal row density</td></tr>
+    <tr><td>DEN EXPANDED</td><td>Set expanded row density</td></tr>
+    <tr><td>PRESET DISPATCH</td><td>Dispatch view (sidebar + incidents panels on)</td></tr>
+    <tr><td>PRESET SUPERVISOR</td><td>Supervisor view preset</td></tr>
+    <tr><td>PRESET FIELD</td><td>Field view preset (minimal panels)</td></tr>
+    <tr><td>ELAPSED SHORT</td><td>Elapsed display: 12M, 1H30M style</td></tr>
+    <tr><td>ELAPSED LONG</td><td>Elapsed display: 1:30:45 style</td></tr>
+    <tr><td>ELAPSED OFF</td><td>Hide elapsed time column</td></tr>
+    <tr><td>NIGHT</td><td>Toggle night mode (dim display)</td></tr>
+    <tr><td>POPOUT</td><td>Open status board on secondary monitor</td></tr>
+    <tr><td>POPIN</td><td>Restore status board to this screen</td></tr>
+    <tr><td>BOARDS</td><td>Open all popout windows (unit status board + incident queue) on secondary monitor</td></tr>
+    <tr><td>MAP</td><td>Toggle inline map panel on main board</td></tr>
+    <tr><td>MAP &lt;UNIT&gt;</td><td>Focus map on unit's current location (opens map if closed). Shows unit at scene address if dispatched, LOC tag, or station.</td></tr>
+    <tr><td>MAP &lt;INC&gt;</td><td>Focus map on incident scene address (e.g. MAP INC0008 or MAP 26-0008)</td></tr>
+    <tr><td>MAP &lt;ADDRESS&gt;</td><td>Geocode any address and focus map on it with yellow pin. Supports intersections with / (e.g. MAP HWY 97/61ST). Pin persists until next MAP search or MAP CLR.</td></tr>
+    <tr><td>MAP &lt;LAT,LON&gt;</td><td>Pan map to GPS coordinates (e.g. MAP 44.05, -121.31). No API call needed.</td></tr>
+    <tr><td>MAP IN / MAP OUT</td><td>Zoom map in/out one level</td></tr>
+    <tr><td>MAP FIT</td><td>Fit all active units and incidents in view</td></tr>
+    <tr><td>MAP STA</td><td>Show and highlight all fire stations on map</td></tr>
+    <tr><td>MAP INC</td><td>Highlight all active incidents on map with pulse rings</td></tr>
+    <tr><td>MAP CLR</td><td>Clear map geocache and search pins, re-render fresh</td></tr>
+    <tr><td>MAP RESET</td><td>Reset map to default regional view</td></tr>
+    <tr><td>LOC &lt;UNIT&gt; &lt;ADDR&gt;</td><td>Set unit location for map display. Accepts free-text addresses or shortcodes. Chain status: <code>LOC M1271 123 MAIN ST; AV M1271</code></td></tr>
+    <tr><td>LOC &lt;UNIT&gt; CLR</td><td>Clear unit location tag</td></tr>
+    <tr><td>MAPR</td><td>Quick map refresh — re-render all unit and incident markers without toggling map visibility</td></tr>
+    <tr><td>POPMAP</td><td>Pop map out into its own window</td></tr>
+    <tr><td>POPINC</td><td>Pop incident queue out into its own window</td></tr>
+  </table>
+
+  <!-- UNIT OPERATIONS -->
+  <h2 id="board-units">UNIT OPERATIONS — BOARD</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>D &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Dispatch unit (set to D status)</td></tr>
+    <tr><td>DE &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Set unit enroute (DE)</td></tr>
+    <tr><td>DE &lt;UNIT&gt; &lt;INC&gt;</td><td>Set enroute + assign to incident (e.g. DE EMS1 26-0023)</td></tr>
+    <tr><td>OS &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Set on scene (OS)</td></tr>
+    <tr><td>OS &lt;UNIT&gt; &lt;INC&gt;</td><td>Set on scene for a specific incident</td></tr>
+    <tr><td>F &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Set follow up (F)</td></tr>
+    <tr><td>FD &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Flagged down (FD)</td></tr>
+    <tr><td>T &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Set transporting (T)</td></tr>
+    <tr><td>TH &lt;UNIT&gt;</td><td>At Hospital — crew with patient at receiving facility. Also: <code>AT &lt;UNIT&gt;</code> or <code>TA &lt;UNIT&gt;</code>.</td></tr>
+    <tr><td>AV &lt;UNIT&gt;</td><td>Set available — clears incident assignment</td></tr>
+    <tr><td>AV &lt;UNIT&gt; FORCE</td><td>Force AV even with active incident (logged in audit)</td></tr>
+    <tr><td>OOS &lt;UNIT&gt;</td><td>Set out of service — prompts reason dialog (logged)</td></tr>
+    <tr><td>BRK &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Set on break</td></tr>
+    <tr><td>UV &lt;UNIT&gt;</td><td>Set unavailable</td></tr>
+    <tr><td>IQ &lt;UNIT&gt;</td><td>Set in quarters — unit at home station, conditionally available. Location column shows station name.</td></tr>
+    <tr><td>DEST &lt;UNIT&gt; &lt;LOCATION&gt; [NOTE]</td><td>Set unit location/destination (auto-resolves facility codes). Use [NOTE] for room/direction info, e.g. <code>DEST EMS1 SCMC [BED 4]</code></td></tr>
+    <tr><td>DEST &lt;UNIT&gt;</td><td>Clear unit destination</td></tr>
+    <tr><td>ETA &lt;UNIT&gt; &lt;MINUTES&gt;</td><td>Set ETA note on unit (e.g. ETA EMS1 8)</td></tr>
+    <tr><td>ETA &lt;UNIT&gt; CLR</td><td>Clear ETA badge from unit</td></tr>
+    <tr><td>NEXT &lt;UNIT&gt;</td><td>Advance unit one step in EMS chain: D→DE→OS→T→TH→AV. Prompts confirm.</td></tr>
+    <tr><td>PAT &lt;UNIT&gt; &lt;TEXT&gt;</td><td>Set patient info badge on unit — e.g. <code>PAT EMS3 2PTS CHEST PAIN</code>. Shows [PAT:] badge on board.</td></tr>
+    <tr><td>PAT &lt;UNIT&gt; CLR</td><td>Clear patient info badge from unit</td></tr>
+    <tr><td>WELF &lt;UNIT&gt;</td><td>Welfare check — sends an urgent message asking unit to confirm status. e.g. <code>WELF M1</code>. Board auto-alerts on stale units &ge;30 min.</td></tr>
+    <tr><td>CLR &lt;UNIT&gt;</td><td>Clear unit from incident without changing status</td></tr>
+    <tr><td>LOGON &lt;UNIT&gt; &lt;NOTE&gt;</td><td>Log unit onto board (activate from roster). Shows new-unit dialog if unit has never been logged on.</td></tr>
+    <tr><td>LOGOFF &lt;UNIT&gt;</td><td>Deactivate unit (confirms if currently active on scene/transporting)</td></tr>
+    <tr><td>RIDOFF &lt;UNIT&gt;</td><td>Set AV + clear all fields (ride-off / end of shift prep). Confirms first.</td></tr>
+    <tr><td>SHIFT END &lt;UNIT&gt;</td><td>Full end-of-shift: set AV, clear assignments, then deactivate. Confirms before each step.</td></tr>
+    <tr><td>UNDO &lt;UNIT&gt;</td><td>Undo last action on unit</td></tr>
+    <tr><td>OK &lt;UNIT&gt;</td><td>Touch unit timer (reset staleness clock)</td></tr>
+    <tr><td>OK INC&lt;ID&gt;</td><td>Touch incident timestamp</td></tr>
+    <tr><td>OKALL</td><td>Touch all OS units at once</td></tr>
+    <tr><td>LUI</td><td>Open logon modal (empty) — SUPV/MGR/IT only (temp unit)</td></tr>
+    <tr><td>LUI &lt;UNIT&gt;</td><td>Open logon modal pre-filled with unit ID — SUPV/MGR/IT only</td></tr>
+    <tr><td>UI &lt;UNIT&gt;</td><td>Open unit info / edit modal</td></tr>
+    <tr><td>LINK &lt;U1&gt; &lt;U2&gt; &lt;INC&gt;</td><td>Assign both units to the same incident</td></tr>
+    <tr><td>TRANSFER &lt;FROM&gt; &lt;TO&gt; &lt;INC&gt;</td><td>Transfer incident ownership between units</td></tr>
+    <tr><td>MASS D &lt;DEST&gt; CONFIRM</td><td>Dispatch all AV units to destination (requires CONFIRM)</td></tr>
+    <tr><td>UH &lt;UNIT&gt; [HOURS]</td><td>View unit history (default 24h) — e.g. UH EMS1 48</td></tr>
+    <tr><td>UR</td><td>Active unit roster summary (all active units)</td></tr>
+    <tr><td>US</td><td>Full unit status report (all active units with details)</td></tr>
+    <tr><td>SUGGEST &lt;INC&gt;</td><td>Recommend available units for an incident</td></tr>
+    <tr><td>STATS</td><td>Live board summary: units by status, active/queued incidents, COVERAGE rating, longest open</td></tr>
+  </table>
+  <div class="note">
+    <strong>Command chaining:</strong> Use <code>;</code> to chain multiple commands — e.g. <code>AV EMS1; AV EMS2</code> or <code>LOC M1 123 MAIN; AV M1</code>.<br>
+    <strong>Alternate UH syntax:</strong> <code>EMS1 UH 12</code> (unit first) also works.<br>
+    <strong>Incident with status:</strong> Append incident ID to status command — <code>DE EMS1 26-0023</code> sets enroute and assigns the incident simultaneously.
+  </div>
+
+  <!-- INCIDENT MANAGEMENT -->
+  <h2 id="incidents">INCIDENT MANAGEMENT</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>NC &lt;DEST&gt;; &lt;NOTE&gt;; &lt;TYPE&gt;; &lt;PRIORITY&gt;</td><td>Create new incident in queue. Note, type, and priority are optional. Add "MA" in note for mutual aid flag. Use [CB:PHONE] in note for callback number.</td></tr>
+    <tr><td>COPY &lt;INC&gt;</td><td>Duplicate an incident into a new QUEUED call — copies destination, type, scene address, and priority. Strips all bracket tags from note. Opens new call immediately for review. e.g. <code>COPY 0023</code></td></tr>
+    <tr><td>COPY</td><td>Duplicate currently-open incident (no ID needed when panel is open)</td></tr>
+    <tr><td>HOLD &lt;DEST&gt;; &lt;HH:MM&gt;; [NOTE]; [TYPE]; [PRIORITY]</td><td>Schedule a call for later — creates QUEUED incident with a clock badge showing target time. Row is dimmed until time arrives; board alerts when ready. 24-hour time. e.g. <code>HOLD SCMC; 16:30; DIALYSIS TRANSPORT; EMS-ROUTINE</code></td></tr>
+    <tr><td>R &lt;INC&gt;</td><td>Review incident + full audit history<br>e.g. R 0023 or R 26-0023</td></tr>
+    <tr><td>U &lt;INC&gt; &lt;NOTE&gt;</td><td>Append note to incident (e.g. U 0023 PT STABLE IN WTRM)</td></tr>
+    <tr><td>U &lt;NOTE&gt;</td><td>Append note to currently-open incident — no ID needed when panel is open</td></tr>
+    <tr><td>CB &lt;INC&gt; &lt;PHONE&gt;</td><td>Set/update callback number on incident (e.g. CB 0023 5415551234) — replaces old CB</td></tr>
+    <tr><td>CB &lt;PHONE&gt;</td><td>Set callback on currently-open incident</td></tr>
+    <tr><td>PRIORITY &lt;INC&gt; &lt;PRI-N&gt;</td><td>Update incident priority (e.g. PRIORITY 0023 PRI-1)</td></tr>
+    <tr><td>CLOSE &lt;INC&gt;</td><td>Close incident — shows disposition picker (TRANSPORTED, CANCELLED, CANCELLED ON SCENE, MUTUAL AID, NO TRANSPORT, PATIENT REFUSAL, STANDBY). Stores code as <code>[DISP:CODE]</code> badge visible on board, viewer, and incident queue.</td></tr>
+    <tr><td>CLOSE</td><td>Dismiss the open incident panel (no changes)</td></tr>
+    <tr><td>DEL &lt;INC&gt; / CAN &lt;INC&gt;</td><td>Close incident — flexible syntax: DEL 023, CAN 0023, 023 DEL, DEL INC 0023 all work</td></tr>
+    <tr><td>RQ &lt;INC&gt;</td><td>Reopen a closed incident</td></tr>
+    <tr><td>REL &lt;INC&gt; &lt;TARGET&gt;</td><td>Link incidents together. TARGET can be a PulsePoint ID (e.g. <code>REL 0023 PP12345</code>) or another HOSCAD incident (e.g. <code>REL 0023 0024</code>). Linked incidents show a REL badge and appear in each other's detail panel.</td></tr>
+    <tr><td>SUGGEST &lt;INC&gt;</td><td>Recommend available units for incident</td></tr>
+  </table>
+
+  <h3>NC Command — Incident Type &amp; Flags</h3>
+  <div class="note">
+    <strong>PRIORITY:</strong> PRI-1 (critical/red), PRI-2 (urgent/orange), PRI-3 (routine/yellow), PRI-4 (low/blue)<br>
+    <strong>Mutual Aid:</strong> Add <code>MA</code> anywhere in note — auto-prefixed as <code>[MA]</code> on incident<br>
+    <strong>Callback:</strong> Add <code>[CB:5415550123]</code> in note for callback number display<br>
+    <strong>TYPE format:</strong> Category-Nature-Priority string (e.g. IFT-ALS-CARDIAC-PRI-2)<br>
+    &nbsp;&nbsp;<strong>CCT</strong> (PRI-1): VENT, MULTI-DRIP, CRITICAL-TRAUMA, ECMO, NICU-PICU, HIGH-RISK-AIRWAY<br>
+    &nbsp;&nbsp;<strong>IFT-ALS</strong> (PRI-1/2): CARDIAC, CHEST-PAIN, NEURO-STROKE, RESPIRATORY, SEPSIS, OB, GI-BLEED, TRAUMA<br>
+    &nbsp;&nbsp;<strong>IFT-BLS</strong> (PRI-3): POST-OP, DIAGNOSTIC, PSYCH, BASIC-MEDICAL, FALL-NO-INJURY, WOUND-CARE<br>
+    &nbsp;&nbsp;<strong>DISCHARGE</strong> (PRI-4): STRETCHER, WHEELCHAIR, AMBULATORY, HOME, REHAB, SNF<br>
+    &nbsp;&nbsp;<strong>DIALYSIS</strong> (PRI-2/3/4): ROUTINE, EMERGENT, MISSED-TX, RETURN
+  </div>
+  <div class="note">
+    <strong>Example:</strong> <code>NC SCMC; 67 YOF CHEST PAIN [CB:5415550123]; IFT-ALS-CHEST-PAIN-PRI-2</code><br>
+    <strong>Example:</strong> <code>NC BEND RURAL; VENT-DEPENDENT PT; CCT-VENT-PRI-1</code><br>
+    <strong>Example (minimal):</strong> <code>NC MADRAS ED</code><br>
+    <strong>Example (mutual aid):</strong> <code>NC REDMOND; MA STRUCTURE FIRE ASSIST; FIRE-PRI-1</code>
+  </div>
+
+  <!-- STACKED ASSIGNMENT -->
+  <h2 id="stacking">STACKED ASSIGNMENT COMMANDS</h2>
+  <div class="note">These commands manage the unit assignment queue, allowing a unit to hold multiple incident assignments in order. A unit's primary assignment is the active call; queued assignments are staged for when the unit becomes available. On the board, a unit with multiple assignments shows a <strong>2Q ▼</strong> badge — click it to expand the inline stack with promote/remove controls.</div>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td><strong>STACK &lt;INC&gt; &lt;UNIT&gt;</strong></td><td><strong>Smart-assign:</strong> if unit has no assignment, becomes primary. If unit is busy, queued behind current call. Preferred everyday command.<br>e.g. <code>STACK 0043 EMS12</code></td></tr>
+    <tr><td>ASSIGN &lt;INC&gt; &lt;UNIT&gt;</td><td>Force primary — displaces the current primary to queued. Use when you need to override assignment order.<br>e.g. <code>ASSIGN 26-0042 EMS12</code></td></tr>
+    <tr><td>QUEUE &lt;INC&gt; &lt;UNIT&gt;<br><span style="font-size:11px;color:#8b949e">alias: QUE, QUEU</span></td><td>Explicitly queue an incident behind the unit's current primary<br>e.g. <code>QUEUE 26-0043 EMS12</code></td></tr>
+    <tr><td>PRIMARY &lt;INC&gt; &lt;UNIT&gt;</td><td>Promote a queued assignment to primary for a unit</td></tr>
+    <tr><td>CLEAR &lt;INC&gt; &lt;UNIT&gt;</td><td>Remove a unit's assignment to an incident (requires confirm dialog). Auto-promotes next queued call if present.</td></tr>
+    <tr><td>STACK &lt;UNIT&gt;</td><td>Display a unit's full assignment stack in an alert dialog<br>e.g. <code>STACK EMS12</code></td></tr>
+  </table>
+  <div class="note"><strong>Short INC IDs:</strong> You can use the 4-digit short form — <code>STACK 0042 EMS12</code> — and the year prefix is added automatically.</div>
+
+  <!-- MESSAGING -->
+  <h2 id="messaging">MESSAGING SYSTEM</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>MSG &lt;ROLE/UNIT&gt; &lt;TEXT&gt;</td><td>Send normal message to a specific role or unit<br>e.g. MSG STA2 NEED COVERAGE AT 1400</td></tr>
+    <tr><td>HTMSG &lt;ROLE/UNIT&gt; &lt;TEXT&gt;</td><td>Send URGENT (hot) message to specific role or unit</td></tr>
+    <tr><td>MSGALL &lt;TEXT&gt;</td><td>Broadcast to all active dispatchers + field units</td></tr>
+    <tr><td>HTALL &lt;TEXT&gt;</td><td>URGENT broadcast to everyone</td></tr>
+    <tr><td>MSGDP &lt;TEXT&gt;</td><td>Message all dispatchers only (STA1-6, SUPV, MGR, EMS)</td></tr>
+    <tr><td>HTDP &lt;TEXT&gt;</td><td>URGENT message all dispatchers</td></tr>
+    <tr><td>MSGU &lt;TEXT&gt;</td><td>Message all active field units</td></tr>
+    <tr><td>HTU &lt;TEXT&gt;</td><td>URGENT message all active field units</td></tr>
+    <tr><td>INBOX</td><td>Open / focus message inbox panel</td></tr>
+    <tr><td>DEL ALL MSG</td><td>Delete all your messages</td></tr>
+    <tr><td>DEL MSG&lt;N&gt;</td><td>Delete a specific message (e.g. DEL MSG3)</td></tr>
+    <tr><td>SUP &lt;UNIT&gt; &lt;TEXT&gt;</td><td>Supplemental update — appends [SUP] note to unit's active incident and alerts the field unit with dispatch tone (1x). Use for urgent supplemental info during an active call.</td></tr>
+    <tr><td>M &lt;UNIT&gt; &lt;TEXT&gt;</td><td>Silent message — appends note to unit's active incident without alerting the field unit. Use for non-urgent notes.</td></tr>
+  </table>
+  <div class="note">
+    <strong>Roles for MSG:</strong> STA1-6, SUPV1-2, MGR1-2, EMS, TCRN, PLRN, IT, or a unit callsign (e.g. EMS12)<br>
+    <span class="badge badge-both">BOARD + FIELD</span> MSG/HTMSG/MSGDP/HTDP/MSGU/HTU/MSGALL/HTALL available on both board and field app
+  </div>
+
+  <!-- REPORTS -->
+  <h2 id="reports">REPORTS &amp; UTILIZATION</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>REPORT SHIFT [H]</td><td>Open printable shift summary window (default 12h)<br>e.g. REPORT SHIFT 24</td></tr>
+    <tr><td>REPORT INC &lt;ID&gt;</td><td>Open printable per-incident report window</td></tr>
+    <tr><td>REPORTUTIL &lt;UNIT&gt; [H]</td><td>Per-unit utilization report (default 24h)<br>e.g. REPORTUTIL EMS1 48</td></tr>
+    <tr><td>REPORTOOS</td><td>OOS report — last 24 hours (default)</td></tr>
+    <tr><td>REPORTOOS 24H</td><td>OOS report — 24 hours</td></tr>
+    <tr><td>REPORTOOS 7D</td><td>OOS report — 7 days</td></tr>
+    <tr><td>REPORTOOS 30D</td><td>OOS report — 30 days</td></tr>
+    <tr><td>REPORTOOS&lt;N&gt;H</td><td>OOS report — N hours (e.g. REPORTOOS48H)</td></tr>
+    <tr><td>REPORTOOS&lt;N&gt;D</td><td>OOS report — N days (e.g. REPORTOOS14D)</td></tr>
+  </table>
+  <div class="note">Full KPI metrics, multi-range incident reports, and XLSX export are in the <a href="../admin/" style="color:var(--accent)">ADMIN PANEL</a> under the REPORTS tab (SUPV/MGR/IT only). Admin reports support 12H/24H/48H/7D/30D/60D/90D/6M/12M presets plus custom date ranges.</div>
+
+  <!-- BANNERS -->
+  <h2 id="banners">BANNERS</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>NOTE &lt;MESSAGE&gt;</td><td>Set info banner visible to all dispatchers</td></tr>
+    <tr><td>NOTE CLEAR</td><td>Clear info banner</td></tr>
+    <tr><td>ALERT &lt;MESSAGE&gt;</td><td>Set alert banner — plays tone for all dispatchers</td></tr>
+    <tr><td>ALERT CLEAR</td><td>Clear alert banner</td></tr>
+  </table>
+
+  <div class="note">Banners can also be set or cleared from the <a href="../admin/" style="color:var(--accent)">Admin Panel</a> TOOLS tab (BROADCAST MESSAGE and SYSTEM BANNERS cards) — useful for supervisors who prefer a GUI over the command bar.</div>
+
+  <!-- DIVERSION -->
+  <h2 id="diversion">DIVERSION MANAGEMENT</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>DIVERSION ON &lt;CODE&gt;</td><td>Set hospital/facility on diversion<br>e.g. DIVERSION ON SCMC</td></tr>
+    <tr><td>DIVERSION OFF &lt;CODE&gt;</td><td>Clear hospital/facility diversion</td></tr>
+  </table>
+  <div class="note">Diverted destinations appear with a <strong>[DIV]</strong> badge on both the board and the field app. Diversion state is stored in the Meta sheet and synced to all connected clients on next poll.</div>
+
+  <!-- SCOPE -->
+  <h2 id="scope">MULTI-AGENCY SCOPE</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>SCOPE ALL</td><td>Show units and incidents from all agencies (default for SUPV/MGR/IT)</td></tr>
+    <tr><td>SCOPE AGENCY &lt;ID&gt;</td><td>Limit board view to a specific agency<br>e.g. SCOPE AGENCY SCMC</td></tr>
+  </table>
+
+  <!-- USER MANAGEMENT -->
+  <h2 id="users">USER MANAGEMENT</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>LISTUSERS</td><td>Show all system users (username + full name)</td></tr>
+    <tr><td>PASSWD &lt;old&gt; &lt;new&gt;</td><td>Change your own password (min 8 characters)<br>e.g. PASSWD oldpass newpass123</td></tr>
+    <tr><td>NEWUSER &lt;last&gt;,&lt;first&gt;</td><td>Create a new user account (admin roles only)<br>e.g. NEWUSER SMITH,JOHN</td></tr>
+    <tr><td>DELUSER &lt;username&gt; CONFIRM</td><td>Delete a user account (requires CONFIRM keyword)</td></tr>
+  </table>
+  <div class="note">User creation, password reset, and role management are also available in the <a href="../admin/" style="color:var(--accent)">Admin Panel</a> USERS tab (SUPV / MGR / IT only).</div>
+
+  <!-- GENERAL -->
+  <h2 id="general">GENERAL COMMANDS</h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>H / HELP</td><td>Show command reference (opens this page)</td></tr>
+    <tr><td>STATUS</td><td>System status summary (units, incidents, actor)</td></tr>
+    <tr><td>REFRESH</td><td>Force reload board data (clears all row/state caches)</td></tr>
+    <tr><td>WHO</td><td>Show dispatchers currently logged in (with last-seen time)</td></tr>
+    <tr><td>INCQ</td><td>Incident queue quick view — shows all queued + active incidents in a popup modal</td></tr>
+    <tr><td>! &lt;TEXT&gt;</td><td>Search audit trail and incidents<br>e.g. ! EMS1 CHEST</td></tr>
+    <tr><td>ADDR</td><td>Show full address / facility directory (grouped by category)</td></tr>
+    <tr><td>ADDR &lt;QUERY&gt;</td><td>Search addresses and facilities by name, ID, or address</td></tr>
+    <tr><td>INFO</td><td>Quick reference (most-used phone numbers)</td></tr>
+    <tr><td>INFO ALL</td><td>Full dispatch / emergency directory</td></tr>
+    <tr><td>INFO DISPATCH</td><td>911 / PSAP centers</td></tr>
+    <tr><td>INFO AIR</td><td>Air ambulance dispatch</td></tr>
+    <tr><td>INFO OSP</td><td>Oregon State Police</td></tr>
+    <tr><td>INFO CRISIS</td><td>Mental health / crisis lines</td></tr>
+    <tr><td>INFO POISON</td><td>Poison control</td></tr>
+    <tr><td>INFO ROAD</td><td>Road conditions / ODOT / 511</td></tr>
+    <tr><td>INFO LE</td><td>Law enforcement direct lines</td></tr>
+    <tr><td>INFO JAIL</td><td>Jail control room numbers</td></tr>
+    <tr><td>INFO FIRE</td><td>Fire department admin / BC lines</td></tr>
+    <tr><td>INFO ME</td><td>Medical examiner</td></tr>
+    <tr><td>INFO OTHER</td><td>Other useful numbers (DHS, burn line, etc.)</td></tr>
+    <tr><td>INFO &lt;UNIT&gt;</td><td>Detailed unit info from server</td></tr>
+    <tr><td>NOTES / SCRATCH</td><td>Focus scratch notepad (saved per-user in browser)</td></tr>
+    <tr><td>ADMIN</td><td>Go to admin panel (SUPV/MGR/IT only)</td></tr>
+    <tr><td>LO / LOGOUT</td><td>Log out and return to login screen</td></tr>
+  </table>
+
+  <h3>Location Column</h3>
+  <div class="note">The <strong>LOCATION</strong> column on the board displays contextual location based on unit status:</div>
+  <table>
+    <tr><th>Status</th><th>Location Shows</th></tr>
+    <tr><td>D / DE / OS</td><td>Incident scene address (from dispatch)</td></tr>
+    <tr><td>T / AT / TH</td><td>Transport destination (hospital/facility)</td></tr>
+    <tr><td>AV / OOS / other</td><td>Destination if set, or LOC tag, or dash</td></tr>
+  </table>
+  <div class="note"><strong>Bracket Notes:</strong> Add <code>[NOTE]</code> after any location or destination for room numbers, directions, or other context. Displays inline after the address (classic CAD board style). Examples:<br>
+  <code>DEST EMS1 SCMC [BED 4]</code> &nbsp; <code>LOC M1271 123 MAIN ST [NORTH ENTRANCE]</code><br>
+  <strong>Intersections:</strong> Use <code>/</code> for intersections: <code>MAP HWY 97/61ST</code> or <code>MAP SE 3RD / MAIN</code></div>
+
+  <!-- FIELD APP -->
+  <h2 id="field">FIELD APP COMMANDS <span class="badge badge-field">FIELD</span></h2>
+  <div class="note">Access the command line by tapping the <strong>COMMAND</strong> toggle in the field app. Type the command and press Enter or the send button. Commands are case-insensitive.</div>
+
+  <h3>Status Updates</h3>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>DE</td><td>Set enroute</td></tr>
+    <tr><td>DE; &lt;NOTE&gt;</td><td>Set enroute with note</td></tr>
+    <tr><td>OS</td><td>Set on scene</td></tr>
+    <tr><td>OS; &lt;NOTE&gt;</td><td>Set on scene with note</td></tr>
+    <tr><td>T</td><td>Set transporting — pops up destination picker (quick-picks + free text). Tap SKIP to send T without destination.</td></tr>
+    <tr><td>T; &lt;NOTE&gt;</td><td>Set transporting with note (destination picker still appears)</td></tr>
+    <tr><td>AV</td><td>Set available — clears incident (hold button 800ms on screen to confirm)</td></tr>
+    <tr><td>OOS</td><td>Set out of service (requires confirm dialog)</td></tr>
+    <tr><td>OOS; &lt;REASON&gt;</td><td>Set out of service with reason</td></tr>
+    <tr><td>BRK</td><td>Set on break</td></tr>
+    <tr><td>UV</td><td>Set unavailable</td></tr>
+    <tr><td>F</td><td>Set follow up</td></tr>
+    <tr><td>FD</td><td>Flagged down</td></tr>
+  </table>
+  <div class="note"><strong>Note:</strong> Field units cannot set themselves to D (dispatched) — only the board dispatcher can set D status.</div>
+
+  <h3>Incident &amp; Unit Actions</h3>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>CLR</td><td>Clear yourself from current incident (no status change)</td></tr>
+    <tr><td>ETA &lt;MINUTES&gt;</td><td>Set your ETA note (e.g. ETA 8)</td></tr>
+    <tr><td>NOTE &lt;TEXT&gt;</td><td>Add note to your current active incident</td></tr>
+    <tr><td>DEST &lt;LOCATION&gt;</td><td>Set your destination (resolves facility codes)</td></tr>
+    <tr><td>DEST</td><td>Clear your destination</td></tr>
+    <tr><td>HANDOFF</td><td>Record patient handoff — hold HANDOFF button 800ms to confirm. Sets unit to AV.</td></tr>
+    <tr><td>HOLDING / HOLDS / Q</td><td>Show all active and queued incidents with unit assignments and assignment hints</td></tr>
+    <tr><td>R &lt;INC&gt;</td><td>Review a specific incident (type, status, units, destination, note)</td></tr>
+    <tr><td>CLOSE &lt;INC&gt;</td><td>Close an incident (shows disposition picker)</td></tr>
+    <tr><td>CLOSE</td><td>Dismiss open incident panel</td></tr>
+    <tr><td>ADDR &lt;QUERY&gt;</td><td>Search facility / address directory</td></tr>
+  </table>
+
+  <h3>Messaging &amp; Info</h3>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>MSG &lt;ROLE&gt;; &lt;TEXT&gt;</td><td>Send message to dispatch or specific role</td></tr>
+    <tr><td>HTMSG &lt;ROLE&gt;; &lt;TEXT&gt;</td><td>Send URGENT message to role</td></tr>
+    <tr><td>MSGDP; &lt;TEXT&gt;</td><td>Message all dispatchers</td></tr>
+    <tr><td>HTDP; &lt;TEXT&gt;</td><td>URGENT message all dispatchers</td></tr>
+    <tr><td>MSGU; &lt;TEXT&gt;</td><td>Message all active field units</td></tr>
+    <tr><td>HTU; &lt;TEXT&gt;</td><td>URGENT message all field units</td></tr>
+    <tr><td>MSGALL; &lt;TEXT&gt;</td><td>Broadcast to all dispatchers + field units</td></tr>
+    <tr><td>HTALL; &lt;TEXT&gt;</td><td>URGENT broadcast to all</td></tr>
+    <tr><td>WHO / WHODP</td><td>Show dispatchers currently online</td></tr>
+    <tr><td>UR</td><td>Show all active units with status</td></tr>
+    <tr><td>STATUS</td><td>Show your current unit status details</td></tr>
+    <tr><td>REFRESH</td><td>Force poll for latest state</td></tr>
+    <tr><td>CLS / CLEAR</td><td>Clear the command feed screen</td></tr>
+    <tr><td>LO / LOGOUT</td><td>Log out of HOSCAD Field</td></tr>
+    <tr><td>HELP</td><td>Show field command reference in feed</td></tr>
+  </table>
+  <div class="note">
+    <strong>Quick buttons:</strong> Large status buttons (AV, OS, T, OOS, BRK) are available without typing. HANDOFF button requires 800ms hold to prevent accidental activation.<br>
+    <strong>Crew roster:</strong> Crew member names and certifications are entered at login and shown on the board's crew sub-row.<br>
+    <strong>Incident panel:</strong> Tap your active incident header to open the detail view — scene address, destination, notes, and audit history.<br>
+    <strong>NAV:</strong> Navigation button appears when your incident has a scene address — opens map app.<br>
+    <strong>Offline:</strong> Status updates and messages are queued locally when offline and sent when connection restores.
+  </div>
+
+  <!-- ADMIN -->
+  <h2 id="admin">ADMIN COMMANDS <span class="badge badge-admin">SUPV / MGR / IT</span></h2>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td>PURGE</td><td>Clean data older than 7 days + install auto-purge trigger</td></tr>
+    <tr><td>CLEARDATA UNITS CONFIRM</td><td>Clear ALL units from the board</td></tr>
+    <tr><td>CLEARDATA INACTIVE CONFIRM</td><td>Clear only inactive / logged-off units</td></tr>
+    <tr><td>CLEARDATA AUDIT CONFIRM</td><td>Clear unit audit history</td></tr>
+    <tr><td>CLEARDATA INCIDENTS CONFIRM</td><td>Clear all incidents</td></tr>
+    <tr><td>CLEARDATA MESSAGES CONFIRM</td><td>Clear all messages</td></tr>
+    <tr><td>CLEARDATA SESSIONS CONFIRM</td><td>Log out all users (force re-login for everyone)</td></tr>
+    <tr><td>CLEARDATA ALL CONFIRM</td><td>Clear ALL data (units, incidents, messages, audit)</td></tr>
+  </table>
+  <div class="note" style="border-left-color:var(--warn);">All CLEARDATA commands require the <strong>CONFIRM</strong> keyword and are irreversible. Restricted to SUPV1, SUPV2, MGR1, MGR2, IT roles.</div>
+  <div class="note">Full admin panel — KPI metrics, multi-range reports, type code management, user accounts, session management — available at <a href="../admin/" style="color:var(--accent)">admin.html</a> (SUPV/MGR/IT login required).</div>
+
+  <!-- KEYBOARD -->
+  <h2 id="keyboard">KEYBOARD SHORTCUTS</h2>
+  <table>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+    <tr><td>Ctrl+K / F1 / F3</td><td>Focus command bar</td></tr>
+    <tr><td>Ctrl+L</td><td>Open logon modal</td></tr>
+    <tr><td>Ctrl+D</td><td>Cycle board density</td></tr>
+    <tr><td>F2</td><td>New incident modal</td></tr>
+    <tr><td>F4</td><td>Open message inbox</td></tr>
+    <tr><td>Up / Down arrows</td><td>Scroll command history</td></tr>
+    <tr><td>Tab</td><td>Autocomplete command or unit ID</td></tr>
+    <tr><td>Enter</td><td>Run command</td></tr>
+    <tr><td>Esc</td><td>Close dialogs / modals / this tab</td></tr>
+    <tr><td>Click row</td><td>Select unit (yellow outline) — then type bare status code</td></tr>
+    <tr><td>Double-click row</td><td>Open unit edit modal</td></tr>
+  </table>
+
+  <!-- INFO DIRECTORY -->
+  <h2 id="info">INFO DIRECTORY — KEY CONTACTS &amp; NUMBERS</h2>
+
+  <div class="info-grid">
+    <div class="info-block">
+      <span class="title">911 / PSAP DISPATCH CENTERS</span>DESCHUTES COUNTY 911
+  NON-EMERGENCY:  (541) 693-6911
+  ADMIN/BUSINESS: (541) 388-0185
+  Dispatches: Bend PD, Redmond PD, DCSO,
+    All Deschutes Fire/EMS
+
+CROOK COUNTY 911
+  NON-EMERGENCY:  (541) 447-4168
+  Dispatches: Prineville PD, CCSO,
+    Crook County Fire & Rescue
+
+JEFFERSON COUNTY DISPATCH
+  NON-EMERGENCY:  (541) 384-2080
+  ADMIN/BUSINESS: (541) 475-6520
+  Dispatches: JCSO, Jefferson County
+    Fire & EMS</div>
+
+    <div class="info-block">
+      <span class="title">AIR AMBULANCE</span>AIRLINK CCT
+  DISPATCH:  1-800-621-5433
+  ALT:       (541) 280-3624
+  Bend-based Helicopter (EC-135)
+  & Fixed Wing (Pilatus PC-12)
+
+LIFE FLIGHT NETWORK
+  DISPATCH:  1-800-232-0911
+  Redmond-based Helicopter (A-119)
+  24/7 Dispatch</div>
+
+    <div class="info-block">
+      <span class="title">MENTAL HEALTH / CRISIS</span>988 SUICIDE & CRISIS LIFELINE
+  Call or Text:  988  (24/7)
+
+DESCHUTES COUNTY CRISIS LINE
+  (541) 322-7500 ext. 9  (24/7)
+
+DESCHUTES STABILIZATION CENTER
+  (541) 585-7210
+  Non-emergency, Walk-in 24/7
+
+OREGON YOUTHLINE
+  1-877-968-8491
+
+VETERANS CRISIS LINE
+  988, then press 1
+
+OREGON CRISIS TEXT LINE
+  Text HOME to 741741  (24/7)</div>
+
+    <div class="info-block">
+      <span class="title">LAW ENFORCEMENT</span>OREGON STATE POLICE
+  *677 (*OSP) from cell
+  1-800-452-7888 (toll-free)
+  (503) 375-3555 (Salem Dispatch)
+
+DESCHUTES COUNTY SHERIFF   (541) 388-6655
+CROOK COUNTY SHERIFF       (541) 447-6398
+JEFFERSON COUNTY SHERIFF   (541) 475-6520
+PRINEVILLE POLICE          (541) 447-4168
+BEND POLICE ADMIN          (541) 322-2960
+REDMOND POLICE             (541) 504-1810</div>
+
+    <div class="info-block">
+      <span class="title">FIRE DEPARTMENT ADMIN</span>BEND FIRE & RESCUE         (541) 322-6300
+  HQ: Station 301
+
+REDMOND FIRE & RESCUE      (541) 504-5000
+  HQ: Station 401
+
+CROOK COUNTY FIRE & RESCUE (541) 447-5011
+  HQ: Prineville
+
+JEFFERSON COUNTY FIRE/EMS  (541) 475-7274
+  HQ: Madras
+
+BATTALION CHIEFS
+  Bend Fire BC      — TBD
+  Redmond Fire BC   — TBD
+  Crook County BC   — TBD
+  Jefferson Co. BC  — TBD</div>
+
+    <div class="info-block">
+      <span class="title">JAILS</span>DESCHUTES COUNTY JAIL      (541) 388-6661
+CROOK COUNTY JAIL          (541) 416-3620
+  86 beds
+JEFFERSON COUNTY JAIL      (541) 475-2869</div>
+
+    <div class="info-block">
+      <span class="title">POISON CONTROL</span>OREGON POISON CENTER
+  1-800-222-1222  (24/7, multilingual)
+  POISONHELP.ORG (non-emergency online tool)</div>
+
+    <div class="info-block">
+      <span class="title">ROAD CONDITIONS</span>TRIPCHECK 511
+  511 from any phone in Oregon
+
+ODOT TOLL-FREE
+  1-800-977-6368 (1-800-977-ODOT)
+
+TRIPCHECK.COM
+  Live cameras, conditions</div>
+
+    <div class="info-block">
+      <span class="title">MEDICAL EXAMINER</span>DESCHUTES COUNTY ME
+  medical.examiner@deschutes.org
+  Via DA's office
+
+STATE MEDICAL EXAMINER
+  (971) 673-8200  (Clackamas — autopsies)</div>
+
+    <div class="info-block">
+      <span class="title">OTHER USEFUL NUMBERS</span>DHS — ADULT PROTECTIVE SERVICES
+  (541) 475-6773  (Madras)
+
+DHS — DEVELOPMENTAL DISABILITIES
+  (541) 322-7554  (Bend)
+
+OUTDOOR BURN LINE (Jefferson Co.)
+  (541) 475-1789
+
+COIDC — Wildfire Dispatch
+  Central Oregon Interagency Dispatch
+  (TBD)</div>
+  </div>
+
+</div>
+<script>
+// ESC closes tab
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') window.close();
+});
+// Minimal clock
+(function() {
+  const el = document.createElement('div');
+  el.style.cssText = 'font-size:11px;color:#6a8aaa;font-family:inherit;';
+  document.querySelector('header').appendChild(el);
+  setInterval(function() {
+    const n = new Date();
+    el.textContent = n.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  }, 1000);
+})();
+</script>
+</body>
+</html>

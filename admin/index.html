@@ -1,0 +1,2511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#070a0f" />
+  <title>HOSCAD ADMIN</title>
+  <link rel="icon" type="image/x-icon" href="../icons/favicon.ico?v=2" />
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    body { padding: 0; margin: 0; }
+    #loginScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    #adminPanel { display:none; max-width:1100px; margin:0 auto; padding:20px; }
+    .admin-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; border-bottom:2px solid var(--line); padding-bottom:12px; }
+    .admin-title { font-size:18px; font-weight:900; color:var(--green); flex:1; }
+    .admin-nav { display:flex; gap:4px; margin-bottom:16px; }
+    .tab-btn { padding:6px 16px; font-size:12px; font-weight:900; background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer; font-family:inherit; text-transform:uppercase; }
+    .tab-btn.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+    .tab-section { display:none; }
+    .tab-section.active { display:block; }
+    .admin-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .admin-table th { text-align:left; padding:6px 10px; border-bottom:2px solid var(--line); color:var(--muted); font-weight:900; }
+    .admin-table td { padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    .admin-table tr:hover td { background:#0d1520; }
+    .admin-actions { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+    .admin-status { font-size:11px; color:var(--muted); margin-top:4px; min-height:16px; }
+    .inline-form { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .inline-form input { padding:4px 8px; font-size:12px; background:#0b1018; border:1px solid var(--line); color:var(--fg); font-family:inherit; text-transform:uppercase; }
+    .section-title { font-size:13px; font-weight:900; color:var(--muted); margin:16px 0 8px; text-transform:uppercase; }
+    .tools-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; margin-top:8px; }
+    .tool-card { background:#0c111a; border:1px solid var(--line); padding:14px; }
+    .tool-card h4 { margin:0 0 6px; font-size:12px; color:var(--muted); }
+    .tool-card p { margin:0 0 10px; font-size:11px; color:#6a7a8a; }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen">
+  <div class="card login" style="min-width:320px;">
+    <h3 style="margin-top:0;">HOSCAD ADMIN</h3>
+    <div class="muted" style="margin-bottom:10px;">ADMIN ACCESS ONLY</div>
+    <div class="row">
+      <select id="loginRole" style="flex:1">
+        <option value="">SELECT ROLE...</option>
+        <option value="SUPV1">SUPV1</option>
+        <option value="SUPV2">SUPV2</option>
+        <option value="MGR1">MGR1</option>
+        <option value="MGR2">MGR2</option>
+        <option value="IT">IT</option>
+      </select>
+    </div>
+    <div class="row">
+      <input id="loginCadId" placeholder="CAD ID" inputmode="numeric" maxlength="10" style="flex:1" />
+    </div>
+    <div class="row">
+      <input id="loginPassword" type="password" placeholder="PASSWORD" maxlength="50" style="flex:1" />
+    </div>
+    <div class="row">
+      <button class="btn-good" onclick="adminLogin()">LOGIN</button>
+      <a href="../" class="btn-secondary" style="text-decoration:none;padding:8px 14px;">BACK</a>
+      <div id="loginErr" class="muted"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Panel -->
+<div id="adminPanel">
+  <div class="admin-header">
+    <div class="admin-title">HOSCAD ADMIN</div>
+    <span id="rolePill" class="pill" style="font-size:11px;"></span>
+    <button class="btn-secondary" style="font-size:11px;" onclick="adminLogout()">LOGOUT</button>
+    <a href="../" class="btn-secondary" style="text-decoration:none;padding:6px 12px;font-size:11px;">BOARD</a>
+  </div>
+
+  <nav class="admin-nav">
+    <button class="tab-btn active" onclick="switchTab('users')">USERS</button>
+    <button class="tab-btn" onclick="switchTab('units')">UNITS</button>
+    <button class="tab-btn" onclick="switchTab('sessions')">SESSIONS</button>
+    <button class="tab-btn" onclick="switchTab('tools')">TOOLS</button>
+    <button class="tab-btn" onclick="switchTab('reports')">REPORTS</button>
+    <button class="tab-btn" onclick="switchTab('types')">TYPE CODES</button>
+    <button class="tab-btn" onclick="switchTab('destinations')">DESTINATIONS</button>
+    <button class="tab-btn" onclick="switchTab('addresses')">ADDRESSES</button>
+    <button class="tab-btn" onclick="switchTab('roster')">ROSTER</button>
+    <button class="tab-btn" onclick="switchTab('crew')">CREW</button>
+    <button class="tab-btn" onclick="switchTab('scope')">SCOPE</button>
+    <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES</button>
+  </nav>
+
+  <!-- USERS TAB -->
+  <section id="tabUsers" class="tab-section active">
+    <div class="admin-actions">
+      <div class="inline-form">
+        <input id="newUserFirst" placeholder="FIRST NAME" style="width:110px;" />
+        <input id="newUserLast" placeholder="LAST NAME" style="width:110px;" />
+        <button class="btn-good" style="font-size:11px;" onclick="createUser()">+ NEW USER</button>
+      </div>
+      <input id="usersSearch" placeholder="SEARCH..." oninput="filterUsersTable()" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:140px;" />
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadUsers()">REFRESH</button>
+    </div>
+    <div id="usersStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="usersTable">
+      <thead><tr><th>CAD ID</th><th>USERNAME</th><th>FIRST</th><th>LAST</th><th style="text-align:center;">BOARD</th><th style="text-align:center;">FIELD</th><th style="text-align:center;">ADMIN</th><th>ACTIONS</th></tr></thead>
+      <tbody id="usersBody"><tr><td colspan="8" class="muted">LOADING...</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- UNITS TAB -->
+  <section id="tabUnits" class="tab-section">
+    <div class="admin-actions">
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadUnits()">REFRESH</button>
+    </div>
+    <div id="unitsStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="unitsTable">
+      <thead><tr><th>UNIT</th><th>DISPLAY</th><th>STATUS</th><th>DESTINATION</th><th>UPDATED</th><th>ACTIONS</th></tr></thead>
+      <tbody id="unitsBody"><tr><td colspan="6" class="muted">LOADING...</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- SESSIONS TAB -->
+  <section id="tabSessions" class="tab-section">
+    <div class="admin-actions">
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadSessions()">REFRESH</button>
+      <button class="btn-danger" style="font-size:11px;" onclick="clearAllSessions()">CLEAR ALL SESSIONS</button>
+    </div>
+    <div id="sessionsStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="sessionsTable">
+      <thead><tr><th>USER</th><th>ROLE</th><th>LAST ACTIVE</th></tr></thead>
+      <tbody id="sessionsBody"><tr><td colspan="3" class="muted">LOADING...</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- REPORTS TAB -->
+  <section id="tabReports" class="tab-section">
+    <div class="admin-actions" style="flex-wrap:wrap;gap:6px;">
+      <select id="reportPreset" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" onchange="onReportPresetChange()">
+        <option value="12">LAST 12 HOURS</option>
+        <option value="24" selected>LAST 24 HOURS</option>
+        <option value="48">LAST 48 HOURS</option>
+        <option value="168">LAST 7 DAYS</option>
+        <option value="720">LAST 30 DAYS</option>
+        <option value="1440">LAST 60 DAYS</option>
+        <option value="2160">LAST 90 DAYS</option>
+        <option value="4380">LAST 6 MONTHS</option>
+        <option value="8760">LAST 12 MONTHS</option>
+        <option value="custom">CUSTOM RANGE...</option>
+      </select>
+      <span id="customRangeInputs" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;">
+        <input type="date" id="reportStart" style="padding:4px 6px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+        <span class="muted" style="font-size:11px;">TO</span>
+        <input type="date" id="reportEnd" style="padding:4px 6px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+      </span>
+      <button class="btn-good" style="font-size:11px;" onclick="loadReports()">LOAD REPORT</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="exportReportXlsx()">EXPORT XLSX</button>
+    </div>
+    <div id="reportsStatus" class="admin-status">SELECT WINDOW AND LOAD REPORT.</div>
+    <div id="reportsContent" style="display:none;">
+      <!-- OPEN AT HANDOFF — most critical for shift turnover -->
+      <div id="rptOpenSection" style="margin-bottom:20px; border:1px solid #3a2010; border-radius:4px; padding:12px; background:rgba(255,128,0,.04);">
+        <div class="section-title" style="color:#e09000; margin-bottom:8px;">OPEN AT HANDOFF <span id="rptOpenCount" style="font-weight:400; font-size:11px; color:#8b949e;"></span></div>
+        <table class="admin-table" id="rptOpenTable">
+          <thead><tr><th>ID</th><th>STATUS</th><th>TYPE</th><th>PRIORITY</th><th>SCENE</th><th>UNITS</th><th>NOTE</th><th>ELAPSED</th></tr></thead>
+          <tbody id="rptOpenBody"><tr><td colspan="8" class="muted">LOADING...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="section-title">RESPONSE TIME KPIs</div>
+      <table class="admin-table" id="kpiTable">
+        <thead><tr><th>METRIC</th><th>AVG (MIN)</th><th>SAMPLE SIZE</th><th>TARGET (MIN)</th><th>STATUS</th></tr></thead>
+        <tbody id="kpiBody"></tbody>
+      </table>
+      <div id="rptPercSection" style="display:none; margin-top:16px;">
+        <div class="section-title">RESPONSE TIME PERCENTILES BY PRIORITY</div>
+        <div class="admin-status muted" style="font-size:11px; margin-bottom:6px;">Calculated from incident timestamps. P90 = worst 10% of patient experiences.</div>
+        <table class="admin-table" id="rptPercTable">
+          <thead><tr><th>PRIORITY</th><th>INTERVAL</th><th>P50</th><th>P75</th><th>P90</th><th>N</th></tr></thead>
+          <tbody id="rptPercBody"></tbody>
+        </table>
+      </div>
+      <div class="section-title" style="margin-top:16px;">INCIDENTS IN WINDOW</div>
+      <div id="rptIncCount" class="admin-status" style="margin-bottom:4px;"></div>
+      <table class="admin-table" id="rptIncTable">
+        <thead><tr><th>ID</th><th>TYPE</th><th>PRIORITY</th><th>SCENE</th><th>UNITS</th><th>STATUS</th><th>CREATED</th></tr></thead>
+        <tbody id="rptIncBody"></tbody>
+      </table>
+      <div id="rptPriSection" style="display:none; margin-top:12px;">
+        <div style="font-size:11px; font-weight:700; color:#888; letter-spacing:.06em; margin-bottom:6px;">BY PRIORITY</div>
+        <table class="admin-table" style="width:auto; min-width:260px;">
+          <thead><tr><th>PRIORITY</th><th>COUNT</th></tr></thead>
+          <tbody id="rptPriBody"></tbody>
+        </table>
+      </div>
+      <div class="section-title" style="margin-top:16px;">UNIT ACTIVITY</div>
+      <table class="admin-table" id="rptUnitTable">
+        <thead><tr><th>UNIT</th><th>DISPATCHES</th><th>D (MIN)</th><th>OS (MIN)</th><th>T (MIN)</th><th>OOS (MIN)</th><th>AV (MIN)</th></tr></thead>
+        <tbody id="rptUnitBody"></tbody>
+      </table>
+      <div id="rptWallSection" style="display:none; margin-top:16px;">
+        <div class="section-title">HOSPITAL WALL TIME BY FACILITY</div>
+        <div class="admin-status muted" style="font-size:11px; margin-bottom:6px;">Time from AT HOSPITAL to HANDOFF. Target P90 ≤ 30 min.</div>
+        <table class="admin-table" id="rptWallTable">
+          <thead><tr><th>FACILITY</th><th>AVG (MIN)</th><th>P90 (MIN)</th><th>N</th></tr></thead>
+          <tbody id="rptWallBody"></tbody>
+        </table>
+      </div>
+      <div id="rptDispSection" style="display:none; margin-top:16px;">
+        <div class="section-title">DISPOSITION BREAKDOWN</div>
+        <table class="admin-table" id="rptDispTable" style="width:auto; min-width:280px;">
+          <thead><tr><th>DISPOSITION</th><th>COUNT</th><th>%</th></tr></thead>
+          <tbody id="rptDispBody"></tbody>
+        </table>
+      </div>
+      <div id="rptQueueSection" style="display:none; margin-top:16px;">
+        <div style="font-size:11px; font-weight:700; color:#888; letter-spacing:.06em; margin-bottom:8px;">DISPATCH MODE</div>
+        <table class="admin-table" style="width:auto; min-width:340px;">
+          <thead>
+            <tr>
+              <th>METRIC</th>
+              <th>VALUE</th>
+            </tr>
+          </thead>
+          <tbody id="rptQueueBody">
+          </tbody>
+        </table>
+        <div id="rptAgencySection" style="display:none; margin-top:12px;">
+          <div style="font-size:11px; font-weight:700; color:#888; letter-spacing:.06em; margin-bottom:6px;">BY AGENCY</div>
+          <table class="admin-table" style="width:auto; min-width:260px;">
+            <thead><tr><th>AGENCY</th><th>INCIDENTS</th></tr></thead>
+            <tbody id="rptAgencyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPE CODES TAB -->
+  <section id="tabTypes" class="tab-section">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="section-title" style="margin:0;">INCIDENT TYPE CODE TAXONOMY</div>
+      <button class="btn-good" style="font-size:11px;" onclick="addTypeCat()">+ CATEGORY</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="saveTaxonomy()">SAVE TO SERVER</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="resetTypeDefaults()">RESET DEFAULTS</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadTypeCodeTab()">RELOAD</button>
+      <button id="btnToggleLegacy" class="btn-secondary" style="font-size:11px;" onclick="toggleShowLegacy()">SHOW LEGACY</button>
+    </div>
+    <div id="typeCodesStatus" class="admin-status" style="margin-bottom:8px;">SELECT TYPE CODES TAB TO LOAD.</div>
+    <div id="typeCodesContent"></div>
+  </section>
+
+  <!-- DESTINATIONS TAB -->
+  <section id="tabDestinations" class="tab-section">
+    <div class="admin-actions">
+      <button class="btn-good" style="font-size:11px;" onclick="showDestForm()">+ ADD DESTINATION</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadDestinations()">REFRESH</button>
+    </div>
+    <div id="destFormRow" style="display:none;margin-bottom:12px;background:#0c111a;border:1px solid var(--line);padding:12px;">
+      <div class="inline-form" style="gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+        <input id="destFormCode" placeholder="CODE (e.g. SCMC)" style="width:130px;" maxlength="20" />
+        <input id="destFormName" placeholder="DISPLAY NAME" style="width:220px;" maxlength="60" />
+        <button class="btn-good" style="font-size:11px;" onclick="saveDestForm()">SAVE</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="hideDestForm()">CANCEL</button>
+      </div>
+      <div id="destFormStatus" class="admin-status"></div>
+    </div>
+    <div id="destsStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="destsTable">
+      <thead><tr><th>CODE</th><th>DISPLAY NAME</th><th>DIVERSION</th><th>ACTIONS</th></tr></thead>
+      <tbody id="destsBody"><tr><td colspan="4" class="muted">LOADING...</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- ADDRESSES TAB -->
+  <section id="tabAddresses" class="tab-section">
+    <div class="admin-actions">
+      <button class="btn-good" style="font-size:11px;" onclick="showAddrForm()">+ ADD ADDRESS</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadAddresses()">REFRESH</button>
+    </div>
+    <div id="addrFormCard" style="display:none;background:#0c111a;border:1px solid var(--line);padding:14px;margin-bottom:12px;">
+      <div class="section-title" style="margin-top:0;" id="addrFormTitle">ADD ADDRESS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:8px;">
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">ID *</div><input id="addrFId" placeholder="SCB" style="width:100%;box-sizing:border-box;" maxlength="20" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">NAME *</div><input id="addrFName" placeholder="ST. CHARLES BEND" style="width:100%;box-sizing:border-box;" maxlength="60" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">ADDRESS</div><input id="addrFAddr" placeholder="2500 NE NEFF RD" style="width:100%;box-sizing:border-box;" maxlength="80" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">CITY</div><input id="addrFCity" placeholder="BEND" style="width:100%;box-sizing:border-box;" maxlength="40" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">STATE</div><input id="addrFState" placeholder="OR" style="width:100%;box-sizing:border-box;" maxlength="4" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">ZIP</div><input id="addrFZip" placeholder="97701" style="width:100%;box-sizing:border-box;" maxlength="10" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">CATEGORY</div><input id="addrFCat" placeholder="HOSPITAL" style="width:100%;box-sizing:border-box;" maxlength="30" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:3px;">PHONE</div><input id="addrFPhone" placeholder="541-382-4321" style="width:100%;box-sizing:border-box;" maxlength="20" /></div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div class="muted" style="font-size:10px;margin-bottom:3px;">ALIASES (PIPE-SEPARATED, LOWERCASE)</div>
+        <input id="addrFAliases" placeholder="scb|st charles bend|sc bend" style="width:100%;box-sizing:border-box;max-width:500px;" maxlength="200" />
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="muted" style="font-size:10px;margin-bottom:3px;">NOTES / CAPABILITIES</div>
+        <input id="addrFNotes" placeholder="LEVEL 2 TRAUMA CENTER" style="width:100%;box-sizing:border-box;max-width:500px;" maxlength="100" />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-good" style="font-size:11px;" onclick="saveAddrForm()">SAVE</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="hideAddrForm()">CANCEL</button>
+      </div>
+      <div id="addrFormStatus" class="admin-status"></div>
+    </div>
+    <div id="addrsStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="addrsTable">
+      <thead><tr><th>ID</th><th>NAME</th><th>ADDRESS</th><th>CITY</th><th>CATEGORY</th><th>ACTIONS</th></tr></thead>
+      <tbody id="addrsBody"><tr><td colspan="6" class="muted">LOADING...</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- TOOLS TAB -->
+  <section id="tabTools" class="tab-section">
+    <div class="tools-grid">
+      <div class="tool-card">
+        <h4>PULSEPOINT FEED</h4>
+        <p>Enable or disable PulsePoint data sync on the dispatch board. Board reads this setting on each poll cycle.</p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span id="ppFeedStatus" style="font-size:12px;font-weight:700;color:#4fa3e0;">CHECKING...</span>
+          <button class="btn-secondary" onclick="togglePpFeed()" id="ppFeedBtn">TOGGLE</button>
+        </div>
+        <div style="font-size:10px;color:#6a7a8a;">Changes take effect on the board's next poll (up to 1 minute).</div>
+      </div>
+      <div class="tool-card">
+        <h4>CLEAR PP UNITS</h4>
+        <p>Remove all PulsePoint-sourced units from the board. Use after toggling PP off or to clean stale units.</p>
+        <button class="btn-danger" onclick="clearPpUnits()">CLEAR PP UNITS</button>
+        <div id="clearPpStatus" class="admin-status"></div>
+      </div>
+      <div class="tool-card">
+        <h4>RUN PURGE</h4>
+        <p>Delete old audit records and closed incidents beyond retention window.</p>
+        <button class="btn-secondary" onclick="runPurge()">RUN PURGE</button>
+        <div id="purgeStatus" class="admin-status"></div>
+      </div>
+      <div class="tool-card">
+        <h4>EXPORT AUDIT CSV</h4>
+        <p>Download audit log as CSV for reporting.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn-secondary" onclick="exportAudit(12)">12H CSV</button>
+          <button class="btn-secondary" onclick="exportAudit(24)">24H CSV</button>
+          <button class="btn-secondary" onclick="exportAudit(168)">7D CSV</button>
+        </div>
+        <div id="exportStatus" class="admin-status"></div>
+      </div>
+      <div class="tool-card">
+        <h4>CLEAR DATA</h4>
+        <p>Permanently clear units, incidents, messages, or sessions data.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <select id="clearWhat" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+            <option value="MESSAGES">MESSAGES</option>
+            <option value="SESSIONS">SESSIONS</option>
+            <option value="UNITS">UNITS</option>
+            <option value="INCIDENTS">INCIDENTS</option>
+            <option value="ALL">ALL</option>
+          </select>
+          <button class="btn-danger" onclick="clearData()">CLEAR</button>
+        </div>
+        <div id="clearStatus" class="admin-status"></div>
+      </div>
+      <div class="tool-card" style="grid-column:span 2; border-color:#1a3a1a;">
+        <h4 style="color:#4ade80;">DEMO MODE</h4>
+        <p>Populate the board with realistic demo incidents and unit statuses for demonstrations. All demo data is tagged <code style="font-size:10px;background:#0b1018;padding:1px 4px;">[DEMO]</code> and can be cleared instantly. Does not affect real incidents or active units.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+          <button class="btn-good" onclick="startDemo()" id="startDemoBtn">▶ START DEMO</button>
+          <button class="btn-danger" onclick="endDemo()" id="endDemoBtn">■ END DEMO / CLEAR</button>
+        </div>
+        <div id="demoStatus" class="admin-status"></div>
+        <div style="font-size:10px;color:#6a7a8a;margin-top:6px;">Creates 5 IFT/discharge scenarios (4 ACTIVE + 1 QUEUED): CCT STEMI transfer, ALS ortho IFT, SNF discharge in transport, respiratory IFT at hospital, queued discharge. Sets 5–8 units across OS/DE/T/TH/BRK/IQ/OOS. Auto-activates units if board is empty.</div>
+      </div>
+      <div class="tool-card" style="grid-column:span 2;">
+        <h4>BROADCAST MESSAGE</h4>
+        <p>Send a system-wide message to all dispatchers on the board. Urgent messages play an alert tone.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+          <input id="broadcastMsg" placeholder="MESSAGE TEXT..." maxlength="200"
+            style="flex:1;min-width:200px;padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:uppercase;" />
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;white-space:nowrap;"><input type="checkbox" id="broadcastUrgent" /> URGENT</label>
+          <button class="btn-good" style="font-size:11px;" onclick="sendAdminBroadcast()">SEND</button>
+        </div>
+        <div id="broadcastStatus" class="admin-status"></div>
+      </div>
+      <div class="tool-card" style="grid-column:span 2;">
+        <h4>SYSTEM BANNERS</h4>
+        <p>Set persistent banners visible to all dispatchers on the board. ALERT = red (high-priority). NOTE = yellow (informational).</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:700;color:#ff6b6b;width:44px;flex-shrink:0;">ALERT:</span>
+          <input id="bannerAlertMsg" placeholder="ALERT MESSAGE..." maxlength="200"
+            style="flex:1;min-width:160px;padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:uppercase;" />
+          <button class="btn-secondary" style="font-size:11px;" onclick="setAdminBanner('ALERT')">SET</button>
+          <button class="btn-danger" style="font-size:11px;" onclick="clearAdminBanner('ALERT')">CLEAR</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:700;color:#ffd66b;width:44px;flex-shrink:0;">NOTE:</span>
+          <input id="bannerNoteMsg" placeholder="NOTE MESSAGE..." maxlength="200"
+            style="flex:1;min-width:160px;padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:uppercase;" />
+          <button class="btn-secondary" style="font-size:11px;" onclick="setAdminBanner('NOTE')">SET</button>
+          <button class="btn-secondary" style="font-size:11px;" onclick="clearAdminBanner('NOTE')">CLEAR</button>
+        </div>
+        <div id="bannerStatus" class="admin-status"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CREW ROSTER TAB -->
+  <section id="tabCrew" class="tab-section">
+    <div class="admin-actions">
+      <div class="inline-form">
+        <input id="newCrewName" placeholder="FULL NAME" style="width:160px;" maxlength="80" />
+        <select id="newCrewCert" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+          <option value="EMT">EMT</option>
+          <option value="AEMT">AEMT</option>
+          <option value="MEDIC">MEDIC</option>
+          <option value="RN">RN</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+        <button class="btn-good" style="font-size:11px;" onclick="createCrewMember()">+ NEW CREW</button>
+      </div>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadCrew()">REFRESH</button>
+    </div>
+    <div id="crewStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="crewTable">
+      <thead><tr><th>CAD ID</th><th>NAME</th><th>CERT</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+      <tbody id="crewBody"><tr><td colspan="5" class="muted">NO CREW MEMBERS.</td></tr></tbody>
+    </table>
+
+    <!-- CREW HISTORY -->
+    <div style="margin-top:24px;border-top:1px solid var(--line);padding-top:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.06em;margin-bottom:10px;">CREW HISTORY</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <input id="crewHistCadId" placeholder="CAD ID (OPTIONAL)" inputmode="numeric" style="padding:4px 8px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;width:120px;" />
+        <input id="crewHistUnit" placeholder="UNIT ID (OPTIONAL)" style="padding:4px 8px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;width:130px;" />
+        <input id="crewHistFrom" type="date" style="padding:4px 8px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+        <input id="crewHistTo" type="date" style="padding:4px 8px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+        <button class="btn-secondary" style="font-size:11px;" onclick="loadCrewHistory()">LOAD</button>
+      </div>
+      <div id="crewHistStatus" class="admin-status"></div>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="crewHistTable" style="display:none;">
+          <thead><tr>
+            <th>CAD ID</th><th>NAME</th><th>CERT</th><th>UNIT</th><th>ROLE</th>
+            <th>LOGGED ON</th><th>LOGGED OFF</th><th>DURATION</th><th>REASON</th>
+          </tr></thead>
+          <tbody id="crewHistBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCOPE TAB -->
+  <section id="tabScope" class="tab-section">
+    <div id="tab-scope" class="tab-panel" style="display:block;">
+      <h3>DISPATCHER AGENCY ACCESS</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:16px;">
+        Controls which agencies each dispatcher can view and dispatch for.
+        When scope enforcement is active, dispatchers only see units and incidents
+        for their authorized agencies.
+      </p>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;color:var(--muted);">ADD ACCESS</label>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+          <select id="daUsername" style="flex:1;min-width:120px;padding:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:12px;">
+            <option value="">SELECT USER</option>
+          </select>
+          <select id="daAgency" style="flex:1;min-width:120px;padding:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:12px;">
+            <option value="SCMC">SCMC</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;"><input type="checkbox" id="daCanDispatch" checked> CAN DISPATCH</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;"><input type="checkbox" id="daCanView" checked> CAN VIEW</label>
+          <button class="btn-good" style="font-size:11px;" onclick="addDispatcherAgency()">ADD</button>
+        </div>
+      </div>
+
+      <div id="daTable" style="overflow-x:auto;">
+        <div class="muted" style="padding:8px;">Loading...</div>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;background:rgba(255,214,107,.05);border:1px solid rgba(255,214,107,.2);border-radius:3px;">
+        <div style="font-size:11px;font-weight:700;color:#ffd66b;margin-bottom:4px;">SCOPE ENFORCEMENT STATUS</div>
+        <div style="font-size:11px;color:var(--muted);">
+          Scope enforcement is currently <strong id="scopeStatus" style="color:var(--accent);">INACTIVE (FEATURE_SCOPE=false)</strong>.
+          All dispatchers see all agencies regardless of this table.
+          To activate, enable scope enforcement in the Edge Function configuration.
+        </div>
+      </div>
+
+      <!-- Agency Aliases -->
+      <h3 style="margin-top:24px;">AGENCY ALIASES</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+        Shortcodes for the MA command. E.g. aliases <strong>BFD, BEND FIRE</strong> let dispatchers type <code>MA INC0001 BFD</code>
+        instead of the full agency ID. Comma-separated. Case-insensitive.
+      </p>
+      <div id="agencyAliasTable" style="overflow-x:auto;"><div class="muted" style="padding:8px;">Loading...</div></div>
+    </div>
+  </section>
+
+  <!-- ISSUES TAB -->
+  <section id="tabIssues" class="tab-section">
+    <h2>ISSUE REPORTS</h2>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <select id="issuesFilter" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" onchange="loadIssues()">
+        <option value="OPEN" selected>OPEN ISSUES</option>
+        <option value="RESOLVED">RESOLVED</option>
+        <option value="ALL">ALL</option>
+      </select>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadIssues()">REFRESH</button>
+    </div>
+    <div id="issuesStatus" class="muted" style="font-size:12px;margin-bottom:8px;"></div>
+    <table class="admin-table" id="issuesTable" style="display:none;">
+      <thead><tr><th>#</th><th>SUBMITTED</th><th>REPORTER</th><th>ROLE</th><th>PAGE</th><th>SEV</th><th>DESCRIPTION</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+      <tbody id="issuesBody"></tbody>
+    </table>
+    <!-- Resolve panel -->
+    <div id="resolvePanel" style="display:none;margin-top:14px;background:#0c111a;border:1px solid var(--line);padding:14px;">
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px;">RESOLVE ISSUE #<span id="resolveIssueId">—</span></div>
+      <div id="resolveContextBlock" style="display:none;margin-bottom:10px;">
+        <div class="muted" style="font-size:10px;margin-bottom:3px;">AUTO-CAPTURED CONTEXT</div>
+        <pre id="resolveContextPre" style="margin:0;padding:6px 8px;background:#111;border:1px solid var(--line);font-size:10px;color:#8b949e;white-space:pre-wrap;word-break:break-all;font-family:monospace;max-height:160px;overflow-y:auto;"></pre>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div class="muted" style="font-size:10px;margin-bottom:3px;">ADMIN NOTE (OPTIONAL)</div>
+        <input id="resolveNote" placeholder="E.G. FIXED IN V146, DUPLICATE, WONT FIX..." style="width:100%;box-sizing:border-box;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" maxlength="200" />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-good" style="font-size:11px;" onclick="confirmResolveIssue()">MARK RESOLVED</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="cancelResolveIssue()">CANCEL</button>
+        <div id="resolveStatus" class="muted" style="font-size:11px;padding-top:4px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROSTER TAB -->
+  <section id="tabRoster" class="tab-section">
+    <h2>UNIT ROSTER</h2>
+    <p class="muted">Registered units. Only roster units can log on. Disabled units cannot be activated.</p>
+    <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+      <input id="rosterSearch" placeholder="SEARCH..." oninput="renderRoster()" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+      <button class="btn-good" onclick="openAddRoster()">+ ADD UNIT</button>
+    </div>
+    <table class="admin-table" id="rosterTable">
+      <thead><tr><th>UNIT ID</th><th>NAME</th><th>AGENCY</th><th>TYPE</th><th>LEVEL</th><th>EXT</th><th>FLAGS</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+      <tbody id="rosterBody"></tbody>
+    </table>
+    <div id="addRosterForm" style="display:none;margin-top:16px;padding:12px;border:1px solid var(--line);background:#0b1018;">
+      <h3 style="margin:0 0 10px;">ADD ROSTER UNIT</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <input id="rNewId" placeholder="UNIT ID *" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" oninput="autoFillRosterAgency()" />
+        <input id="rNewName" placeholder="DISPLAY NAME" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <input id="rNewAgency" placeholder="AGENCY" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <select id="rNewType" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" onchange="autoFillRosterLevel()">
+          <option value="EMS">EMS</option><option value="FIRE">FIRE</option><option value="AIR">AIR</option><option value="SUPV">SUPV</option><option value="TEAM">TEAM</option><option value="OTHER">OTHER</option><option value="LAW">LAW</option><option value="DOT">DOT</option><option value="SUPPORT">SUPPORT</option>
+        </select>
+        <select id="rNewLevel" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;">
+          <option value="">LEVEL</option><option value="ALS">ALS</option><option value="AEMT">AEMT</option><option value="BLS">BLS</option><option value="EMT">EMT</option><option value="CCT">CCT</option><option value="ASSIST">ASSIST</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;"><input type="checkbox" id="rNewExt" /> EXTERNAL / MUTUAL AID</label>
+      </div>
+      <input id="rNewNotes" placeholder="NOTES (OPTIONAL)" style="width:100%;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;box-sizing:border-box;margin-bottom:8px;" />
+      <div style="display:flex;gap:8px;">
+        <button class="btn-good" onclick="submitAddRoster()">SAVE</button>
+        <button class="btn-secondary" onclick="cancelAddRoster()">CANCEL</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Confirm Dialog -->
+<div id="confirmDialog" class="confirmDialog">
+  <div class="confirmBox">
+    <div class="confirmTitle" id="confirmTitle">CONFIRM</div>
+    <div class="confirmMessage" id="confirmMessage"></div>
+    <div class="confirmButtons">
+      <button class="btn-good" id="confirmOk">OK</button>
+      <button class="btn-secondary" id="confirmCancel">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="../api.js"></script>
+<script>
+  const ADMIN_ROLES = ['SUPV1','SUPV2','MGR1','MGR2','IT'];
+  let _token = '';
+  let _role = '';
+  let _confirmResolve = null;
+
+  // ── Toast ─────────────────────────────────────────────────
+  function showToast(msg, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast-' + type;
+    el.textContent = msg;
+    container.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('toast-visible'));
+    setTimeout(() => {
+      el.classList.remove('toast-visible');
+      el.addEventListener('transitionend', () => el.remove(), { once: true });
+    }, duration);
+  }
+
+  // ── Confirm Dialog ────────────────────────────────────────
+  function showConfirm(title, msg) {
+    return new Promise(resolve => {
+      _confirmResolve = resolve;
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = msg;
+      document.getElementById('confirmDialog').classList.add('active');
+    });
+  }
+  document.getElementById('confirmOk').onclick = () => {
+    document.getElementById('confirmDialog').classList.remove('active');
+    if (_confirmResolve) { _confirmResolve(true); _confirmResolve = null; }
+  };
+  document.getElementById('confirmCancel').onclick = () => {
+    document.getElementById('confirmDialog').classList.remove('active');
+    if (_confirmResolve) { _confirmResolve(false); _confirmResolve = null; }
+  };
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '—';
+    try {
+      const d = new Date(ts);
+      const mo = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      const yy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      return mo + '/' + dd + '/' + yy + ' ' + hh + ':' + mm;
+    } catch(e) { return ts; }
+  }
+
+  // ── Login / Logout ────────────────────────────────────────
+  async function adminLogin() {
+    const r = (document.getElementById('loginRole').value || '').trim().toUpperCase();
+    const cadId = (document.getElementById('loginCadId').value || '').trim();
+    const p = (document.getElementById('loginPassword').value || '').trim();
+    const err = document.getElementById('loginErr');
+    err.textContent = '';
+
+    if (!r) { err.textContent = 'SELECT ROLE.'; return; }
+    if (!cadId) { err.textContent = 'ENTER CAD ID.'; return; }
+    if (!p) { err.textContent = 'ENTER PASSWORD.'; return; }
+    if (!ADMIN_ROLES.includes(r)) { err.textContent = 'ADMIN ROLES ONLY.'; return; }
+
+    err.textContent = 'CONNECTING...';
+    const res = await API.login(r, cadId, p, 'admin');
+    if (!res || !res.ok) {
+      if (res && res.mustChangePassword) {
+        const newPw = window.prompt('YOUR PASSWORD MUST BE CHANGED.\n\nENTER NEW PASSWORD (MIN 5 CHARACTERS):');
+        if (!newPw || newPw.trim().length < 5) { err.textContent = 'PASSWORD MUST BE AT LEAST 5 CHARACTERS.'; return; }
+        const confirm = window.prompt('CONFIRM NEW PASSWORD:');
+        if (newPw !== confirm) { err.textContent = 'PASSWORDS DO NOT MATCH.'; return; }
+        const chg = await API.changePasswordNoAuth(cadId, p, newPw);
+        if (chg && chg.ok) {
+          showToast('PASSWORD CHANGED. LOGGING IN...', 'success');
+          const res2 = await API.login(r, cadId, newPw, 'admin');
+          if (!res2 || !res2.ok) { err.textContent = res2?.error || 'LOGIN FAILED AFTER PASSWORD CHANGE.'; return; }
+          _token = res2.token; _role = r;
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('adminPanel').style.display = 'block';
+          document.getElementById('rolePill').textContent = _role + ': ' + res2.actor;
+          loadUsers();
+        } else { err.textContent = 'ERROR: ' + ((chg && chg.error) || 'COULD NOT CHANGE PASSWORD'); }
+        return;
+      }
+      err.textContent = res?.error || 'LOGIN FAILED.'; return;
+    }
+
+    _token = res.token;
+    _role = r;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'block';
+    document.getElementById('rolePill').textContent = _role + ': ' + res.actor;
+    loadUsers();
+  }
+
+  async function adminLogout() {
+    if (_token) { try { await API.logout(_token); } catch(e) {} }
+    _token = '';
+    _role = '';
+    document.getElementById('adminPanel').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginErr').textContent = '';
+  }
+
+  // ── Issues Tab ─────────────────────────────────────────────
+  let _resolveTargetId = null;
+
+  async function loadIssues() {
+    const filter = (document.getElementById('issuesFilter') || {}).value || 'OPEN';
+    const stat   = document.getElementById('issuesStatus');
+    const tbl    = document.getElementById('issuesTable');
+    const tbody  = document.getElementById('issuesBody');
+    if (stat) stat.textContent = 'LOADING...';
+    if (tbl) tbl.style.display = 'none';
+    cancelResolveIssue();
+
+    const r = await API.listIssues(_token, filter);
+    if (!r.ok) { if (stat) stat.textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    const issues = r.issues || [];
+    if (stat) stat.textContent = issues.length + ' ISSUE(S) — ' + filter;
+
+    const sevColor = { LOW: '#8b949e', MED: '#ffd66b', HIGH: '#ff6b6b' };
+    if (tbody) tbody.innerHTML = issues.length ? issues.map(function(iss) {
+      const ts  = iss.submitted_at ? fmtTime(iss.submitted_at) : '—';
+      const sc  = sevColor[iss.severity] || '#8b949e';
+      const res = iss.status === 'RESOLVED'
+        ? '<span style="color:#7fffb2;font-size:10px;">RESOLVED ' + fmtTime(iss.resolved_at) + ' BY ' + esc(iss.resolved_by) + '</span>' +
+          (iss.admin_note ? '<br><span style="color:#8b949e;font-size:10px;">' + esc(iss.admin_note) + '</span>' : '')
+        : '';
+      const ctxEsc = (iss.context || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const btn = iss.status === 'OPEN'
+        ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="openResolvePanel(' + iss.id + ',\'' + ctxEsc + '\')">RESOLVE</button>'
+        : '';
+      return '<tr>' +
+        '<td style="font-family:monospace;">' + iss.id + '</td>' +
+        '<td>' + ts + '</td>' +
+        '<td>' + esc(iss.reporter) + '</td>' +
+        '<td>' + esc(iss.reporter_role) + '</td>' +
+        '<td>' + esc(iss.page) + '</td>' +
+        '<td style="color:' + sc + ';font-weight:900;">' + esc(iss.severity) + '</td>' +
+        '<td style="max-width:260px;word-break:break-word;white-space:pre-wrap;">' + esc(iss.description) + '</td>' +
+        '<td>' + (iss.status === 'RESOLVED' ? res : '<span style="color:#ffd66b;">OPEN</span>') + '</td>' +
+        '<td>' + btn + '</td>' +
+        '</tr>';
+    }).join('') : '<tr><td colspan="9" class="muted">NO ISSUES FOUND.</td></tr>';
+
+    if (tbl) tbl.style.display = '';
+  }
+
+  function openResolvePanel(id, ctxJson) {
+    _resolveTargetId = id;
+    document.getElementById('resolveIssueId').textContent = id;
+    document.getElementById('resolveNote').value = '';
+    document.getElementById('resolveStatus').textContent = '';
+    // Show context if available
+    const ctxBlock = document.getElementById('resolveContextBlock');
+    const ctxPre   = document.getElementById('resolveContextPre');
+    if (ctxJson && ctxBlock && ctxPre) {
+      try {
+        const parsed = JSON.parse(ctxJson);
+        ctxPre.textContent = JSON.stringify(parsed, null, 2);
+        ctxBlock.style.display = '';
+      } catch(e) {
+        ctxPre.textContent = ctxJson;
+        ctxBlock.style.display = '';
+      }
+    } else if (ctxBlock) {
+      ctxBlock.style.display = 'none';
+    }
+    document.getElementById('resolvePanel').style.display = '';
+    document.getElementById('resolveNote').focus();
+  }
+
+  function cancelResolveIssue() {
+    _resolveTargetId = null;
+    const p = document.getElementById('resolvePanel');
+    if (p) p.style.display = 'none';
+  }
+
+  async function confirmResolveIssue() {
+    if (!_resolveTargetId) return;
+    const note = (document.getElementById('resolveNote').value || '').trim().toUpperCase();
+    const stat = document.getElementById('resolveStatus');
+    stat.textContent = 'SAVING...';
+    const r = await API.resolveIssue(_token, _resolveTargetId, note);
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    cancelResolveIssue();
+    showToast('ISSUE RESOLVED.');
+    loadIssues();
+  }
+
+  // ── Tab Navigation ────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b,i) => {
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','issues'];
+      b.classList.toggle('active', tabs[i] === name);
+    });
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
+    if (el) el.classList.add('active');
+    if (name === 'users') loadUsers();
+    if (name === 'units') loadUnits();
+    if (name === 'sessions') loadSessions();
+    if (name === 'tools') initPpFeedStatus();
+    if (name === 'reports') loadReports();
+    if (name === 'types') loadTypeCodeTab();
+    if (name === 'destinations') loadDestinations();
+    if (name === 'addresses') loadAddresses();
+    if (name === 'roster') loadRoster();
+    if (name === 'crew') { loadCrew(); initCrewHistoryDates(); }
+    if (name === 'scope') loadScopeTab();
+    if (name === 'issues') loadIssues();
+  }
+
+  // ── Users Tab ─────────────────────────────────────────────
+  async function loadUsers() {
+    document.getElementById('usersStatus').textContent = 'LOADING...';
+    const r = await API.listUsersAdmin(_token);
+    if (!r.ok) { document.getElementById('usersStatus').textContent = 'ERROR: ' + r.error; return; }
+    const users = r.users || [];
+    document.getElementById('usersStatus').textContent = users.length + ' USER(S)';
+    const body = document.getElementById('usersBody');
+    if (!users.length) { body.innerHTML = '<tr><td colspan="8" class="muted">NO USERS.</td></tr>'; return; }
+    body.innerHTML = users.map(u => {
+      const cadId = u.cad_id || u.cadId || '';
+      const mustChangeBadge = u.mustChangePassword
+        ? ' <span title="Password change required on next login" style="color:#ffd66b;font-size:10px;cursor:help;">&#9888; MUST CHANGE PW</span>'
+        : '';
+      const canBoard = u.canBoard || u.can_board || false;
+      const canField = u.canField || u.can_field || false;
+      const canAdmin = u.canAdmin || u.can_admin || false;
+      return `
+      <tr>
+        <td>${cadId
+          ? `<span style="color:#4fa3e0;font-size:11px;font-weight:700;letter-spacing:0.5px;">${esc(cadId)}</span>`
+          : `<button class="btn-secondary" style="font-size:10px;padding:2px 7px;" onclick="generateCadId('${esc(u.username)}')">GEN ID</button>`
+        }</td>
+        <td><strong>${esc(u.username)}</strong>${mustChangeBadge}</td>
+        <td>${esc(u.firstName || u.first_name || '')}</td>
+        <td>${esc(u.lastName || u.last_name || '')}</td>
+        <td style="text-align:center;"><input type="checkbox" ${canBoard ? 'checked' : ''} onchange="togglePriv('${esc(u.username)}','canBoard',this.checked)" /></td>
+        <td style="text-align:center;"><input type="checkbox" ${canField ? 'checked' : ''} onchange="togglePriv('${esc(u.username)}','canField',this.checked)" /></td>
+        <td style="text-align:center;"><input type="checkbox" ${canAdmin ? 'checked' : ''} onchange="togglePriv('${esc(u.username)}','canAdmin',this.checked)" /></td>
+        <td>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input class="pw-input" data-user="${esc(u.username)}" placeholder="NEW PASSWORD" style="padding:3px 6px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;width:120px;" />
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="resetPassword('${esc(u.username)}', this)">RESET PW</button>
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="unlockAccount('${esc(u.username)}')">UNLOCK</button>
+            <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="deleteUser('${esc(u.username)}')">DELETE</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  let _allUsers = [];
+
+  function filterUsersTable() {
+    const q = (document.getElementById('usersSearch')?.value || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('#usersBody tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+  }
+
+  async function createUser() {
+    const fn = document.getElementById('newUserFirst').value.trim();
+    const ln = document.getElementById('newUserLast').value.trim();
+    if (!fn || !ln) { showToast('ENTER FIRST AND LAST NAME.', 'warn'); return; }
+    const r = await API.newUser(_token, ln, fn);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    const cadPart = r.cadId || r.cad_id ? ' / ID: ' + (r.cadId || r.cad_id) : '';
+    showToast('USER CREATED: ' + r.username + cadPart + ' / PW: ' + r.password, 'success', 8000);
+    document.getElementById('newUserFirst').value = '';
+    document.getElementById('newUserLast').value = '';
+    loadUsers();
+  }
+
+  async function resetPassword(username, btn) {
+    const row = btn.closest('tr');
+    const input = row.querySelector('.pw-input');
+    const pw = (input?.value || '').trim();
+    if (!pw) { showToast('ENTER NEW PASSWORD.', 'warn'); return; }
+    const ok = await showConfirm('RESET PASSWORD', 'RESET PASSWORD FOR ' + username + '?');
+    if (!ok) return;
+    const r = await API.adminResetPassword(_token, username, pw);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('PASSWORD RESET FOR ' + username.toUpperCase() + '.', 'success');
+    if (input) input.value = '';
+  }
+
+  async function deleteUser(username) {
+    const ok = await showConfirm('DELETE USER', 'DELETE USER: ' + username + '?\nTHIS CANNOT BE UNDONE.');
+    if (!ok) return;
+    const r = await API.delUser(_token, username);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('USER DELETED: ' + username, 'success');
+    loadUsers();
+  }
+
+  // Unlock a locked account (brute-force lockout cleared from ScriptCache).
+  // Requires backend action 'unlockAccount' — scaffolded here, backend to be added separately.
+  async function unlockAccount(username) {
+    const ok = await showConfirm('UNLOCK ACCOUNT', 'UNLOCK ACCOUNT FOR ' + username + '?');
+    if (!ok) return;
+    const r = await API.unlockAccount(_token, username);
+    if (r && r.ok) {
+      showToast('ACCOUNT UNLOCKED: ' + username, 'success');
+    } else {
+      showToast('ERROR: ' + ((r && r.error) || 'UNKNOWN ERROR'), 'error');
+    }
+  }
+
+  async function generateCadId(username) {
+    const r = await API.generateCadId(_token, username);
+    if (!r || !r.ok) { showToast('ERROR: ' + (r?.error || 'UNKNOWN'), 'error'); return; }
+    if (r.existing) { showToast('ALREADY HAS ID: ' + r.cadId, 'warn'); }
+    else { showToast('CAD ID ASSIGNED: ' + r.cadId + ' → ' + username.toUpperCase(), 'success'); }
+    loadUsers();
+  }
+
+  async function togglePriv(username, priv, value) {
+    const r = await API.updateUserPrivileges(_token, username, { [priv]: value });
+    if (r && r.ok) {
+      showToast(username.toUpperCase() + ' ' + priv.replace('can','').toUpperCase() + ': ' + (value ? 'ON' : 'OFF'), 'success');
+    } else {
+      showToast('ERROR: ' + ((r && r.error) || 'UNKNOWN'), 'error');
+      loadUsers();
+    }
+  }
+
+  // ── Crew Roster Tab ───────────────────────────────────────
+  function initCrewHistoryDates() {
+    const toEl = document.getElementById('crewHistTo');
+    const fromEl = document.getElementById('crewHistFrom');
+    if (!toEl || !fromEl || toEl.value) return; // don't override if already set
+    const now = new Date();
+    const past = new Date(now.getTime() - 7 * 24 * 3600000);
+    toEl.value = now.toISOString().slice(0, 10);
+    fromEl.value = past.toISOString().slice(0, 10);
+  }
+
+  async function loadCrew() {
+    document.getElementById('crewStatus').textContent = 'LOADING...';
+    const r = await API.listCrewRoster(_token);
+    if (!r.ok) { document.getElementById('crewStatus').textContent = 'ERROR: ' + r.error; return; }
+    const crew = r.crew || [];
+    document.getElementById('crewStatus').textContent = crew.length + ' CREW MEMBER(S)';
+    const body = document.getElementById('crewBody');
+    if (!crew.length) { body.innerHTML = '<tr><td colspan="5" class="muted">NO CREW MEMBERS.</td></tr>'; return; }
+    body.innerHTML = crew.map(c => `
+      <tr>
+        <td><span style="color:#4fa3e0;font-size:11px;font-weight:700;">${esc(c.cad_id)}</span></td>
+        <td><strong>${esc(c.full_name)}</strong></td>
+        <td>${esc(c.cert_level)}</td>
+        <td>${c.is_active
+          ? '<span style="color:#7fffb2;font-size:11px;font-weight:700;">ACTIVE</span>'
+          : '<span style="color:#6a7a8a;font-size:11px;">INACTIVE</span>'}</td>
+        <td>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input class="crew-pin-input" inputmode="numeric" data-cad="${esc(c.cad_id)}" placeholder="NEW PIN (4+ DIGITS)" style="padding:3px 6px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;width:130px;" />
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="resetCrewPin('${esc(c.cad_id)}', this)">RESET PIN</button>
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="toggleCrewActive('${esc(c.cad_id)}', ${!c.is_active}, '${esc(c.full_name)}', '${esc(c.cert_level)}')">${c.is_active ? 'DISABLE' : 'ENABLE'}</button>
+            <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="deleteCrewMember('${esc(c.cad_id)}', '${esc(c.full_name)}')">DELETE</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  async function createCrewMember() {
+    const fn = document.getElementById('newCrewName').value.trim();
+    const cert = document.getElementById('newCrewCert').value;
+    if (!fn) { showToast('ENTER CREW MEMBER NAME.', 'warn'); return; }
+    const r = await API.addCrewMember(_token, fn, cert);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('CREW ADDED: ' + r.cadId + ' / ' + r.fullName + ' / DEFAULT PIN: ' + r.defaultPin, 'success', 8000);
+    document.getElementById('newCrewName').value = '';
+    loadCrew();
+  }
+
+  async function resetCrewPin(cadId, btn) {
+    const row = btn.closest('tr');
+    const input = row.querySelector('.crew-pin-input');
+    const pin = (input?.value || '').trim();
+    if (!pin || pin.length < 4) { showToast('PIN MUST BE AT LEAST 4 DIGITS.', 'warn'); return; }
+    const ok = await showConfirm('RESET PIN', 'RESET PIN FOR CAD ID ' + cadId + '?');
+    if (!ok) return;
+    const r = await API.adminSetCrewPin(_token, cadId, pin);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('PIN RESET FOR ' + cadId + '.', 'success');
+    if (input) input.value = '';
+  }
+
+  async function toggleCrewActive(cadId, newActive, fullName, certLevel) {
+    const label = newActive ? 'ENABLE' : 'DISABLE';
+    const ok = await showConfirm(label + ' CREW MEMBER', label + ' ' + fullName + ' (' + cadId + ')?');
+    if (!ok) return;
+    const r = await API.updateCrewMember(_token, cadId, fullName, certLevel, newActive);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast(label + 'D: ' + fullName, 'success');
+    loadCrew();
+  }
+
+  async function deleteCrewMember(cadId, fullName) {
+    const ok = await showConfirm('DELETE CREW MEMBER', 'DELETE ' + fullName + ' (CAD ' + cadId + ')?\nTHIS CANNOT BE UNDONE.');
+    if (!ok) return;
+    const r = await API.deleteCrewMember(_token, cadId);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('DELETED: ' + fullName + ' / ' + cadId, 'success');
+    loadCrew();
+  }
+
+  // ── Crew History ─────────────────────────────────────────────
+  async function loadCrewHistory() {
+    const cadIdFilter = (document.getElementById('crewHistCadId').value || '').trim() || null;
+    const unitFilter  = (document.getElementById('crewHistUnit').value || '').trim().toUpperCase() || null;
+    const fromVal     = document.getElementById('crewHistFrom').value || '';
+    const toVal       = document.getElementById('crewHistTo').value || '';
+    const startIso    = fromVal ? new Date(fromVal + 'T00:00:00').toISOString() : null;
+    const endIso      = toVal   ? new Date(toVal   + 'T23:59:59').toISOString() : null;
+
+    const statusEl = document.getElementById('crewHistStatus');
+    const tableEl  = document.getElementById('crewHistTable');
+    const bodyEl   = document.getElementById('crewHistBody');
+    statusEl.textContent = 'LOADING...';
+    tableEl.style.display = 'none';
+
+    const r = await API.getCrewReport(_token, cadIdFilter, unitFilter, startIso, endIso);
+    if (!r.ok) { statusEl.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+
+    const rows = r.assignments || r.rows || [];
+    statusEl.textContent = rows.length + ' RECORD(S)';
+
+    if (!rows.length) {
+      bodyEl.innerHTML = '<tr><td colspan="9" class="muted">NO RECORDS FOUND.</td></tr>';
+      tableEl.style.display = '';
+      return;
+    }
+
+    function fmtLocal(ts) {
+      if (!ts) return '—';
+      try {
+        const d = new Date(ts);
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        const mo = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        return hh + ':' + mm + ' ' + mo + '/' + dd;
+      } catch(e) { return ts; }
+    }
+
+    function fmtDuration(onIso, offIso) {
+      if (!onIso) return '—';
+      if (!offIso) return '<span style="color:#7fffb2;font-weight:700;">ACTIVE</span>';
+      const ms = new Date(offIso) - new Date(onIso);
+      if (isNaN(ms) || ms < 0) return '—';
+      const totalMins = Math.floor(ms / 60000);
+      const h = Math.floor(totalMins / 60);
+      const m = totalMins % 60;
+      return (h > 0 ? h + 'H ' : '') + m + 'M';
+    }
+
+    bodyEl.innerHTML = rows.map(row => `
+      <tr>
+        <td><span style="color:#4fa3e0;font-size:11px;font-weight:700;">${esc(row.cad_id || '')}</span></td>
+        <td>${esc(row.full_name || '')}</td>
+        <td>${esc(row.cert_level || '')}</td>
+        <td><strong>${esc(row.unit_id || '')}</strong></td>
+        <td class="muted">${esc(row.crew_role || '')}</td>
+        <td class="muted">${fmtLocal(row.logged_on_at)}</td>
+        <td class="muted">${fmtLocal(row.logged_off_at)}</td>
+        <td>${fmtDuration(row.logged_on_at, row.logged_off_at)}</td>
+        <td class="muted">${esc(row.logoff_reason || (row.logoff_by ? 'LOGGED OFF BY ' + row.logoff_by : ''))}</td>
+      </tr>`).join('');
+
+    tableEl.style.display = '';
+  }
+
+  // ── Units Tab ─────────────────────────────────────────────
+  async function loadUnits() {
+    document.getElementById('unitsStatus').textContent = 'LOADING...';
+    const r = await API.getState(_token);
+    if (!r.ok) { document.getElementById('unitsStatus').textContent = 'ERROR: ' + r.error; return; }
+    const units = (r.units || []).filter(u => u.active);
+    document.getElementById('unitsStatus').textContent = units.length + ' ACTIVE UNIT(S)';
+    const body = document.getElementById('unitsBody');
+    if (!units.length) { body.innerHTML = '<tr><td colspan="6" class="muted">NO ACTIVE UNITS.</td></tr>'; return; }
+    body.innerHTML = units.map(u => `
+      <tr>
+        <td><strong>${esc(u.unit_id)}</strong></td>
+        <td>${esc(u.display_name || '')}</td>
+        <td><span class="status-badge status-badge-${esc(u.status)}">${esc(u.status)}</span></td>
+        <td>${esc(u.destination || '—')}</td>
+        <td class="muted">${esc(u.updated_at ? fmtTime(u.updated_at) : '—')}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="ridoffUnit('${esc(u.unit_id)}', '${esc(u.updated_at || '')}')">RIDOFF</button>
+            <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="logoffUnit('${esc(u.unit_id)}', '${esc(u.updated_at || '')}')">LOGOFF</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  async function logoffUnit(unitId, expectedUpdatedAt) {
+    const ok = await showConfirm('LOGOFF UNIT', 'LOGOFF ' + unitId + '?');
+    if (!ok) return;
+    const r = await API.logoffUnit(_token, unitId, expectedUpdatedAt);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('UNIT LOGGED OFF: ' + unitId, 'success');
+    loadUnits();
+  }
+
+  async function ridoffUnit(unitId, expectedUpdatedAt) {
+    const ok = await showConfirm('RIDOFF UNIT', 'RIDOFF ' + unitId + '? (SETS AV + CLEARS INC/DEST/NOTE)');
+    if (!ok) return;
+    const r = await API.ridoffUnit(_token, unitId, expectedUpdatedAt);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('UNIT RIDOFF: ' + unitId, 'success');
+    loadUnits();
+  }
+
+  // ── Sessions Tab ──────────────────────────────────────────
+  async function loadSessions() {
+    document.getElementById('sessionsStatus').textContent = 'LOADING...';
+    const r = await API.who(_token);
+    if (!r.ok) { document.getElementById('sessionsStatus').textContent = 'ERROR: ' + r.error; return; }
+    const sessions = r.users || r.sessions || [];
+    document.getElementById('sessionsStatus').textContent = sessions.length + ' ACTIVE SESSION(S)';
+    const body = document.getElementById('sessionsBody');
+    if (!sessions.length) { body.innerHTML = '<tr><td colspan="3" class="muted">NO ACTIVE SESSIONS.</td></tr>'; return; }
+    body.innerHTML = sessions.map(s => {
+      const actor = esc(s.actor || s.username || '');
+      const roleColor = (s.role || '').startsWith('IT') ? '#ff7b72' : (s.role || '').startsWith('MGR') ? '#ffd66b' : (s.role || '').startsWith('SUPV') ? '#4fa3e0' : '';
+      const roleStyle = roleColor ? ` style="color:${roleColor};font-weight:700;"` : '';
+      const cadLabel = s.cadId ? `<span style="color:#4fa3e0;font-size:10px;margin-left:4px;">${esc(s.cadId)}</span>` : '';
+      const lastActive = s.minutesAgo != null
+        ? (s.minutesAgo === 0 ? 'JUST NOW' : s.minutesAgo + 'M AGO')
+        : '—';
+      return `<tr>
+        <td><strong>${actor}</strong>${cadLabel}</td>
+        <td${roleStyle}>${esc(s.role || '')}</td>
+        <td class="muted">${lastActive}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function clearAllSessions() {
+    const ok = await showConfirm('CLEAR ALL SESSIONS', 'LOG OUT ALL USERS?\nEVERYONE WILL NEED TO RE-LOGIN.');
+    if (!ok) return;
+    const r = await API.clearSessions(_token);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('ALL SESSIONS CLEARED.', 'success');
+    adminLogout();
+  }
+
+  // ── Tools Tab ─────────────────────────────────────────────
+  async function sendAdminBroadcast() {
+    const msg = (document.getElementById('broadcastMsg').value || '').trim().toUpperCase();
+    if (!msg) { showToast('ENTER MESSAGE TEXT.', 'warn'); return; }
+    const urgent = document.getElementById('broadcastUrgent').checked;
+    document.getElementById('broadcastStatus').textContent = 'SENDING...';
+    const r = await API.sendBroadcast(_token, msg, urgent);
+    if (!r.ok) { document.getElementById('broadcastStatus').textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    document.getElementById('broadcastStatus').textContent = 'SENT.';
+    document.getElementById('broadcastMsg').value = '';
+    document.getElementById('broadcastUrgent').checked = false;
+    showToast('BROADCAST SENT.', 'success');
+  }
+
+  async function setAdminBanner(kind) {
+    const inputId = kind === 'ALERT' ? 'bannerAlertMsg' : 'bannerNoteMsg';
+    const msg = (document.getElementById(inputId).value || '').trim().toUpperCase();
+    if (!msg) { showToast('ENTER BANNER TEXT.', 'warn'); return; }
+    document.getElementById('bannerStatus').textContent = 'SAVING...';
+    const r = await API.setBanner(_token, kind, msg);
+    if (!r.ok) { document.getElementById('bannerStatus').textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    document.getElementById('bannerStatus').textContent = kind + ' BANNER SET.';
+    showToast(kind + ' BANNER SET.', 'success');
+  }
+
+  async function clearAdminBanner(kind) {
+    document.getElementById('bannerStatus').textContent = 'CLEARING...';
+    const r = await API.setBanner(_token, kind, 'CLEAR');
+    if (!r.ok) { document.getElementById('bannerStatus').textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    const inputId = kind === 'ALERT' ? 'bannerAlertMsg' : 'bannerNoteMsg';
+    document.getElementById(inputId).value = '';
+    document.getElementById('bannerStatus').textContent = kind + ' BANNER CLEARED.';
+    showToast(kind + ' BANNER CLEARED.', 'success');
+  }
+
+  async function runPhase2ASetup() {
+    const ok = await showConfirm('PHASE 2A SETUP', 'CREATE AGENCY SHEETS AND ADD AGENCY_ID COLUMNS?\nSAFE TO RUN MULTIPLE TIMES.');
+    if (!ok) return;
+    document.getElementById('phase2aStatus').textContent = 'RUNNING...';
+    const r = await API.call('phase2aSetup', _token);
+    if (!r.ok) { document.getElementById('phase2aStatus').textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    document.getElementById('phase2aStatus').textContent = (r.results || []).join(' | ');
+    showToast('PHASE 2A SETUP COMPLETE.', 'success');
+  }
+
+  async function runMigrateAssignments() {
+    const ok = await showConfirm('MIGRATE ASSIGNMENTS', 'BACKFILL UNITASSIGNMENTS FROM CURRENT UNITS DATA?\nRUN PHASE 2A SETUP FIRST IF NOT ALREADY DONE.');
+    if (!ok) return;
+    document.getElementById('migrateStatus').textContent = 'RUNNING...';
+    const r = await API.call('migrateAssignments', _token);
+    if (!r.ok) { document.getElementById('migrateStatus').textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    const msg = r.message + ' (' + r.migrated + ' migrated, ' + r.skipped + ' skipped)';
+    document.getElementById('migrateStatus').textContent = msg;
+    if (r.mismatches && r.mismatches.length) {
+      document.getElementById('migrateStatus').textContent += ' | MISMATCHES: ' + r.mismatches.join(', ');
+    }
+    showToast(r.ok ? 'MIGRATION COMPLETE.' : 'MIGRATION ISSUES — CHECK STATUS.', r.ok ? 'success' : 'warning');
+  }
+
+  async function runSeedAirSpecialtyRoster() {
+    document.getElementById('seedAirResult').textContent = 'Running...';
+    const r = await API.call('seedAirSpecialtyRoster', _token);
+    document.getElementById('seedAirResult').textContent = r.ok
+      ? 'Done: ' + r.message
+      : 'Error: ' + (r.error || 'Unknown error');
+  }
+
+  async function runAutoAssignRosterAgencies() {
+    document.getElementById('autoAssignAgencyResult').textContent = 'RUNNING...';
+    const r = await API.call('autoAssignRosterAgencies', _token);
+    if (!r.ok) {
+      document.getElementById('autoAssignAgencyResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN');
+      return;
+    }
+    var msg = 'DONE. UPDATED: ' + r.updated + '  SKIPPED (OUTSIDE RANGE): ' + r.skipped + '  ALREADY HAD AGENCY: ' + r.unchanged;
+    if (r.warnings && r.warnings.length) msg += '\nWARNINGS: ' + r.warnings.join(', ');
+    document.getElementById('autoAssignAgencyResult').textContent = msg;
+  }
+
+  async function runMigrateUnitsToRoster() {
+    document.getElementById('migrateUnitsResult').textContent = 'RUNNING...';
+    const r = await API.call('migrateUnitsToRoster', _token);
+    if (!r.ok) {
+      document.getElementById('migrateUnitsResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN');
+      return;
+    }
+    document.getElementById('migrateUnitsResult').textContent = r.message || ('DONE. ADDED: ' + r.added + '  ALREADY IN ROSTER: ' + r.skipped);
+  }
+
+  async function runBackfillRosterData() {
+    document.getElementById('backfillRosterResult').textContent = 'RUNNING...';
+    const r = await API.call('backfillRosterData', _token);
+    if (!r.ok) { document.getElementById('backfillRosterResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    document.getElementById('backfillRosterResult').textContent = r.message || 'DONE.';
+    showToast(r.message || 'BACKFILL COMPLETE.', 'success');
+  }
+
+  async function runPurgeBlankAgencyRoster() {
+    const ok = await showConfirm('PURGE BLANK-AGENCY ENTRIES', 'DELETE ALL ROSTER ENTRIES WITH NO AGENCY?\nThis removes test data. Properly seeded units all have agencies and will be kept.');
+    if (!ok) return;
+    document.getElementById('purgeBlankAgencyResult').textContent = 'RUNNING...';
+    const r = await API.call('purgeBlankAgencyRoster', _token);
+    if (!r.ok) { document.getElementById('purgeBlankAgencyResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    document.getElementById('purgeBlankAgencyResult').textContent = r.message || ('DONE. REMOVED: ' + r.removed);
+    showToast(r.message || 'DONE.', 'success');
+  }
+
+  async function runSeedFireEMSRoster() {
+    document.getElementById('seedFireEMSResult').textContent = 'RUNNING...';
+    const r = await API.call('seedFireEMSRoster', _token);
+    if (!r.ok) { document.getElementById('seedFireEMSResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    document.getElementById('seedFireEMSResult').textContent = r.message || ('DONE. ADDED: ' + r.added + '  UPDATED: ' + r.updated);
+    showToast(r.message || 'FIRE/EMS ROSTER SEEDED.', 'success');
+  }
+
+  async function runSeedAssistingUnits() {
+    document.getElementById('seedAssistingResult').textContent = 'RUNNING...';
+    const r = await API.call('seedAssistingUnits', _token);
+    if (!r.ok) {
+      document.getElementById('seedAssistingResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN');
+      return;
+    }
+    document.getElementById('seedAssistingResult').textContent = r.message || ('DONE. ADDED: ' + r.added + '  UPDATED: ' + r.updated);
+  }
+
+  function autoFillRosterLevel() {
+    const type = (document.getElementById('rNewType')?.value || '').toLowerCase();
+    const levelEl = document.getElementById('rNewLevel');
+    if (!levelEl || levelEl.value) return; // Don't override manually set level
+    if (type === 'law' || type === 'dot' || type === 'support') levelEl.value = 'ASSIST';
+  }
+
+  function resolveAgencyFromUnitId(uid) {
+    var match = String(uid || '').toUpperCase().match(/^[MC](\d+)$/);
+    if (!match) return null;
+    var n = parseInt(match[1], 10);
+    if (n >= 100  && n <= 199)  return 'LAPINE_FD';
+    if (n >= 200  && n <= 299)  return 'SUNRIVER_FD';
+    if (n >= 300  && n <= 399)  return 'BEND_FIRE';
+    if (n >= 400  && n <= 499)  return 'REDMOND_FIRE';
+    if (n >= 500  && n <= 599)  return 'CROOK_COUNTY_FIRE';
+    if (n >= 600  && n <= 699)  return 'CLOVERDALE_FD';
+    if (n >= 700  && n <= 799)  return 'SISTERS_CAMP_SHERMAN';
+    if (n >= 800  && n <= 899)  return 'BLACK_BUTTE_RANCH';
+    if (n >= 900  && n <= 999)  return 'ALFALFA_FD';
+    if (n >= 1100 && n <= 1199) return 'CRESCENT_RFPD';
+    if (n >= 1200 && n <= 1299) return 'PRINEVILLE_FIRE';
+    if (n >= 1300 && n <= 1399) return 'THREE_RIVERS_FD';
+    if (n >= 1700 && n <= 1799) return 'JEFFCO_FIRE_EMS';
+    if (n >= 2200 && n <= 2299) return 'WARM_SPRINGS_FD';
+    return null;
+  }
+
+  function autoFillRosterAgency() {
+    var uid = (document.getElementById('rNewId').value || '').trim().toUpperCase();
+    var agencyEl = document.getElementById('rNewAgency');
+    if (!agencyEl) return;
+    // Only auto-fill if agency field is currently empty
+    if (agencyEl.value) return;
+    var resolved = resolveAgencyFromUnitId(uid);
+    if (resolved) agencyEl.value = resolved;
+  }
+
+  // ── PulsePoint Feed Toggle ─────────────────────────────────
+  function initPpFeedStatus() {
+    const enabled = localStorage.getItem('hoscad_pp_enabled') !== 'false';
+    const statusEl = document.getElementById('ppFeedStatus');
+    if (statusEl) {
+      statusEl.textContent = enabled ? 'ENABLED' : 'DISABLED';
+      statusEl.style.color = enabled ? '#52c41a' : '#ff4d4f';
+    }
+  }
+
+  function togglePpFeed() {
+    const enabled = localStorage.getItem('hoscad_pp_enabled') !== 'false';
+    const newVal = !enabled;
+    localStorage.setItem('hoscad_pp_enabled', newVal ? 'true' : 'false');
+    const statusEl = document.getElementById('ppFeedStatus');
+    if (statusEl) {
+      statusEl.textContent = newVal ? 'ENABLED' : 'DISABLED';
+      statusEl.style.color = newVal ? '#52c41a' : '#ff4d4f';
+    }
+    showToast('PULSEPOINT FEED ' + (newVal ? 'ENABLED' : 'DISABLED') + '.', newVal ? 'success' : 'warning');
+  }
+
+  // ── Demo Mode ──────────────────────────────────────────────
+  async function startDemo() {
+    const ok = await showConfirm('START DEMO MODE',
+      'POPULATE BOARD WITH DEMO INCIDENTS AND UNIT STATUSES?\n\nThis sets 4–8 AV units to various statuses and creates 5 demo incidents.\nAll demo data is tagged [DEMO] and can be cleared with END DEMO.');
+    if (!ok) return;
+    const statusEl = document.getElementById('demoStatus');
+    statusEl.textContent = 'STARTING DEMO...';
+    statusEl.style.color = '';
+    const r = await API.startDemo(_token);
+    if (r && r.ok) {
+      statusEl.textContent = r.message || 'DEMO ACTIVE.';
+      statusEl.style.color = '#4ade80';
+      showToast(r.message || 'DEMO MODE ACTIVE.', 'success');
+    } else {
+      statusEl.textContent = (r && r.error) ? r.error : 'FAILED.';
+      statusEl.style.color = 'var(--red)';
+      showToast((r && r.error) || 'DEMO START FAILED.', 'error');
+    }
+  }
+
+  async function endDemo() {
+    const ok = await showConfirm('END DEMO MODE',
+      'CLEAR ALL DEMO DATA?\n\nCloses all [DEMO] incidents and resets all [DEMO]-tagged units back to AV.\nThis cannot be undone.');
+    if (!ok) return;
+    const statusEl = document.getElementById('demoStatus');
+    statusEl.textContent = 'CLEARING DEMO...';
+    statusEl.style.color = '';
+    const r = await API.endDemo(_token);
+    if (r && r.ok) {
+      statusEl.textContent = r.message || 'DEMO CLEARED.';
+      statusEl.style.color = 'var(--muted)';
+      showToast(r.message || 'DEMO CLEARED.', 'success');
+    } else {
+      statusEl.textContent = (r && r.error) ? r.error : 'FAILED.';
+      statusEl.style.color = 'var(--red)';
+      showToast((r && r.error) || 'DEMO CLEAR FAILED.', 'error');
+    }
+  }
+
+  // ── Clear PP Units ─────────────────────────────────────────
+  async function clearPpUnits() {
+    const ok = await showConfirm('CLEAR PP UNITS', 'REMOVE ALL PULSEPOINT-SOURCED UNITS FROM THE BOARD?\nThis will log off all units with a PP source. They will not return as long as PP feed is disabled.');
+    if (!ok) return;
+    document.getElementById('clearPpStatus').textContent = 'CLEARING...';
+    const r = await API.clearPpUnits(_token);
+    if (!r.ok) { document.getElementById('clearPpStatus').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    document.getElementById('clearPpStatus').textContent = r.message || 'DONE.';
+    showToast(r.message || 'PP UNITS CLEARED.', 'success');
+  }
+
+  async function runPurge() {
+    const ok = await showConfirm('RUN PURGE', 'RUN DATA PURGE?\nDELETES OLD AUDIT AND CLOSED INCIDENT RECORDS.');
+    if (!ok) return;
+    document.getElementById('purgeStatus').textContent = 'RUNNING...';
+    const r = await API.runPurge(_token);
+    if (!r.ok) { document.getElementById('purgeStatus').textContent = 'ERROR: ' + r.error; return; }
+    document.getElementById('purgeStatus').textContent = 'PURGE COMPLETE.';
+    showToast('PURGE COMPLETE.', 'success');
+  }
+
+  async function exportAudit(hours) {
+    document.getElementById('exportStatus').textContent = 'EXPORTING...';
+    const r = await API.exportAuditCsv(_token, hours);
+    if (!r.ok) { document.getElementById('exportStatus').textContent = 'ERROR: ' + r.error; return; }
+    const csv = r.csv || '';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hoscad-audit-' + hours + 'h-' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('exportStatus').textContent = 'EXPORTED.';
+    showToast('AUDIT CSV DOWNLOADED.', 'success');
+  }
+
+  // ── Reports Tab ───────────────────────────────────────────
+  const KPI_TARGETS = { 'D\u2192DE': 5, 'DE\u2192OS': 10, 'OS\u2192T': 30, 'T\u2192AV': 20 };
+  let _reportData = null;
+
+  function onReportPresetChange() {
+    const val = document.getElementById('reportPreset').value;
+    const customEl = document.getElementById('customRangeInputs');
+    if (val === 'custom') {
+      customEl.style.display = 'inline-flex';
+      // Default to last 30 days
+      const now = new Date();
+      const past = new Date(now.getTime() - 30 * 24 * 3600000);
+      document.getElementById('reportEnd').value = now.toISOString().slice(0, 10);
+      document.getElementById('reportStart').value = past.toISOString().slice(0, 10);
+    } else {
+      customEl.style.display = 'none';
+    }
+  }
+
+  async function loadReports() {
+    const preset = document.getElementById('reportPreset').value;
+    let hrs = null, startIso = null, endIso = null;
+    if (preset === 'custom') {
+      const s = document.getElementById('reportStart').value;
+      const e = document.getElementById('reportEnd').value;
+      if (!s || !e) { document.getElementById('reportsStatus').textContent = 'SELECT START AND END DATES.'; return; }
+      startIso = s + 'T00:00:00.000Z';
+      endIso   = e + 'T23:59:59.999Z';
+    } else {
+      hrs = parseInt(preset) || 24;
+    }
+    document.getElementById('reportsStatus').textContent = 'LOADING...';
+    document.getElementById('reportsContent').style.display = 'none';
+    const r = await API.getShiftReport(_token, hrs, startIso, endIso);
+    if (!r.ok) { document.getElementById('reportsStatus').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    _reportData = r;
+    renderReports(r);
+  }
+
+  function renderReports(rpt) {
+    const av = (rpt.metrics && rpt.metrics.averagesMinutes) || {};
+    const ct = (rpt.metrics && rpt.metrics.counts) || {};
+
+    // KPI table
+    document.getElementById('kpiBody').innerHTML = Object.keys(KPI_TARGETS).map(k => {
+      const val = av[k];
+      const tgt = KPI_TARGETS[k];
+      const n = ct[k] || 0;
+      let cls = '', statusTxt = '—';
+      if (val != null) {
+        cls = val <= tgt ? 'color:#7fffb2' : val <= tgt * 1.5 ? 'color:#ffd66b' : 'color:#ff6b6b;font-weight:700';
+        statusTxt = val <= tgt ? 'OK' : 'OVER TARGET';
+      }
+      return `<tr>
+        <td>${esc(k)}</td>
+        <td style="${cls}">${val != null ? val : '—'}</td>
+        <td class="muted">${n ? '(n=' + n + ')' : '—'}</td>
+        <td class="muted">${tgt}</td>
+        <td style="${cls}">${statusTxt}</td>
+      </tr>`;
+    }).join('');
+
+    // Incidents table
+    const incs = rpt.incidents || [];
+    document.getElementById('rptIncCount').textContent = incs.length + ' INCIDENT(S) IN WINDOW';
+    document.getElementById('rptIncBody').innerHTML = incs.length
+      ? incs.map(i => `<tr>
+          <td>${esc(i.incident_id)}</td>
+          <td>${esc(i.incident_type || '—')}</td>
+          <td>${esc(i.priority || '—')}</td>
+          <td>${esc((i.scene_address || '—').substring(0, 35))}</td>
+          <td>${esc(i.units || '—')}</td>
+          <td>${esc(i.status)}</td>
+          <td class="muted">${i.created_at ? fmtTime(i.created_at) : '—'}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="7" class="muted">NO INCIDENTS IN WINDOW.</td></tr>';
+
+    // Unit activity table
+    const units = rpt.unitSummaries || [];
+    document.getElementById('rptUnitBody').innerHTML = units.length
+      ? units.map(u => {
+          const ts = u.timeInStatus || {};
+          return `<tr>
+            <td><strong>${esc(u.unit_id)}</strong></td>
+            <td>${u.dispatches}</td>
+            <td>${ts['D'] || 0}</td>
+            <td>${ts['OS'] || 0}</td>
+            <td>${ts['T'] || 0}</td>
+            <td>${ts['OOS'] || 0}</td>
+            <td>${ts['AV'] || 0}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="7" class="muted">NO UNIT ACTIVITY IN WINDOW.</td></tr>';
+
+    // Open at handoff section
+    const openIncs = rpt.openIncidents || [];
+    const openCountEl = document.getElementById('rptOpenCount');
+    if (openCountEl) openCountEl.textContent = '(' + openIncs.length + ' OPEN)';
+    const openBody = document.getElementById('rptOpenBody');
+    if (openBody) {
+      if (!openIncs.length) {
+        openBody.innerHTML = '<tr><td colspan="8" class="muted">NO OPEN INCIDENTS — CLEAR HANDOFF.</td></tr>';
+      } else {
+        const nowMs = Date.now();
+        openBody.innerHTML = openIncs.map(i => {
+          const startMs = new Date(i.dispatch_time || i.created_at).getTime();
+          const elapsed = Math.floor((nowMs - startMs) / 60000);
+          const elapsedStr = elapsed >= 60
+            ? Math.floor(elapsed / 60) + 'H ' + (elapsed % 60) + 'M'
+            : elapsed + 'M';
+          const unitStr = Array.isArray(i.units) ? i.units.join(', ') : (i.units || '—');
+          const priStyle = i.priority === 'PRI-1' || i.priority === 'CRITICAL' ? 'color:#ff6b6b;font-weight:700' : '';
+          const statusStyle = i.status === 'ACTIVE' ? 'color:#4ade80' : 'color:#e8c030';
+          return `<tr>
+            <td><strong>${esc(i.incident_id)}</strong></td>
+            <td style="${statusStyle}">${esc(i.status)}</td>
+            <td>${esc(i.incident_type || '—')}</td>
+            <td style="${priStyle}">${esc(i.priority || '—')}</td>
+            <td>${esc((i.scene_address || '—').substring(0, 30))}</td>
+            <td class="muted">${esc(unitStr)}</td>
+            <td class="muted" style="font-size:10px;">${esc(i.incident_note || '').substring(0, 40)}</td>
+            <td style="${elapsed > 60 ? 'color:#ff6b6b' : elapsed > 30 ? 'color:#e8c030' : ''}">${elapsedStr}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    // Priority breakdown
+    const priBreak = rpt.priorityBreakdown || {};
+    const priBody = document.getElementById('rptPriBody');
+    const priSection = document.getElementById('rptPriSection');
+    if (priBody && Object.keys(priBreak).length > 0) {
+      priBody.innerHTML = Object.entries(priBreak)
+        .sort((a, b) => b[1] - a[1])
+        .map(([pri, cnt]) => `<tr><td>${esc(pri)}</td><td style="font-weight:700;">${cnt}</td></tr>`)
+        .join('');
+      if (priSection) priSection.style.display = '';
+    } else if (priSection) {
+      priSection.style.display = 'none';
+    }
+
+    // Response time percentiles by priority
+    const rp = rpt.responsePercentiles || {};
+    const percSection = document.getElementById('rptPercSection');
+    const percBody = document.getElementById('rptPercBody');
+    if (percSection && percBody) {
+      const DISP_KEYS = ['D\u2192DE','DE\u2192OS','OS\u2192T','T\u2192TH','TH\u2192HOFF','Total'];
+      const P90_TGTS = {'D\u2192DE':7,'DE\u2192OS':15,'OS\u2192T':35,'T\u2192TH':null,'TH\u2192HOFF':30,'Total':null};
+      const priorities = ['ALL', ...Object.keys(rp).filter(k => k !== 'ALL').sort()];
+      const rows = [];
+      for (const pri of priorities) {
+        const priData = rp[pri] || {};
+        let firstForPri = true;
+        for (const k of DISP_KEYS) {
+          const d = priData[k];
+          if (!d || d.n === 0) continue;
+          const tgt = P90_TGTS[k];
+          const p90Style = (tgt && d.p90 != null)
+            ? (d.p90 <= tgt ? 'color:#7fffb2' : d.p90 <= tgt * 1.5 ? 'color:#ffd66b' : 'color:#ff6b6b;font-weight:700')
+            : '';
+          rows.push('<tr>'
+            + '<td style="' + (firstForPri ? 'font-weight:700;border-top:1px solid var(--line)' : 'color:transparent') + '">' + esc(pri) + '</td>'
+            + '<td>' + esc(k) + '</td>'
+            + '<td class="muted">' + (d.p50 != null ? d.p50 : '\u2014') + '</td>'
+            + '<td class="muted">' + (d.p75 != null ? d.p75 : '\u2014') + '</td>'
+            + '<td style="' + p90Style + '">' + (d.p90 != null ? d.p90 : '\u2014') + '</td>'
+            + '<td class="muted">' + d.n + '</td>'
+            + '</tr>');
+          firstForPri = false;
+        }
+      }
+      percBody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="6" class="muted">NO TIMING DATA IN WINDOW.</td></tr>';
+      percSection.style.display = rows.length ? '' : 'none';
+    }
+
+    // Facility wall times
+    const fwt = rpt.facilityWallTimes || [];
+    const wallSection = document.getElementById('rptWallSection');
+    const wallBody = document.getElementById('rptWallBody');
+    if (wallSection && wallBody) {
+      if (fwt.length) {
+        wallBody.innerHTML = fwt.map(function(f) {
+          const p90Style = f.p90 != null ? (f.p90 <= 30 ? 'color:#7fffb2' : f.p90 <= 45 ? 'color:#ffd66b' : 'color:#ff6b6b;font-weight:700') : '';
+          return '<tr>'
+            + '<td><strong>' + esc(f.name || f.destId) + '</strong></td>'
+            + '<td>' + (f.avg != null ? f.avg : '\u2014') + '</td>'
+            + '<td style="' + p90Style + '">' + (f.p90 != null ? f.p90 : '\u2014') + '</td>'
+            + '<td class="muted">' + f.n + '</td>'
+            + '</tr>';
+        }).join('');
+        wallSection.style.display = '';
+      } else {
+        wallSection.style.display = 'none';
+      }
+    }
+
+    // Disposition breakdown
+    const db = rpt.dispositionBreakdown || {};
+    const dispSection = document.getElementById('rptDispSection');
+    const dispBody = document.getElementById('rptDispBody');
+    if (dispSection && dispBody) {
+      const dispEntries = Object.entries(db).sort(function(a, b) { return b[1] - a[1]; });
+      const total = dispEntries.reduce(function(s, e) { return s + e[1]; }, 0);
+      const hasRealDisp = dispEntries.some(function(e) { return e[0] !== 'NO DISP'; });
+      if (hasRealDisp) {
+        dispBody.innerHTML = dispEntries.map(function(e) {
+          const pct = total > 0 ? Math.round(e[1] / total * 100) : 0;
+          return '<tr><td>' + esc(e[0]) + '</td><td style="font-weight:700;">' + e[1] + '</td><td class="muted">' + pct + '%</td></tr>';
+        }).join('');
+        dispSection.style.display = '';
+      } else {
+        dispSection.style.display = 'none';
+      }
+    }
+
+    document.getElementById('reportsStatus').textContent =
+      'REPORT: ' + (rpt.windowLabel || rpt.windowHours + 'H') + ' — GENERATED ' + fmtTime(rpt.generatedAt);
+    document.getElementById('reportsContent').style.display = 'block';
+
+    // Phase 2F: queue metrics
+    const qm = rpt.queueMetrics;
+    const queueSection = document.getElementById('rptQueueSection');
+    const queueBody = document.getElementById('rptQueueBody');
+    if (qm && queueSection && queueBody) {
+      const total = (qm.directCount || 0) + (qm.queuedCount || 0);
+      const pctQueued = total > 0 ? Math.round((qm.queuedCount / total) * 100) : 0;
+      queueBody.innerHTML = [
+        ['DIRECT DISPATCH', qm.directCount || 0],
+        ['QUEUED DISPATCH', qm.queuedCount || 0],
+        ['% QUEUED', pctQueued + '%'],
+        ['AVG QUEUE WAIT', qm.avgQueueWaitMin != null ? qm.avgQueueWaitMin + ' min' : '—']
+      ].map(function(row) {
+        return '<tr><td>' + row[0] + '</td><td style="font-weight:700;">' + row[1] + '</td></tr>';
+      }).join('');
+      queueSection.style.display = '';
+
+      // Agency breakdown
+      const agencySection = document.getElementById('rptAgencySection');
+      const agencyBody = document.getElementById('rptAgencyBody');
+      if (qm.agencyBreakdown && Object.keys(qm.agencyBreakdown).length > 1 && agencySection && agencyBody) {
+        agencyBody.innerHTML = Object.entries(qm.agencyBreakdown)
+          .sort(function(a,b){ return b[1]-a[1]; })
+          .map(function(e) {
+            return '<tr><td>' + e[0] + '</td><td style="font-weight:700;">' + e[1] + '</td></tr>';
+          }).join('');
+        agencySection.style.display = '';
+      } else if (agencySection) {
+        agencySection.style.display = 'none';
+      }
+    } else if (queueSection) {
+      queueSection.style.display = 'none';
+    }
+  }
+
+  // Resolve clinical metadata (clinical_group, service_level, clinical_severity) for an incident_type string
+  // incident_type format: "CAT-NATURE-DET" e.g. "CCT-CARDIAC-CRITICAL-PRI-1" or "IFT-ALS-CHEST-PAIN"
+  function resolveTypeMeta(incidentType) {
+    const EMPTY = { clinical_group: '', service_level: '', clinical_severity: '' };
+    if (!_activeTaxonomy || !incidentType) return EMPTY;
+    const t = String(incidentType).toUpperCase().trim();
+    for (const cat of Object.keys(_activeTaxonomy)) {
+      if (t === cat || t.startsWith(cat + '-')) {
+        const natMap = (_activeTaxonomy[cat]?.natures !== undefined) ? _activeTaxonomy[cat].natures : (_activeTaxonomy[cat] || {});
+        const remainder = t === cat ? '' : t.slice(cat.length + 1);
+        for (const nat of Object.keys(natMap)) {
+          if (remainder === nat || remainder.startsWith(nat + '-')) {
+            const nv = natMap[nat];
+            return {
+              clinical_group: nv?.clinical_group || '',
+              service_level: nv?.service_level || '',
+              clinical_severity: nv?.clinical_severity || ''
+            };
+          }
+        }
+        return { clinical_group: '', service_level: cat, clinical_severity: '' };
+      }
+    }
+    return EMPTY;
+  }
+
+  function exportReportXlsx() {
+    if (!_reportData) { showToast('LOAD REPORT FIRST.', 'warn'); return; }
+    if (typeof XLSX === 'undefined') { showToast('XLSX LIBRARY NOT AVAILABLE.', 'error'); return; }
+    const rpt = _reportData;
+    const av = (rpt.metrics && rpt.metrics.averagesMinutes) || {};
+    const ct = (rpt.metrics && rpt.metrics.counts) || {};
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: KPI Summary
+    const kpiRows = [
+      ['METRIC', 'AVG (MIN)', 'SAMPLE SIZE', 'TARGET (MIN)', 'STATUS'],
+      ...Object.keys(KPI_TARGETS).map(k => {
+        const val = av[k]; const tgt = KPI_TARGETS[k]; const n = ct[k] || 0;
+        return [k, val ?? '', n, tgt, val == null ? 'NO DATA' : val <= tgt ? 'OK' : 'OVER TARGET'];
+      })
+    ];
+    if (rpt.metrics && rpt.metrics.longestCurrentlyOnScene) {
+      const los = rpt.metrics.longestCurrentlyOnScene;
+      kpiRows.push([]);
+      kpiRows.push(['LONGEST ON SCENE', los.unit, los.minutes + ' MIN', '', '']);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(kpiRows), 'KPI Summary');
+
+    // Sheet 2: Response Time Percentiles
+    const rpData = rpt.responsePercentiles || {};
+    const IKEYS = ['D\u2192DE','DE\u2192OS','OS\u2192T','T\u2192TH','TH\u2192HOFF','Total'];
+    const percRows = [['PRIORITY','INTERVAL','P50 (MIN)','P75 (MIN)','P90 (MIN)','N']];
+    const priorOrder = ['ALL', ...Object.keys(rpData).filter(k => k !== 'ALL').sort()];
+    for (const pri of priorOrder) {
+      const pd = rpData[pri] || {};
+      for (const k of IKEYS) {
+        const d = pd[k];
+        if (d && d.n > 0) percRows.push([pri, k, d.p50 ?? '', d.p75 ?? '', d.p90 ?? '', d.n]);
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(percRows), 'Response Percentiles');
+
+    // Sheet 3: Incidents (enhanced with timestamps + disposition + clinical group)
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['INCIDENT ID', 'TYPE', 'CLINICAL GROUP', 'PRIORITY', 'SCENE ADDRESS', 'DESTINATION', 'DISPOSITION', 'UNITS', 'STATUS', 'CREATED',
+       'DISPATCH', 'ENROUTE', 'ON SCENE', 'TRANSPORT', 'AT HOSP', 'HANDOFF',
+       'D\u2192DE (MIN)', 'DE\u2192OS (MIN)', 'OS\u2192T (MIN)', 'T\u2192TH (MIN)', 'TH\u2192HOFF (MIN)', 'TOTAL (MIN)'],
+      ...(rpt.incidents || []).map(function(i) {
+        const iv = i.intervals || {};
+        const meta = resolveTypeMeta(i.incident_type || '');
+        return [
+          i.incident_id, i.incident_type || '', meta.clinical_group || '', i.priority || '',
+          i.scene_address || '', i.destination || '', i.disposition || '',
+          Array.isArray(i.units) ? i.units.join(', ') : (i.units || ''), i.status,
+          i.created_at ? fmtTime(i.created_at) : '',
+          i.dispatch_time     ? fmtTime(i.dispatch_time)     : '',
+          i.enroute_time      ? fmtTime(i.enroute_time)      : '',
+          i.arrival_time      ? fmtTime(i.arrival_time)      : '',
+          i.transport_time    ? fmtTime(i.transport_time)    : '',
+          i.at_hospital_time  ? fmtTime(i.at_hospital_time)  : '',
+          i.handoff_time      ? fmtTime(i.handoff_time)      : '',
+          iv['D\u2192DE'] ?? '', iv['DE\u2192OS'] ?? '', iv['OS\u2192T'] ?? '',
+          iv['T\u2192TH'] ?? '', iv['TH\u2192HOFF'] ?? '', iv['Total'] ?? ''
+        ];
+      })
+    ]), 'Incidents');
+
+    // Sheet 4: Facility Wall Times
+    const fwtRows = [['FACILITY','DEST ID','AVG (MIN)','P90 (MIN)','N']];
+    for (const f of rpt.facilityWallTimes || []) {
+      fwtRows.push([f.name || f.destId, f.destId, f.avg ?? '', f.p90 ?? '', f.n]);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(fwtRows), 'Facility Wall Times');
+
+    // Sheet 5: Disposition Summary
+    const db2 = rpt.dispositionBreakdown || {};
+    const dbTotal = Object.values(db2).reduce(function(s, n) { return s + n; }, 0);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['DISPOSITION', 'COUNT', '%'],
+      ...Object.entries(db2)
+        .sort(function(a, b) { return b[1] - a[1]; })
+        .map(function(e) { return [e[0], e[1], dbTotal > 0 ? Math.round(e[1]/dbTotal*100) + '%' : '']; })
+    ]), 'Disposition');
+
+    // Sheet 6: Unit Activity
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['UNIT', 'DISPATCHES', 'TIME D (MIN)', 'TIME OS (MIN)', 'TIME T (MIN)', 'TIME OOS (MIN)', 'TIME AV (MIN)'],
+      ...(rpt.unitSummaries || []).map(function(u) {
+        const ts = u.timeInStatus || {};
+        return [u.unit_id, u.dispatches, ts['D']||0, ts['OS']||0, ts['T']||0, ts['OOS']||0, ts['AV']||0];
+      })
+    ]), 'Unit Activity');
+
+    // Build incident summary data for Sheets 7+8 using resolveTypeMeta
+    const cgMap = {}; // clinical_group → { count, ddeTotal, ddeN, totalTotal, totalN }
+    const slMap = {}; // service_level  → { count, ddeTotal, ddeN, totalTotal, totalN }
+    function _addToMap(map, key, iv) {
+      if (!key) return;
+      if (!map[key]) map[key] = { count: 0, ddeTotal: 0, ddeN: 0, totalTotal: 0, totalN: 0 };
+      map[key].count++;
+      const dde = iv['D\u2192DE'];
+      if (dde != null && dde !== '') { map[key].ddeTotal += Number(dde); map[key].ddeN++; }
+      const tot = iv['Total'];
+      if (tot != null && tot !== '') { map[key].totalTotal += Number(tot); map[key].totalN++; }
+    }
+    (rpt.incidents || []).forEach(function(i) {
+      const meta = resolveTypeMeta(i.incident_type || '');
+      const iv = i.intervals || {};
+      _addToMap(cgMap, meta.clinical_group, iv);
+      _addToMap(slMap, meta.service_level, iv);
+    });
+    const _totalIncs = (rpt.incidents || []).length;
+    function _summaryRows(map, keyLabel) {
+      return Object.entries(map)
+        .sort(function(a, b) { return b[1].count - a[1].count; })
+        .map(function(e) {
+          const d = e[1];
+          const pct = _totalIncs > 0 ? Math.round(d.count / _totalIncs * 100) + '%' : '';
+          const avgDde = d.ddeN > 0 ? Math.round(d.ddeTotal / d.ddeN * 10) / 10 : '';
+          const avgTot = d.totalN > 0 ? Math.round(d.totalTotal / d.totalN * 10) / 10 : '';
+          return [e[0], d.count, pct, avgDde, avgTot];
+        });
+    }
+
+    // Sheet 7: Clinical Group Summary
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['CLINICAL GROUP', 'COUNT', '% OF TOTAL', 'AVG D\u2192DE (MIN)', 'AVG TOTAL (MIN)'],
+      ..._summaryRows(cgMap, 'CLINICAL GROUP')
+    ]), 'Clinical Group');
+
+    // Sheet 8: Service Level Summary
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['SERVICE LEVEL', 'COUNT', '% OF TOTAL', 'AVG D\u2192DE (MIN)', 'AVG TOTAL (MIN)'],
+      ..._summaryRows(slMap, 'SERVICE LEVEL')
+    ]), 'Service Level');
+
+    const label = (rpt.windowLabel || rpt.windowHours + 'h').replace(/\s+/g, '-').replace(/[^a-z0-9\-]/gi, '');
+    XLSX.writeFile(wb, 'hoscad-report-' + label + '-' + new Date().toISOString().slice(0,10) + '.xlsx');
+    showToast('EXCEL REPORT DOWNLOADED — 8 SHEETS.', 'success');
+  }
+
+  // ── Type Codes Tab ─────────────────────────────────────────
+  // Priority levels: PRI-1=ALS/CCT critical, PRI-2=ALS urgent, PRI-3=BLS stable, PRI-4=BLS routine
+  const DEFAULT_TAXONOMY = {
+    'CCT': { natures: {
+      'CARDIAC-CRITICAL':    { dets: ['PRI-1'], clinical_group: 'CARDIOVASCULAR', service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Cardiac arrest, cardiogenic shock, hemodynamic failure requiring CCT-level care' },
+      'STEMI':               { dets: ['PRI-1'], clinical_group: 'CARDIOVASCULAR', service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'STEMI with active intervention (IABP, pressors, CCT-level monitoring)' },
+      'POST-ARREST':         { dets: ['PRI-1'], clinical_group: 'CARDIOVASCULAR', service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Post-cardiac arrest with ROSC — targeted temp management or hemodynamic instability' },
+      'NEURO-CRITICAL':      { dets: ['PRI-1'], clinical_group: 'NEUROLOGICAL',   service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Hemorrhagic stroke, brain herniation, ICP crisis, post-craniotomy' },
+      'STROKE-ALERT':        { dets: ['PRI-1'], clinical_group: 'NEUROLOGICAL',   service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Ischemic stroke with tPA on board or LVO requiring thrombectomy-capable center' },
+      'RESPIRATORY-FAILURE': { dets: ['PRI-1'], clinical_group: 'RESPIRATORY',    service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Intubated/vented patient, high-risk airway, CPAP-dependent respiratory failure' },
+      'SEPSIS-SHOCK':        { dets: ['PRI-1'], clinical_group: 'INFECTIOUS',     service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Septic shock with vasopressors — hemodynamically unstable' },
+      'TRAUMA-CRITICAL':     { dets: ['PRI-1'], clinical_group: 'TRAUMA',         service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Unstable multi-system trauma, hemorrhagic shock, damage-control surgery post-op' },
+      'BURN-CRITICAL':       { dets: ['PRI-1'], clinical_group: 'TRAUMA',         service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Severe burns requiring burn center CCT (>20% TBSA, inhalation, airway involvement)' },
+      'OB-CRITICAL':         { dets: ['PRI-1'], clinical_group: 'OB',             service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'OB emergency: eclampsia, abruption, peripartum cardiomyopathy requiring CCT' },
+      'PEDIATRIC-CRITICAL':  { dets: ['PRI-1'], clinical_group: 'GENERAL',        service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Neonatal/peds critical care transport (NICU/PICU level)' },
+      'MULTI-SYSTEM-FAILURE':{ dets: ['PRI-1'], clinical_group: 'GENERAL',        service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'Multi-organ failure, complex CCT not fitting single system category' },
+      'VENT':             { dets: ['PRI-1'], clinical_group: 'RESPIRATORY',    service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: true, desc: '[LEGACY] Ventilator-dependent transport' },
+      'MULTI-DRIP':       { dets: ['PRI-1'], clinical_group: 'GENERAL',        service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: true, desc: '[LEGACY] Multiple high-risk infusions' },
+      'CRITICAL-TRAUMA':  { dets: ['PRI-1'], clinical_group: 'TRAUMA',         service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: true, desc: '[LEGACY] Critical trauma — use TRAUMA-CRITICAL' },
+      'ECMO':             { dets: ['PRI-1'], clinical_group: 'CARDIOVASCULAR', service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: true, desc: '[LEGACY] ECMO transport — use CARDIAC-CRITICAL' },
+      'NICU-PICU':        { dets: ['PRI-1'], clinical_group: 'GENERAL',        service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: true, desc: '[LEGACY] Neonatal/peds critical — use PEDIATRIC-CRITICAL' },
+      'HIGH-RISK-AIRWAY': { dets: ['PRI-1'], clinical_group: 'RESPIRATORY',    service_level: 'CCT', clinical_severity: 'LIFE_THREATENING', legacy: true, desc: '[LEGACY] High-risk airway — use RESPIRATORY-FAILURE' },
+    }},
+    'IFT-ALS': { natures: {
+      'CHEST-PAIN':           { dets: ['PRI-1','PRI-2'], clinical_group: 'CARDIOVASCULAR', service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Chest pain with ACS concern, troponin trending, ALS monitoring required' },
+      'STEMI':                { dets: ['PRI-1','PRI-2'], clinical_group: 'CARDIOVASCULAR', service_level: 'ALS2', clinical_severity: 'LIFE_THREATENING', legacy: false, desc: 'STEMI transfer — not yet CCT-level but requires ALS2' },
+      'STROKE':               { dets: ['PRI-1','PRI-2'], clinical_group: 'NEUROLOGICAL',   service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Stroke / neuro deficit, time-sensitive transfer' },
+      'SEIZURE':              { dets: ['PRI-1','PRI-2'], clinical_group: 'NEUROLOGICAL',   service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Active or post-ictal seizure requiring ALS monitoring' },
+      'AMS':                  { dets: ['PRI-1','PRI-2'], clinical_group: 'NEUROLOGICAL',   service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Altered mental status, unclear etiology, ALS monitoring' },
+      'RESPIRATORY-DISTRESS': { dets: ['PRI-1','PRI-2'], clinical_group: 'RESPIRATORY',   service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Respiratory distress — not yet failure, O2 dependent, ALS airway monitoring' },
+      'SEPSIS':               { dets: ['PRI-1','PRI-2'], clinical_group: 'INFECTIOUS',     service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Sepsis without shock — IV antibiotics running, close monitoring' },
+      'GI-BLEED':             { dets: ['PRI-1','PRI-2'], clinical_group: 'GI',             service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Active or suspected GI bleed, hemodynamic monitoring required' },
+      'OB-COMPLICATION':      { dets: ['PRI-1','PRI-2'], clinical_group: 'OB',             service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'OB complication — preterm, hypertension, bleeding, fetal concern' },
+      'OVERDOSE':             { dets: ['PRI-1','PRI-2'], clinical_group: 'TOXICOLOGY',     service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Overdose/toxicological emergency requiring ALS monitoring' },
+      'ENDOCRINE-METABOLIC':  { dets: ['PRI-1','PRI-2'], clinical_group: 'ENDOCRINE',      service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'DKA, HHS, severe hypo/hyperglycemia, electrolyte crisis' },
+      'TRAUMA':               { dets: ['PRI-1','PRI-2'], clinical_group: 'TRAUMA',         service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'ALS trauma transfer (hemodynamically stable or borderline)' },
+      'BURN':                 { dets: ['PRI-1','PRI-2'], clinical_group: 'TRAUMA',         service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Burn transfer not requiring CCT (moderate, stable airway)' },
+      'CARDIAC':      { dets: ['PRI-1','PRI-2'], clinical_group: 'CARDIOVASCULAR', service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: true, desc: '[LEGACY] Cardiac instability — use CHEST-PAIN or STEMI' },
+      'NEURO-STROKE': { dets: ['PRI-1','PRI-2'], clinical_group: 'NEUROLOGICAL',   service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: true, desc: '[LEGACY] Stroke/neuro — use STROKE' },
+      'RESPIRATORY':  { dets: ['PRI-1','PRI-2'], clinical_group: 'RESPIRATORY',    service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: true, desc: '[LEGACY] Respiratory — use RESPIRATORY-DISTRESS' },
+      'OB':           { dets: ['PRI-1','PRI-2'], clinical_group: 'OB',             service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: true, desc: '[LEGACY] OB transfer — use OB-COMPLICATION' },
+    }},
+    'IFT-BLS': { natures: {
+      'POST-OP':           { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Stable post-operative transfer' },
+      'BASIC-MEDICAL':     { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Stable medical transfer, BLS-appropriate' },
+      'DIAGNOSTIC':        { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Transfer for imaging, procedure, or diagnostic workup' },
+      'PSYCH-STABLE':      { dets: ['PRI-3'], clinical_group: 'PSYCH',   service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Behavioral health / psychiatric transfer (stable)' },
+      'WOUND-CARE':        { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Wound care, dressing change, stable surgical follow-up' },
+      'FALL-NO-INJURY':    { dets: ['PRI-3'], clinical_group: 'TRAUMA',  service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Fall with no acute injury, cleared for BLS transport' },
+      'FACILITY-TRANSFER': { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Facility-to-facility transfer, non-specific stable' },
+      'HOSPICE':           { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Hospice / comfort care transport' },
+      'LTACH':             { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Long-term acute care hospital admission transfer' },
+      'MEMORY-CARE':       { dets: ['PRI-3'], clinical_group: 'PSYCH',   service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Memory care / dementia unit transfer' },
+      'ASSISTED-LIVING':   { dets: ['PRI-3'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: 'Assisted living or residential care facility transfer' },
+      'PSYCH': { dets: ['PRI-3'], clinical_group: 'PSYCH', service_level: 'BLS', clinical_severity: 'STABLE', legacy: true, desc: '[LEGACY] Psych transfer — use PSYCH-STABLE' },
+    }},
+    'DISCHARGE': { natures: {
+      'STRETCHER':  { dets: ['PRI-4'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Discharge requiring stretcher' },
+      'WHEELCHAIR': { dets: ['PRI-4'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Discharge via wheelchair transport' },
+      'AMBULATORY': { dets: ['PRI-4'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Ambulatory discharge transport' },
+      'HOME':       { dets: ['PRI-4'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Discharge to home' },
+      'REHAB':      { dets: ['PRI-4'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Discharge to inpatient rehab facility' },
+      'SNF':        { dets: ['PRI-4'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Discharge to skilled nursing facility' },
+    }},
+    'DIALYSIS': { natures: {
+      'ROUTINE':      { dets: ['PRI-4'],         clinical_group: 'ENDOCRINE', service_level: 'BLS',  clinical_severity: 'ROUTINE',       legacy: false, desc: 'Scheduled dialysis transport' },
+      'MISSED-TX':    { dets: ['PRI-3'],         clinical_group: 'ENDOCRINE', service_level: 'BLS',  clinical_severity: 'STABLE',        legacy: false, desc: 'Missed treatment — rescheduled, stable fluid overload' },
+      'EMERGENT':     { dets: ['PRI-2','PRI-3'], clinical_group: 'ENDOCRINE', service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Urgent dialysis need — fluid overload, uremic symptoms' },
+      'HYPERKALEMIA': { dets: ['PRI-2'],         clinical_group: 'ENDOCRINE', service_level: 'ALS1', clinical_severity: 'TIME_SENSITIVE', legacy: false, desc: 'Symptomatic hyperkalemia requiring urgent dialysis + ALS cardiac monitoring' },
+      'RETURN':       { dets: ['PRI-4'],         clinical_group: 'ENDOCRINE', service_level: 'BLS',  clinical_severity: 'ROUTINE',       legacy: false, desc: 'Return trip after completed dialysis session' },
+    }},
+    'ADMIN': { natures: {
+      'CANCELLED-PRE-DISPATCH':   { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Call cancelled before any unit was dispatched' },
+      'CANCELLED-ON-SCENE':       { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Unit arrived; patient declined or call cancelled on scene' },
+      'NO-PATIENT':               { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Unit arrived; no patient found at scene' },
+      'DUPLICATE':                { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Incident created in error; merged with or superseded by another call' },
+      'WEATHER-DELAY':            { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Transport delayed or cancelled due to weather conditions' },
+      'ACCEPTING-FACILITY-DELAY': { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Accepting facility not ready; call held or rescheduled' },
+      'NO-UNIT-AVAILABLE':        { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'No unit available at time of call; mutual aid requested or deferred' },
+      'WAITING-BED':              { dets: ['NONE'], clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'ROUTINE', legacy: false, desc: 'Call held — destination has no available bed' },
+    }},
+  };
+
+  let _activeTaxonomy = null;
+  let _showLegacy = false;
+  const _expandedNatures = new Set(); // "CAT|NAT" keys
+
+  function toggleShowLegacy() {
+    _showLegacy = !_showLegacy;
+    const btn = document.getElementById('btnToggleLegacy');
+    if (btn) { btn.textContent = _showLegacy ? 'HIDE LEGACY' : 'SHOW LEGACY'; btn.style.opacity = _showLegacy ? '1' : '0.65'; }
+    renderTypeCodes();
+  }
+
+  async function loadTypeCodeTab() {
+    document.getElementById('typeCodesStatus').textContent = 'LOADING...';
+    const r = await API.getState(_token);
+    if (!r.ok) { document.getElementById('typeCodesStatus').textContent = 'ERROR LOADING STATE'; return; }
+    _activeTaxonomy = (r.incTypeTaxonomy && typeof r.incTypeTaxonomy === 'object')
+      ? JSON.parse(JSON.stringify(r.incTypeTaxonomy))
+      : JSON.parse(JSON.stringify(DEFAULT_TAXONOMY));
+    const isCustom = !!r.incTypeTaxonomy;
+    document.getElementById('typeCodesStatus').textContent =
+      isCustom ? 'CUSTOM TAXONOMY LOADED FROM SERVER.' : 'USING BUILT-IN DEFAULTS (NO SERVER CUSTOMIZATION YET).';
+    renderTypeCodes();
+  }
+
+  const _CG_OPTIONS = ['CARDIOVASCULAR','NEUROLOGICAL','RESPIRATORY','INFECTIOUS','TRAUMA','OB','GASTROINTESTINAL','RENAL','MUSCULOSKELETAL','ENDOCRINE','PSYCHIATRIC','GENERAL'];
+  const _SL_OPTIONS = ['CCT','ALS1','ALS2','BLS'];
+  const _SV_OPTIONS = ['LIFE_THREATENING','TIME_SENSITIVE','MODERATE','STABLE','ROUTINE'];
+
+  function _selOpts(options, current) {
+    return options.map(o => `<option value="${esc(o)}"${o === current ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  }
+
+  function renderTypeCodes() {
+    const el = document.getElementById('typeCodesContent');
+    if (!_activeTaxonomy) { el.innerHTML = '<div class="muted">CLICK RELOAD TO LOAD TYPE CODES.</div>'; return; }
+    const cats = Object.keys(_activeTaxonomy);
+    if (!cats.length) { el.innerHTML = '<div class="muted">NO CATEGORIES DEFINED. ADD ONE ABOVE.</div>'; return; }
+
+    const inputStyle = 'background:#060b12;border:1px solid #1a2a3a;color:#cdd9e5;font-family:inherit;font-size:11px;padding:3px 6px;width:100%;box-sizing:border-box;';
+    const selectStyle = 'background:#060b12;border:1px solid #1a2a3a;color:#cdd9e5;font-family:inherit;font-size:11px;padding:3px 4px;width:100%;box-sizing:border-box;';
+    const labelStyle = 'font-size:10px;color:var(--muted);display:block;margin-bottom:2px;letter-spacing:.04em;';
+
+    let html = '';
+    cats.forEach(cat => {
+      const catQ = esc(cat).replace(/'/g, '&#039;');
+      html += `<div style="background:#0c111a;border:1px solid var(--line);padding:12px;margin-bottom:10px;">`;
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">`;
+      html += `<strong style="font-size:13px;color:var(--fg);">${esc(cat)}</strong>`;
+      html += `<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="addTypeNature('${catQ}')">+ NATURE</button>`;
+      html += `<button class="btn-danger" style="font-size:10px;padding:2px 8px;" onclick="deleteTypeCat('${catQ}')">× DELETE CAT</button>`;
+      html += `</div>`;
+
+      // Support both new natures-wrapped format and old flat format
+      const natMap = (_activeTaxonomy[cat]?.natures !== undefined) ? _activeTaxonomy[cat].natures : (_activeTaxonomy[cat] || {});
+      const natKeys = Object.keys(natMap);
+      if (!natKeys.length) {
+        html += `<div class="muted" style="font-size:11px;margin-left:8px;">No natures defined.</div>`;
+      } else {
+        natKeys.forEach(nat => {
+          const natVal = natMap[nat];
+          const dets = natVal?.dets || (Array.isArray(natVal) ? natVal : []);
+          const isLegacy = natVal?.legacy || false;
+          if (isLegacy && !_showLegacy) return; // Skip legacy natures when toggle is off
+          const cg = natVal?.clinical_group || '';
+          const sl = natVal?.service_level || '';
+          const sv = natVal?.clinical_severity || '';
+          const desc = natVal?.desc || '';
+          const key = cat + '|' + nat;
+          const isExpanded = _expandedNatures.has(key);
+          const natQ = esc(nat).replace(/'/g, '&#039;');
+
+          html += `<div style="border-left:2px solid ${isExpanded ? '#2a5a8a' : 'var(--line)'};margin-bottom:${isExpanded ? '4' : '1'}px;">`;
+          // Nature summary row
+          html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 0 4px 10px;${isLegacy ? 'opacity:0.6;' : ''}">`;
+          html += `<span style="font-size:12px;font-weight:700;min-width:140px;">${esc(nat)}</span>`;
+          if (isLegacy) html += `<span style="font-size:10px;background:#4a2800;color:#ff9900;padding:1px 5px;border-radius:3px;white-space:nowrap;">LEGACY</span>`;
+          html += `<span style="font-size:11px;color:var(--muted);">${dets.length ? dets.join(' / ') : '(no dets)'}</span>`;
+          if (sl) html += `<span style="font-size:10px;color:#5ba3e6;padding:1px 4px;border:1px solid #1a3a5c;border-radius:3px;">${esc(sl)}</span>`;
+          if (cg) html += `<span style="font-size:10px;color:#6aaaa0;padding:1px 4px;border:1px solid #2a4a44;border-radius:3px;">${esc(cg)}</span>`;
+          if (desc && !isLegacy) html += `<span style="font-size:10px;color:var(--muted);font-style:italic;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(desc)}">${esc(desc)}</span>`;
+          html += `<button class="btn-secondary" style="font-size:10px;padding:2px 6px;${isExpanded ? 'opacity:0.5;' : ''}" onclick="toggleNatureEdit('${catQ}','${natQ}')">${isExpanded ? 'CANCEL' : 'EDIT'}</button>`;
+          html += `<button class="btn-danger" style="font-size:10px;padding:2px 6px;" onclick="deleteTypeNature('${catQ}','${natQ}')">× DEL</button>`;
+          html += `</div>`;
+
+          // Inline edit form (only when expanded)
+          if (isExpanded) {
+            html += `<div style="padding:10px 10px 10px 14px;background:#080d16;border-top:1px solid #1a2a3a;">`;
+            html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">`;
+            html += `<div><label style="${labelStyle}">DETERMINANTS (comma-sep)</label><input id="nef-dets-${esc(cat)}-${esc(nat)}" type="text" style="${inputStyle}" value="${esc(dets.join(', '))}"></div>`;
+            html += `<div><label style="${labelStyle}">CLINICAL GROUP</label><select id="nef-cg-${esc(cat)}-${esc(nat)}" style="${selectStyle}">${_selOpts(_CG_OPTIONS, cg)}</select></div>`;
+            html += `<div><label style="${labelStyle}">SERVICE LEVEL</label><select id="nef-sl-${esc(cat)}-${esc(nat)}" style="${selectStyle}">${_selOpts(_SL_OPTIONS, sl)}</select></div>`;
+            html += `<div><label style="${labelStyle}">SEVERITY</label><select id="nef-sv-${esc(cat)}-${esc(nat)}" style="${selectStyle}">${_selOpts(_SV_OPTIONS, sv)}</select></div>`;
+            html += `</div>`;
+            html += `<div style="margin-bottom:8px;"><label style="${labelStyle}">DESCRIPTION</label><textarea id="nef-desc-${esc(cat)}-${esc(nat)}" style="${inputStyle}height:44px;resize:vertical;" rows="2">${esc(desc)}</textarea></div>`;
+            html += `<div style="display:flex;align-items:center;gap:12px;">`;
+            html += `<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="nef-leg-${esc(cat)}-${esc(nat)}" ${isLegacy ? 'checked' : ''}> LEGACY</label>`;
+            html += `<button class="btn-good" style="font-size:11px;padding:3px 12px;" onclick="saveNatureEdit('${catQ}','${natQ}')">SAVE</button>`;
+            html += `<button class="btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="toggleNatureEdit('${catQ}','${natQ}')">CANCEL</button>`;
+            html += `</div>`;
+            html += `</div>`;
+          }
+          html += `</div>`;
+        });
+      }
+      html += `</div>`;
+    });
+    el.innerHTML = html;
+  }
+
+  async function saveTaxonomy() {
+    if (!_activeTaxonomy) { showToast('LOAD TYPE CODES FIRST.', 'warn'); return; }
+    const json = JSON.stringify(_activeTaxonomy);
+    const r = await API.saveIncTypeTaxonomy(_token, json);
+    if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
+    showToast('TYPE CODES SAVED — WILL APPLY ON NEXT BOARD REFRESH.', 'success');
+    document.getElementById('typeCodesStatus').textContent = 'SAVED AT ' + fmtTime(r.savedAt);
+  }
+
+  function addTypeCat() {
+    if (!_activeTaxonomy) { showToast('LOAD TYPE CODES FIRST.', 'warn'); return; }
+    const name = window.prompt('CATEGORY NAME (e.g. MED, FIRE, OTHER):');
+    if (!name) return;
+    const upper = name.trim().toUpperCase();
+    if (!upper) return;
+    if (_activeTaxonomy[upper]) { showToast('CATEGORY ALREADY EXISTS.', 'warn'); return; }
+    _activeTaxonomy[upper] = {};
+    renderTypeCodes();
+    showToast('CATEGORY ADDED — CLICK SAVE TO PERSIST.', 'ok');
+  }
+
+  function deleteTypeCat(cat) {
+    if (!confirm('DELETE CATEGORY "' + cat + '" AND ALL ITS NATURES?')) return;
+    delete _activeTaxonomy[cat];
+    renderTypeCodes();
+    showToast('DELETED — CLICK SAVE TO PERSIST.', 'ok');
+  }
+
+  function _getNatMap(cat) {
+    // Returns the nature map for a category, supporting both old flat and new natures-wrapped format
+    return (_activeTaxonomy[cat]?.natures !== undefined) ? _activeTaxonomy[cat].natures : (_activeTaxonomy[cat] || {});
+  }
+
+  function addTypeNature(cat) {
+    const name = window.prompt('NATURE NAME (e.g. CHEST-PAIN, STROKE, POST-OP):');
+    if (!name) return;
+    const upper = name.trim().toUpperCase();
+    if (!upper) return;
+    const natMap = _getNatMap(cat);
+    if (natMap[upper]) { showToast('NATURE ALREADY EXISTS.', 'warn'); return; }
+    const detsStr = window.prompt('DETERMINANTS — comma-separated (e.g. PRI-1,PRI-2)\nLeave blank for none:') || '';
+    const dets = detsStr.split(',').map(d => d.trim().toUpperCase()).filter(d => d);
+    const newNat = { dets, clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: '' };
+    if (_activeTaxonomy[cat]?.natures !== undefined) {
+      _activeTaxonomy[cat].natures[upper] = newNat;
+    } else {
+      if (!_activeTaxonomy[cat]) _activeTaxonomy[cat] = {};
+      _activeTaxonomy[cat][upper] = newNat;
+    }
+    renderTypeCodes();
+    showToast('NATURE ADDED — CLICK SAVE TO PERSIST.', 'ok');
+  }
+
+  function toggleNatureEdit(cat, nat) {
+    const key = cat + '|' + nat;
+    if (_expandedNatures.has(key)) { _expandedNatures.delete(key); } else { _expandedNatures.add(key); }
+    renderTypeCodes();
+  }
+
+  function saveNatureEdit(cat, nat) {
+    const natMap = _getNatMap(cat);
+    const natVal = natMap[nat];
+    const idSuf = esc(cat) + '-' + esc(nat);
+    const detsRaw = (document.getElementById('nef-dets-' + idSuf) || {}).value || '';
+    const dets = detsRaw.split(',').map(d => d.trim().toUpperCase()).filter(d => d);
+    const cg = (document.getElementById('nef-cg-' + idSuf) || {}).value || 'GENERAL';
+    const sl = (document.getElementById('nef-sl-' + idSuf) || {}).value || 'BLS';
+    const sv = (document.getElementById('nef-sv-' + idSuf) || {}).value || 'ROUTINE';
+    const desc = ((document.getElementById('nef-desc-' + idSuf) || {}).value || '').trim();
+    const legacy = !!(document.getElementById('nef-leg-' + idSuf) || {}).checked;
+    const newNat = { dets, clinical_group: cg, service_level: sl, clinical_severity: sv, legacy, desc };
+    if (typeof natVal === 'object' && !Array.isArray(natVal) && natVal !== null) {
+      Object.assign(natVal, newNat);
+    } else {
+      natMap[nat] = newNat;
+    }
+    _expandedNatures.delete(cat + '|' + nat);
+    renderTypeCodes();
+    showToast('UPDATED — CLICK "SAVE TO SERVER" TO PERSIST.', 'ok');
+  }
+
+  function deleteTypeNature(cat, nat) {
+    if (!confirm('DELETE NATURE "' + nat + '" FROM ' + cat + '?')) return;
+    const natMap = _getNatMap(cat);
+    delete natMap[nat];
+    renderTypeCodes();
+    showToast('DELETED — CLICK SAVE TO PERSIST.', 'ok');
+  }
+
+  function resetTypeDefaults() {
+    if (!confirm('RESET TO BUILT-IN DEFAULT TAXONOMY?\nThis will overwrite your current edits (not yet saved to server).')) return;
+    _activeTaxonomy = JSON.parse(JSON.stringify(DEFAULT_TAXONOMY));
+    renderTypeCodes();
+    showToast('RESET TO DEFAULTS — CLICK SAVE TO PERSIST.', 'ok');
+  }
+
+  // ── Destinations Tab ──────────────────────────────────────
+  let _destEditCode = null;
+
+  function showDestForm(code, name) {
+    _destEditCode = code || null;
+    document.getElementById('destFormCode').value = code || '';
+    document.getElementById('destFormCode').disabled = !!code;
+    document.getElementById('destFormName').value = name || '';
+    document.getElementById('destFormStatus').textContent = '';
+    document.getElementById('destFormRow').style.display = 'block';
+    document.getElementById(_destEditCode ? 'destFormName' : 'destFormCode').focus();
+  }
+
+  function hideDestForm() {
+    document.getElementById('destFormRow').style.display = 'none';
+    document.getElementById('destFormCode').disabled = false;
+    _destEditCode = null;
+  }
+
+  async function saveDestForm() {
+    const code = document.getElementById('destFormCode').value.trim().toUpperCase();
+    const name = document.getElementById('destFormName').value.trim().toUpperCase();
+    if (!code) { document.getElementById('destFormStatus').textContent = 'CODE REQUIRED.'; return; }
+    document.getElementById('destFormStatus').textContent = 'SAVING...';
+    const r = _destEditCode
+      ? await API.updateDestination(_token, _destEditCode, code, name)
+      : await API.addDestination(_token, code, name);
+    if (!r.ok) { document.getElementById('destFormStatus').textContent = 'ERROR: ' + r.error; return; }
+    showToast((_destEditCode ? 'DESTINATION UPDATED.' : 'DESTINATION ADDED.'), 'success');
+    hideDestForm();
+    loadDestinations();
+  }
+
+  async function loadDestinations() {
+    document.getElementById('destsStatus').textContent = 'LOADING...';
+    const r = await API.listDestinations(_token);
+    if (!r.ok) { document.getElementById('destsStatus').textContent = 'ERROR: ' + r.error; return; }
+    const dests = r.destinations || [];
+    document.getElementById('destsStatus').textContent = dests.length + ' DESTINATION(S)';
+    const body = document.getElementById('destsBody');
+    if (!dests.length) { body.innerHTML = '<tr><td colspan="4" class="muted">NO DESTINATIONS.</td></tr>'; return; }
+    body.innerHTML = dests.map(d => `
+      <tr>
+        <td><strong>${esc(d.code)}</strong></td>
+        <td>${esc(d.name)}</td>
+        <td>${d.diverted
+          ? '<span style="color:#ff6b6b;font-weight:700;">DIVERTED</span>'
+          : '<span class="muted">NORMAL</span>'}</td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="showDestForm('${esc(d.code)}','${esc(d.name)}')">EDIT</button>
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="toggleDiversion('${esc(d.code)}',${d.diverted})">${d.diverted ? 'CLEAR DIV' : 'SET DIV'}</button>
+            <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="removeDestination('${esc(d.code)}')">REMOVE</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  async function toggleDiversion(code, currentlyDiverted) {
+    const action = currentlyDiverted ? 'CLEAR DIVERSION FROM' : 'SET DIVERSION ON';
+    const ok = await showConfirm('DIVERSION', action + ' ' + code + '?');
+    if (!ok) return;
+    const r = await API.setDiversion(_token, code, !currentlyDiverted);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast((currentlyDiverted ? 'DIVERSION CLEARED: ' : 'DIVERSION SET: ') + code,
+              currentlyDiverted ? 'success' : 'warn');
+    loadDestinations();
+  }
+
+  async function removeDestination(code) {
+    const ok = await showConfirm('REMOVE DESTINATION', 'REMOVE DESTINATION "' + code + '"?\nTHIS CANNOT BE UNDONE.');
+    if (!ok) return;
+    const r = await API.removeDestination(_token, code);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('DESTINATION REMOVED: ' + code, 'success');
+    loadDestinations();
+  }
+
+  // ── Addresses Tab ──────────────────────────────────────────
+  let _addrEditId = null;
+  let _addrCache = [];
+
+  function showAddrForm(addr) {
+    _addrEditId = addr ? addr.id : null;
+    document.getElementById('addrFormTitle').textContent = _addrEditId ? 'EDIT ADDRESS' : 'ADD ADDRESS';
+    document.getElementById('addrFId').value        = addr ? addr.id : '';
+    document.getElementById('addrFId').disabled     = !!_addrEditId;
+    document.getElementById('addrFName').value      = addr ? (addr.name || '') : '';
+    document.getElementById('addrFAddr').value      = addr ? (addr.address || '') : '';
+    document.getElementById('addrFCity').value      = addr ? (addr.city || '') : '';
+    document.getElementById('addrFState').value     = addr ? (addr.state || '') : '';
+    document.getElementById('addrFZip').value       = addr ? (addr.zip || '') : '';
+    document.getElementById('addrFCat').value       = addr ? (addr.category || '') : '';
+    document.getElementById('addrFAliases').value   = addr ? (addr.aliases || []).join('|') : '';
+    document.getElementById('addrFPhone').value     = addr ? (addr.phone || '') : '';
+    document.getElementById('addrFNotes').value     = addr ? (addr.notes || '') : '';
+    document.getElementById('addrFormStatus').textContent = '';
+    document.getElementById('addrFormCard').style.display = 'block';
+    document.getElementById(_addrEditId ? 'addrFName' : 'addrFId').focus();
+  }
+
+  function hideAddrForm() {
+    document.getElementById('addrFormCard').style.display = 'none';
+    document.getElementById('addrFId').disabled = false;
+    _addrEditId = null;
+  }
+
+  async function saveAddrForm() {
+    const id   = document.getElementById('addrFId').value.trim().toUpperCase();
+    const name = document.getElementById('addrFName').value.trim().toUpperCase();
+    if (!id || !name) { document.getElementById('addrFormStatus').textContent = 'ID AND NAME REQUIRED.'; return; }
+    document.getElementById('addrFormStatus').textContent = 'SAVING...';
+    const args = [
+      _token, _addrEditId || id, name,
+      document.getElementById('addrFAddr').value.trim().toUpperCase(),
+      document.getElementById('addrFCity').value.trim().toUpperCase(),
+      document.getElementById('addrFState').value.trim().toUpperCase(),
+      document.getElementById('addrFZip').value.trim(),
+      document.getElementById('addrFCat').value.trim().toUpperCase(),
+      document.getElementById('addrFAliases').value.trim().toLowerCase(),
+      document.getElementById('addrFPhone').value.trim(),
+      document.getElementById('addrFNotes').value.trim().toUpperCase()
+    ];
+    const r = _addrEditId ? await API.updateAddress(...args) : await API.addAddress(...args);
+    if (!r.ok) { document.getElementById('addrFormStatus').textContent = 'ERROR: ' + r.error; return; }
+    showToast((_addrEditId ? 'ADDRESS UPDATED.' : 'ADDRESS ADDED.'), 'success');
+    hideAddrForm();
+    loadAddresses();
+  }
+
+  async function loadAddresses() {
+    document.getElementById('addrsStatus').textContent = 'LOADING...';
+    const r = await API.getAddresses(_token);
+    if (!r.ok) { document.getElementById('addrsStatus').textContent = 'ERROR: ' + r.error; return; }
+    _addrCache = r.addresses || [];
+    document.getElementById('addrsStatus').textContent = _addrCache.length + ' ADDRESS(ES)';
+    const body = document.getElementById('addrsBody');
+    if (!_addrCache.length) { body.innerHTML = '<tr><td colspan="6" class="muted">NO ADDRESSES.</td></tr>'; return; }
+    body.innerHTML = _addrCache.map(a => `
+      <tr>
+        <td><strong>${esc(a.id)}</strong></td>
+        <td>${esc(a.name)}</td>
+        <td class="muted" style="font-size:11px;">${esc(a.address || '')}</td>
+        <td class="muted" style="font-size:11px;">${esc(a.city || '')}</td>
+        <td>${esc(a.category || '')}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="editAddress('${esc(a.id)}')">EDIT</button>
+            <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="removeAddress('${esc(a.id)}')">REMOVE</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  function editAddress(id) {
+    const addr = _addrCache.find(a => a.id === id);
+    if (!addr) { showToast('ADDRESS NOT FOUND IN CACHE — REFRESH.', 'warn'); return; }
+    showAddrForm(addr);
+  }
+
+  async function removeAddress(id) {
+    const ok = await showConfirm('REMOVE ADDRESS', 'REMOVE ADDRESS "' + id + '"?\nTHIS CANNOT BE UNDONE.');
+    if (!ok) return;
+    const r = await API.removeAddress(_token, id);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('ADDRESS REMOVED: ' + id, 'success');
+    loadAddresses();
+  }
+
+  async function clearData() {
+    const what = document.getElementById('clearWhat').value;
+    if (!what) return;
+    const ok = await showConfirm('CLEAR DATA', 'CLEAR ALL ' + what + ' DATA?\nTHIS CANNOT BE UNDONE!');
+    if (!ok) return;
+    document.getElementById('clearStatus').textContent = 'CLEARING...';
+    let r;
+    if (what === 'SESSIONS') {
+      r = await API.clearSessions(_token);
+    } else {
+      r = await API.clearData(_token, what);
+    }
+    if (!r.ok) { document.getElementById('clearStatus').textContent = 'ERROR: ' + r.error; return; }
+    document.getElementById('clearStatus').textContent = what + ' CLEARED.';
+    showToast(what + ' DATA CLEARED.', 'warn');
+    if (what === 'SESSIONS') adminLogout();
+  }
+
+  // ── ROSTER ───────────────────────────────────────────────────────────
+  let _rosterData = [];
+
+  async function loadRoster() {
+    const r = await API.getRoster(_token);
+    if (!r.ok) return;
+    _rosterData = r.roster || [];
+    renderRoster();
+  }
+  function renderRoster() {
+    var q = (document.getElementById("rosterSearch").value || "").toLowerCase();
+    var body = document.getElementById("rosterBody");
+    if (!body) return;
+    var rows = _rosterData.filter(function(u) {
+      return !q || u.unit_id.toLowerCase().includes(q) || (u.display_name || "").toLowerCase().includes(q) || (u.agency || "").toLowerCase().includes(q);
+    });
+    body.innerHTML = rows.map(function(u) {
+      var id = esc(u.unit_id);
+      var ext = u.is_external ? "YES" : "&#x2014;";
+      var col = u.is_enabled ? "#4caf50" : "#e74c3c";
+      var enl = u.is_enabled ? "ENABLED" : "DISABLED";
+      var tl  = u.is_enabled ? "DISABLE" : "ENABLE";
+      var flagBadges = "";
+      if (u.can_transport === false) flagBadges += "<span style=\"color:#e85;font-size:10px;margin-right:4px;\">NO XPORT</span>";
+      if (u.include_in_recommendations === false) flagBadges += "<span style=\"color:#999;font-size:10px;\">ASSIST</span>";
+      if (!flagBadges) flagBadges = "<span class=\"muted\">\u2014</span>";
+      return "<tr>" +
+        "<td style=\"font-weight:900;color:#5ba3e6;\">" + id + "</td>" +
+        "<td>" + esc(u.display_name) + "</td>" +
+        "<td>" + esc(u.agency) + "</td>" +
+        "<td>" + esc(u.type) + "</td>" +
+        "<td>" + esc(u.level) + "</td>" +
+        "<td>" + ext + "</td>" +
+        "<td style=\"white-space:nowrap;\">" + flagBadges + "</td>" +
+        "<td><span style=\"color:" + col + ";font-weight:700;\">" + enl + "</span></td>" +
+        "<td style=\"white-space:nowrap;\">" +
+          "<button class=\"btn-secondary\" style=\"font-size:10px;padding:3px 8px;\" onclick=\"toggleRosterUnit(\'" + id + "\'," + (Boolean(!u.is_enabled)) + ")\">" + tl + "</button>" +
+          "<button class=\"btn-danger\" style=\"font-size:10px;padding:3px 8px;margin-left:4px;\" onclick=\"deleteRosterUnit(\'" + id + "\')\">DEL</button>" +
+        "</td></tr>";
+    }).join("") || "<tr><td colspan=\"9\" class=\"muted\" style=\"text-align:center;\">NO UNITS IN ROSTER</td></tr>";
+  }
+
+  function openAddRoster() {
+    document.getElementById("addRosterForm").style.display = "";
+    document.getElementById("rNewId").focus();
+  }
+
+  function cancelAddRoster() {
+    document.getElementById("addRosterForm").style.display = "none";
+    ["rNewId","rNewName","rNewAgency","rNewNotes"].forEach(function(id) {
+      document.getElementById(id).value = "";
+    });
+  }
+
+  async function submitAddRoster() {
+    const uid = (document.getElementById("rNewId").value || "").trim().toUpperCase();
+    if (!uid) { alert("UNIT ID IS REQUIRED"); return; }
+    const data = {
+      unit_id: uid,
+      display_name: (document.getElementById("rNewName").value || uid).trim(),
+      agency: (document.getElementById("rNewAgency").value || "").trim(),
+      type: document.getElementById("rNewType").value,
+      level: document.getElementById("rNewLevel").value,
+      is_external: document.getElementById("rNewExt").checked,
+      is_enabled: true,
+      notes: (document.getElementById("rNewNotes").value || "").trim()
+    };
+    const r = await API.addRosterUnit(_token, data);
+    if (!r.ok) { alert("ERROR: " + r.error); return; }
+    cancelAddRoster();
+    await loadRoster();
+  }
+
+  async function toggleRosterUnit(unitId, enable) {
+    if (!confirm((enable ? "ENABLE" : "DISABLE") + " " + unitId + "?")) return;
+    const r = await API.updateRosterUnit(_token, unitId, { is_enabled: enable });
+    if (!r.ok) { alert("ERROR: " + r.error); return; }
+    await loadRoster();
+  }
+
+  async function deleteRosterUnit(unitId) {
+    if (!confirm("REMOVE " + unitId + " FROM ROSTER? This does not remove them from the board if currently active.")) return;
+    const r = await API.deleteRosterUnit(_token, unitId);
+    if (!r.ok) { alert("ERROR: " + r.error); return; }
+    await loadRoster();
+  }
+
+  // ── Scope Tab ─────────────────────────────────────────────
+  async function loadScopeTab() {
+    const tableEl = document.getElementById('daTable');
+    if (!tableEl) return;
+    tableEl.innerHTML = '<div class="muted" style="padding:8px;">Loading...</div>';
+
+    // Load users for dropdown
+    const userSel = document.getElementById('daUsername');
+    if (userSel && userSel.options.length <= 1) {
+      const ur = await API.listUsersAdmin(_token);
+      if (ur.ok && ur.users) {
+        ur.users.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.username;
+          opt.textContent = u.username + ' (' + (u.role || '') + ')';
+          userSel.appendChild(opt);
+        });
+      }
+    }
+
+    // Load agencies for dropdown
+    const agSel = document.getElementById('daAgency');
+    if (agSel) {
+      const ar = await API.getAgencies(_token);
+      if (ar.ok && ar.agencies) {
+        agSel.innerHTML = '';
+        ar.agencies.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.agency_id;
+          opt.textContent = a.agency_id + (a.display_name ? ' \u2014 ' + a.display_name : '');
+          agSel.appendChild(opt);
+        });
+      }
+    }
+
+    const r = await API.getDispatcherAgencies(_token);
+    if (!r.ok) { tableEl.innerHTML = '<div class="muted" style="color:#ff6b6b;padding:8px;">ERROR: ' + esc(r.error || 'FAILED') + '</div>'; return; }
+
+    if (!r.rows || !r.rows.length) {
+      tableEl.innerHTML = '<div class="muted" style="padding:8px;">No rows. All dispatchers default to SCMC access.</div>';
+      return;
+    }
+
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--line);">';
+    html += '<th style="text-align:left;padding:6px;">USER</th><th style="text-align:left;padding:6px;">AGENCY</th>';
+    html += '<th style="padding:6px;">DISPATCH</th><th style="padding:6px;">VIEW</th><th style="padding:6px;">ACTION</th>';
+    html += '</tr></thead><tbody>';
+    r.rows.forEach(row => {
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,.05);">';
+      html += '<td style="padding:6px;">' + esc(row.username || '') + '</td>';
+      html += '<td style="padding:6px;">' + esc(row.agency_id || '') + '</td>';
+      html += '<td style="text-align:center;padding:6px;">' + (row.can_dispatch ? '\u2713' : '\u2717') + '</td>';
+      html += '<td style="text-align:center;padding:6px;">' + (row.can_view ? '\u2713' : '\u2717') + '</td>';
+      html += '<td style="padding:6px;"><button class="btn-danger" style="padding:2px 6px;font-size:10px;" onclick="removeDispatcherAgency(\'' + esc(row.username) + '\',\'' + esc(row.agency_id) + '\')">REMOVE</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    tableEl.innerHTML = html;
+  }
+
+  async function addDispatcherAgency() {
+    const username = document.getElementById('daUsername').value;
+    const agencyId = document.getElementById('daAgency').value;
+    const canDispatch = document.getElementById('daCanDispatch').checked;
+    const canView = document.getElementById('daCanView').checked;
+    if (!username || !agencyId) { showToast('Select a user and agency.', 'warn'); return; }
+    const r = await API.setDispatcherAgency(_token, username, agencyId, canDispatch, canView);
+    if (r.ok) { showToast('Access updated.', 'success'); loadScopeTab(); }
+    else showToast(r.error || 'Error.', 'error');
+  }
+
+  async function removeDispatcherAgency(username, agencyId) {
+    const r = await API.deleteDispatcherAgency(_token, username, agencyId);
+    if (r.ok) { showToast('Access removed.', 'success'); loadScopeTab(); }
+    else showToast(r.error || 'Error.', 'error');
+  }
+
+  async function loadAgencyAliasTable() {
+    const el = document.getElementById('agencyAliasTable');
+    if (!el) return;
+    const r = await API.getAgencies(_token);
+    if (!r.ok) { el.innerHTML = '<div class="muted" style="color:#ff6b6b;padding:8px;">ERROR: ' + esc(r.error || 'FAILED') + '</div>'; return; }
+    const agencies = (r.agencies || []).filter(function(a) { return a.is_active !== false; }).sort(function(a, b) { return (a.agency_id || '').localeCompare(b.agency_id || ''); });
+    let html = '<table class="admin-table" style="width:100%;"><thead><tr><th>AGENCY ID</th><th>NAME</th><th>ALIASES (COMMA-SEPARATED)</th><th>ACTION</th></tr></thead><tbody>';
+    agencies.forEach(function(a) {
+      const safeId = esc(a.agency_id || '');
+      html += '<tr>';
+      html += '<td><strong>' + safeId + '</strong></td>';
+      html += '<td class="muted">' + esc(a.name || '') + '</td>';
+      html += '<td><input id="alias_' + safeId + '" value="' + esc(a.aliases || '') + '" placeholder="e.g. BFD,BEND FIRE" style="width:100%;padding:4px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" /></td>';
+      html += '<td><button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="saveAgencyAliases(\'' + safeId + '\')">SAVE</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  async function saveAgencyAliases(agencyId) {
+    const input = document.getElementById('alias_' + agencyId);
+    if (!input) return;
+    const aliases = input.value.trim().toUpperCase();
+    const r = await API.updateAgency(_token, agencyId, { aliases });
+    if (r.ok) showToast('ALIASES SAVED: ' + agencyId, 'success');
+    else showToast(r.error || 'Error saving aliases.', 'error');
+  }
+
+  // Auto-login via active CAD session if dispatcher has admin role
+  window.addEventListener('DOMContentLoaded', () => {
+    const cadToken = localStorage.getItem('ems_token');
+    const cadRole  = localStorage.getItem('ems_role');
+    const cadActor = localStorage.getItem('ems_actor');
+    if (cadToken && cadRole && ADMIN_ROLES.includes(cadRole.toUpperCase())) {
+      _token = cadToken;
+      _role  = cadRole.toUpperCase();
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('adminPanel').style.display  = 'block';
+      document.getElementById('rolePill').textContent = _role + ': ' + (cadActor || 'CAD SESSION');
+      loadUsers();
+    }
+  });
+
+</script>
+</body>
+</html>
