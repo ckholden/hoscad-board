@@ -88,6 +88,7 @@
     <button class="tab-btn" onclick="switchTab('scope')">SCOPE</button>
     <button class="tab-btn" onclick="switchTab('dc911')">DC911</button>
     <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES</button>
+    <button class="tab-btn" onclick="switchTab('flags')">FEATURE FLAGS</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -554,6 +555,14 @@
   </section>
 
   <!-- ISSUES TAB -->
+  <!-- FEATURE FLAGS TAB -->
+  <section id="tabFlags" class="tab-section">
+    <h2>FEATURE FLAGS</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Toggle system features on or off without a code deploy. Changes take effect on next board refresh. Requires SUPV/MGR/IT role to modify.</p>
+    <div id="flagsStatus" style="color:var(--muted);font-size:11px;margin-bottom:12px;min-height:18px;"></div>
+    <div id="flagsList" style="max-width:480px;"></div>
+  </section>
+
   <section id="tabIssues" class="tab-section">
     <h2>ISSUE REPORTS</h2>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
@@ -836,6 +845,56 @@
     await refreshDc911Status();
   }
 
+  // ── Feature Flags Tab ──────────────────────────────────────
+  const FLAG_LABELS = {
+    dc911_enabled:     { label: 'DC911 Integration', desc: 'Show DC911/Deschutes County CAD units on board' },
+    map_enabled:       { label: 'Board Map', desc: 'Enable the MAP toolbar button and incident map overlay' },
+    field_self_assign: { label: 'Field Self-Assign', desc: 'Allow field crews to self-assign to queued calls without dispatcher approval' },
+    incident_export:   { label: 'Incident Export', desc: 'Enable EXPORT button and REPORT INC command on incident modal' },
+    crew_pin_login:    { label: 'Crew PIN Login', desc: 'Enable field app PIN-based crew member login' },
+  };
+
+  async function loadFeatureFlags() {
+    const stat = document.getElementById('flagsStatus');
+    const list = document.getElementById('flagsList');
+    if (!list) return;
+    if (stat) stat.textContent = 'LOADING...';
+    const r = await API.getFeatureFlags(_token);
+    if (!r.ok) { if (stat) stat.textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    if (stat) stat.textContent = '';
+    const flags = r.flags || {};
+    list.innerHTML = Object.entries(FLAG_LABELS).map(([key, meta]) => {
+      const val = flags[key] !== undefined ? flags[key] : false;
+      const rowId = 'flag_' + key;
+      return `<div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);">
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:700;color:var(--fg);">${meta.label}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">${meta.desc}</div>
+        </div>
+        <button id="${rowId}" onclick="toggleFlag('${key}', this)" style="min-width:64px;padding:4px 10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;border-radius:2px;border:1px solid ${val ? '#2aaa5a44' : 'var(--line)'};background:${val ? '#0a1a0a' : 'var(--bg2)'};color:${val ? '#7fffb2' : 'var(--muted)'};">${val ? 'ON' : 'OFF'}</button>
+      </div>`;
+    }).join('');
+    list._flags = flags;
+  }
+
+  async function toggleFlag(key, btn) {
+    const list = document.getElementById('flagsList');
+    const flags = (list && list._flags) ? { ...list._flags } : {};
+    const newVal = !flags[key];
+    flags[key] = newVal;
+    btn.textContent = 'SAVING...';
+    btn.disabled = true;
+    const r = await API.setFeatureFlags(_token, { [key]: newVal });
+    btn.disabled = false;
+    if (!r.ok) { btn.textContent = 'ERROR'; return; }
+    btn.textContent = newVal ? 'ON' : 'OFF';
+    btn.style.borderColor = newVal ? '#2aaa5a44' : 'var(--line)';
+    btn.style.background   = newVal ? '#0a1a0a' : 'var(--bg2)';
+    btn.style.color        = newVal ? '#7fffb2' : 'var(--muted)';
+    if (list) list._flags = r.flags || flags;
+    showToast(FLAG_LABELS[key]?.label + ': ' + (newVal ? 'ON' : 'OFF'));
+  }
+
   // ── Issues Tab ─────────────────────────────────────────────
   let _resolveTargetId = null;
 
@@ -926,7 +985,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -945,6 +1004,7 @@
     if (name === 'scope') loadScopeTab();
     if (name === 'dc911') loadDc911Config();
     if (name === 'issues') loadIssues();
+    if (name === 'flags') loadFeatureFlags();
   }
 
   // ── Users Tab ─────────────────────────────────────────────

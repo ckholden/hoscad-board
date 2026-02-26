@@ -527,6 +527,12 @@ const API = {
   dc911SetConfig(token, config) {
     return this.call('dc911SetConfig', token, config);
   },
+  getFeatureFlags(token) {
+    return this.call('getFeatureFlags', token);
+  },
+  setFeatureFlags(token, flags) {
+    return this.call('setFeatureFlags', token, flags);
+  },
   clearDc911Units(token) {
     return this.call('clearDc911Units', token);
   },
