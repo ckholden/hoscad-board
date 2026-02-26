@@ -48,10 +48,6 @@ let _MODAL_UNIT = null;
 let _popoutBoardWindow = null;  // viewer popout (used by POPOUT + BOARDS commands)
 let _popoutIncWindow   = null;  // incident queue popout
 let _showAssisting = true; // Show assisting agency units (law/dot/support) by default
-let _ppLastSync    = null;  // Date of last successful PP fetch
-let _ppActiveCount = 0;    // # of active PP units in last successful fetch
-let _ppTimer       = null; // setInterval handle
-let _ppSyncing     = false; // prevents overlapping fetches
 // LifeFlight ADS-B module state
 let _lfnAircraft       = [];   // current fleet state array
 let _lfnPrevAlt        = {};   // { tail: alt_baro } for descent detection
@@ -251,27 +247,6 @@ const INC_GROUP_BORDER = {
   'inc-type-other':    '#6a7a8a',
 };
 
-// PulsePoint Central Oregon agency registry
-const PP_AGENCIES = {
-  // Deschutes County
-  '00231': { name: 'Bend Fire & Rescue',          short: 'BF', color: '#d4380d' },
-  '00234': { name: 'Sunriver Fire & Rescue',      short: 'SF', color: '#d46b08' },
-  '00235': { name: 'Black Butte Ranch Fire',      short: 'BB', color: '#7c3aed' },
-  '00236': { name: 'Redmond Fire & Rescue',       short: 'RF', color: '#0958d9' },
-  '00237': { name: 'Sisters-Camp Sherman Fire',   short: 'SS', color: '#389e0d' },
-  '00238': { name: 'Crooked River Ranch Fire',    short: 'CR', color: '#c41d7f' },
-  '00239': { name: 'La Pine Fire District',       short: 'LP', color: '#d48806' },
-  '00240': { name: 'Cloverdale RFPD',             short: 'CV', color: '#08979c' },
-  '01172': { name: 'Alfalfa Fire District',       short: 'AF', color: '#7cb305' },
-  // Jefferson County
-  '01131': { name: 'Jefferson Fire District',     short: 'JF', color: '#531dab' },
-  // NOTE: Crook County Fire & Rescue does not appear to have a PulsePoint feed.
-  // 00291 is Portland Fire & Rescue (wrong — do NOT add back).
-};
-
-const PP_DATA_URL = 'https://ckholden.github.io/hoscad-source/pulsepoint_data.json';
-const PP_POLL_INTERVAL = 60 * 1000;  // 1 minute — GH Actions pushes every 5min, poll more often to catch it quickly
-
 // LifeFlight Network fleet registry — tail# → callsign/board unit mapping
 // Note: LFN may reassign aircraft to bases dynamically; update as confirmed.
 // Combined air resource fleet registry — all providers, keyed by tail number
@@ -317,19 +292,6 @@ const LFN_BASE_LON = -121.150;
 const LFN_POLL_INTERVAL  = 30 * 1000; // 30-second interval — aircraft status can change quickly
 const LFN_QUERY_RADIUS   = 75;        // nautical miles radius for adsb.lol query
 
-// PulsePoint status code → HOSCAD status code
-function ppStatusToHoscad(ppCode) {
-  const map = {
-    DP: 'D',  AK: 'D',  SG: 'D',
-    ER: 'DE',
-    OS: 'OS', AOS: 'OS',
-    TR: 'T',
-    TA: 'TH', AT: 'TH',
-    AQ: 'AV', CLR: 'AV', AVL: 'AV', AR: 'AV', STN: 'AV',
-    OOS: 'OOS',
-  };
-  return map[String(ppCode || '').toUpperCase()] || 'AV';
-}
 
 // Command hints for autocomplete
 const CMD_HINTS = [
@@ -423,7 +385,7 @@ const CMD_HINTS = [
   { cmd: 'TRANSFER <FROM> <TO> <INC>', desc: 'Transfer incident between units' },
   { cmd: 'MASS D <DEST> CONFIRM', desc: 'Dispatch all AV units (requires CONFIRM)' },
   { cmd: 'LUI [UNIT]', desc: 'Create temp one-off unit (SUPV/MGR/IT only)' },
-  { cmd: 'REL <INC> <PP_ID>', desc: 'REL INC0006 PP12345 — link incident to PulsePoint incident' },
+  { cmd: 'REL <INC1> <INC2>', desc: 'Link two HOSCAD incidents together (REL 26-0006 26-0007)' },
   { cmd: 'HELP', desc: 'Show command reference' },
   { cmd: 'POPOUT', desc: 'Open status board on secondary monitor' },
   { cmd: 'POPIN', desc: 'Restore status board to this screen' },
@@ -825,8 +787,6 @@ function applyViewState() {
   // Column sort indicators
   updateSortHeaders();
 
-  // PP button initial state
-  _applyPpBtn(localStorage.getItem('hoscad_pp_enabled') !== 'false');
 }
 
 function updateToolbarButtons() {
@@ -1527,7 +1487,6 @@ async function refresh(forceFull) {
         TOKEN = '';
         ACTOR = '';
         if (POLL) clearInterval(POLL);
-        stopPpPolling();
         stopLfnPolling();
         document.getElementById('loginBack').style.display = 'flex';
         document.getElementById('userLabel').textContent = '—';
@@ -1617,22 +1576,6 @@ function toggleAssisting() {
   if (btn) btn.textContent = _showAssisting ? 'AUX ON' : 'AUX OFF';
   if (btn) btn.style.opacity = _showAssisting ? '1' : '0.45';
   renderBoardDiff(STATE);
-}
-
-function togglePP() {
-  const enabled = localStorage.getItem('hoscad_pp_enabled') !== 'false';
-  const next = !enabled;
-  localStorage.setItem('hoscad_pp_enabled', next ? 'true' : 'false');
-  _applyPpBtn(next);
-  if (next) { startPpPolling(); showToast('PULSEPOINT FEED ON.'); }
-  else { stopPpPolling(); showToast('PULSEPOINT FEED OFF.'); }
-}
-
-function _applyPpBtn(enabled) {
-  const btn = document.getElementById('btnTogglePP');
-  if (!btn) return;
-  btn.textContent = enabled ? 'PP ON' : 'PP OFF';
-  btn.style.opacity = enabled ? '1' : '0.45';
 }
 
 function runQuickCmd(cmd) {
@@ -2239,7 +2182,6 @@ function renderIncidentQueue() {
     }
     const cbMatch = rawNote.match(/\[CB:([^\]]+)\]/i);
     const cbBadge = cbMatch ? '<span class="cb-badge">CB:' + esc(cbMatch[1].trim()) + '</span>' : '';
-    const ppBadge = inc.pp_incident_id ? '<span class="pp-rel-badge" title="PulsePoint Link">PP:' + esc(inc.pp_incident_id) + '</span>' : '';
     const relIds = Array.isArray(inc.related_incidents) ? inc.related_incidents : [];
     const relBadge = relIds.map(function(rid) {
       const shortRel = String(rid).replace(/^\d{2}-/, '');
@@ -2274,7 +2216,7 @@ function renderIncidentQueue() {
     const sceneDisplay = (inc.scene_address || '').substring(0, 20) || '—';
 
     html += `<tr class="${rowCl}" data-inc-id="${esc(inc.incident_id)}" onclick="openIncident('${esc(inc.incident_id)}')">`;
-    html += `<td class="inc-id">${urgent ? 'HOT ' : ''}INC${esc(shortId)}${priBadge}${maBadge}${cbBadge}${ppBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
+    html += `<td class="inc-id">${urgent ? 'HOT ' : ''}${esc(inc.incident_id)}${priBadge}${maBadge}${cbBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
     const incDestResolved = AddressLookup.resolve(inc.destination);
     const incDestDisplay = incDestResolved.recognized ? incDestResolved.addr.name : (inc.destination || 'NO DEST');
     html += `<td class="inc-dest${incDestResolved.recognized ? ' dest-recognized' : ''}">${esc(incDestDisplay)}</td>`;
@@ -2550,13 +2492,6 @@ function renderBoard() {
     const di = (u.display_name || '').toUpperCase();
     const sD = di && di !== uId;
     const lvlBadge = u.level ? ' <span class="level-badge level-' + esc(u.level) + '">' + esc(u.level) + '</span>' : '';
-    const ppBadge = (() => {
-      if (!u.source || !u.source.startsWith('PP:')) return '';
-      const agencyId = u.source.replace('PP:', '');
-      const ag = PP_AGENCIES[agencyId];
-      if (!ag) return ' <span class="pp-agency-badge" style="background:#55555522;border-color:#55555566;color:#aaa">PP</span>';
-      return ' <span class="pp-agency-badge" style="background:' + ag.color + '22;border-color:' + ag.color + '66;color:' + ag.color + '">' + ag.short + '</span>';
-    })();
     const dc911Badge = (() => {
       if (!u.source || !u.source.startsWith('DC911:')) return '';
       const t = (u.type || 'EMS').toUpperCase();
@@ -2565,7 +2500,7 @@ function renderBoard() {
     })();
     const crewParts = u.unit_info ? String(u.unit_info).split('|').filter(p => /^CM\d:/i.test(p)) : [];
     const crewHtml = crewParts.length ? '<div class="crew-sub">' + crewParts.map(p => esc(p.replace(/^CM\d:/i, '').trim())).join(' / ') + '</div>' : '';
-    const unitHtml = '<span class="unit">' + esc(uId) + '</span>' + lvlBadge + ppBadge + dc911Badge +
+    const unitHtml = '<span class="unit">' + esc(uId) + '</span>' + lvlBadge + dc911Badge +
       (u.active ? '' : ' <span class="muted">(I)</span>') +
       (sD ? ' <span class="muted" style="font-size:10px;">' + esc(di) + '</span>' : '') +
       crewHtml;
@@ -2843,13 +2778,6 @@ function renderBoardDiff() {
     const di = (u.display_name || '').toUpperCase();
     const sD = di && di !== uId;
     const lvlBadge = u.level ? ' <span class="level-badge level-' + esc(u.level) + '">' + esc(u.level) + '</span>' : '';
-    const ppBadge = (() => {
-      if (!u.source || !u.source.startsWith('PP:')) return '';
-      const agencyId = u.source.replace('PP:', '');
-      const ag = PP_AGENCIES[agencyId];
-      if (!ag) return ' <span class="pp-agency-badge" style="background:#55555522;border-color:#55555566;color:#aaa">PP</span>';
-      return ' <span class="pp-agency-badge" style="background:' + ag.color + '22;border-color:' + ag.color + '66;color:' + ag.color + '">' + ag.short + '</span>';
-    })();
     const dc911Badge = (() => {
       if (!u.source || !u.source.startsWith('DC911:')) return '';
       const t = (u.type || 'EMS').toUpperCase();
@@ -2858,7 +2786,7 @@ function renderBoardDiff() {
     })();
     const crewParts = u.unit_info ? String(u.unit_info).split('|').filter(p => /^CM\d:/i.test(p)) : [];
     const crewHtml = crewParts.length ? '<div class="crew-sub">' + crewParts.map(p => esc(p.replace(/^CM\d:/i, '').trim())).join(' / ') + '</div>' : '';
-    const unitHtml = '<span class="unit">' + esc(uId) + '</span>' + lvlBadge + ppBadge + dc911Badge +
+    const unitHtml = '<span class="unit">' + esc(uId) + '</span>' + lvlBadge + dc911Badge +
       (u.active ? '' : ' <span class="muted">(I)</span>') +
       (sD ? ' <span class="muted" style="font-size:10px;">' + esc(di) + '</span>' : '') +
       crewHtml;
@@ -3120,7 +3048,6 @@ async function qbStatus(code) {
   if (!SELECTED_UNIT_ID) return;
   const u = STATE && STATE.units ? STATE.units.find(x => String(x.unit_id || '').toUpperCase() === SELECTED_UNIT_ID) : null;
   if (!u) return;
-  if (u.source && u.source.startsWith('PP:') && u.status !== 'AV') { showToast('PP-MANAGED — STATUS DRIVEN BY PULSEPOINT.'); return; }
   const btn = document.querySelector('.qb-' + code);
   if (btn) btn.disabled = true;
   const note = (document.getElementById('qbNote')?.value || '').trim().toUpperCase();
@@ -3287,12 +3214,6 @@ async function saveModal() {
     showToast('DC911 UNITS ARE READ-ONLY. DATA FROM DESCHUTES 911 CAD FEED.', 'warn');
     return;
   }
-  // PP units are read-only — never allow editing via modal
-  if (_MODAL_UNIT && _MODAL_UNIT.source && _MODAL_UNIT.source.startsWith('PP:')) {
-    showToast('PP UNITS ARE READ-ONLY. MANAGED BY PULSEPOINT FEED.', 'warn');
-    return;
-  }
-
   if (!_MODAL_UNIT) {
     const info = await API.getUnitInfo(TOKEN, uId);
     if (info.ok && !info.everSeen) {
@@ -3968,10 +3889,6 @@ async function openIncidentFromServer(iId) {
           const shortRel = id.replace(/^\d{2}-/, '');
           return '<button type="button" class="related-inc-chip" onclick="openIncident(\'' + esc(id) + '\')">' + esc(id) + '</button>';
         }).join(''));
-    }
-    if (inc.pp_incident_id) {
-      parts.push('<span class="muted" style="font-size:10px;margin-left:' + (relIds.length ? '10px' : '0') + ';">PP: </span>' +
-        '<span class="pp-rel-badge" style="font-size:11px;">' + esc(inc.pp_incident_id) + '</span>');
     }
     if (parts.length) {
       relEl.innerHTML = parts.join('');
@@ -5447,7 +5364,6 @@ async function _execCmd(tx) {
     document.getElementById('loginBack').style.display = 'flex';
     document.getElementById('userLabel').textContent = '—';
     if (POLL) clearInterval(POLL);
-    stopPpPolling();
     stopLfnPolling();
     return;
   }
@@ -6119,34 +6035,22 @@ async function _execCmd(tx) {
         return;
       }
 
-  // REL - Link HOSCAD incident to PulsePoint incident (or HOSCAD-to-HOSCAD)
+  // REL - Link two HOSCAD incidents together (or unlink with CLR flag)
   if (mU.startsWith('REL ') || mU === 'REL') {
     const parts = (mU + ' ' + nU).trim().split(/\s+/);
     let relIncId = (parts[1] || '').toUpperCase();
-    const relTarget = (parts[2] || '').toUpperCase().replace(/^PP:/i, function(m) { return m; });
+    let relTarget = (parts[2] || '').toUpperCase();
     const relFlag = (parts[3] || '').toUpperCase();
-    if (!relIncId || !relTarget) { showAlert('ERROR', 'USAGE: REL <INC#> <INC#|PP_ID> [CLR]  — LINK INCIDENTS OR LINK TO PULSEPOINT ID'); return; }
+    if (!relIncId || !relTarget) { showAlert('ERROR', 'USAGE: REL <INC1> <INC2> [CLR]  — LINK TWO INCIDENTS'); return; }
     // Normalize incident IDs: add year prefix if missing (e.g. 0023 → 26-0023)
     if (/^\d+$/.test(relIncId)) relIncId = (new Date().getFullYear() % 100) + '-' + relIncId;
     if (relIncId.startsWith('INC')) relIncId = relIncId.replace(/^INC/i, '');
-    // Detect HOSCAD-to-HOSCAD link: target starts with INC or looks like a year-seq id
-    const isHoscadLink = /^INC\d+/i.test(relTarget) || /^\d{2}-\d+$/.test(relTarget) || /^\d{4,}$/.test(relTarget);
-    if (isHoscadLink) {
-      let normTarget = relTarget;
-      if (/^\d+$/.test(normTarget)) normTarget = (new Date().getFullYear() % 100) + '-' + normTarget;
-      if (normTarget.startsWith('INC')) normTarget = normTarget.replace(/^INC/i, '');
-      const unlink = relFlag === 'CLR' || relFlag === 'CLEAR';
-      const relRes = await API.linkIncidents(TOKEN, relIncId, normTarget, unlink ? 'UNLINK' : '');
-      if (!relRes.ok) { showAlert('ERROR', relRes.error || 'ERROR.'); return; }
-      showToast(unlink ? 'INC LINK REMOVED: ' + relIncId + ' ↔ ' + normTarget : 'INC LINKED: ' + relIncId + ' ↔ ' + normTarget, 'success');
-    } else {
-      // PP link
-      let relPpId = relTarget.replace(/^PP:/i, '');
-      if (relPpId === 'CLR' || relPpId === 'CLEAR') relPpId = '';
-      const relRes = await API.relateIncident(TOKEN, relIncId, relPpId);
-      if (!relRes.ok) { showAlert('ERROR', relRes.error || 'ERROR.'); return; }
-      showToast(relPpId ? 'PP LINK SAVED: ' + relIncId + ' → PP:' + relPpId : 'PP LINK CLEARED: ' + relIncId, 'success');
-    }
+    if (/^\d+$/.test(relTarget)) relTarget = (new Date().getFullYear() % 100) + '-' + relTarget;
+    if (relTarget.startsWith('INC')) relTarget = relTarget.replace(/^INC/i, '');
+    const unlink = relFlag === 'CLR' || relFlag === 'CLEAR';
+    const relRes = await API.linkIncidents(TOKEN, relIncId, relTarget, unlink ? 'UNLINK' : '');
+    if (!relRes.ok) { showAlert('ERROR', relRes.error || 'ERROR.'); return; }
+    showToast(unlink ? 'LINK REMOVED: ' + relIncId + ' ↔ ' + relTarget : 'LINKED: ' + relIncId + ' ↔ ' + relTarget, 'success');
     refresh();
     return;
   }
@@ -7530,105 +7434,6 @@ function updatePopoutStats() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── PulsePoint Mutual Aid Feed ───────────────────────────────────────────
-// ════════════════════════════════════════════════════════════════════════════
-
-function startPpPolling() {
-  if (_ppTimer) return;
-  fetchPpFeed();  // immediate first fetch
-  _ppTimer = setInterval(fetchPpFeed, PP_POLL_INTERVAL);
-}
-
-function stopPpPolling() {
-  if (_ppTimer) { clearInterval(_ppTimer); _ppTimer = null; }
-}
-
-async function fetchPpFeed() {
-  if (_ppSyncing || !TOKEN) return;
-  if (localStorage.getItem('hoscad_pp_enabled') === 'false') return;
-  _ppSyncing = true;
-  try {
-    const res = await fetch(PP_DATA_URL + '?t=' + Date.now());
-    if (!res.ok) return;
-    const data = await res.json();
-    await applyPpFeed(data);
-    _ppLastSync = new Date();
-    updatePpSyncBadge();
-  } catch (e) {
-    console.warn('[PP] fetchPpFeed error:', e);
-  } finally {
-    _ppSyncing = false;
-  }
-}
-
-async function applyPpFeed(data) {
-  const activeIncidents  = data.active_incidents  || [];
-  const recentIncidents  = data.recent_incidents  || [];
-  const ppAgencyIds = new Set(Object.keys(PP_AGENCIES));
-
-  // ── Phase 1: active incidents → current status ────────────────────────────
-  const unitMap      = {};  // unit_id → best PP record
-  const activeUnitIds = new Set();  // only units currently on a call
-
-  const RANK = { D:1, DE:2, OS:3, T:4, TH:5, AV:6, OOS:7 };
-
-  for (const inc of activeIncidents) {
-    if (!ppAgencyIds.has(inc.agency_id)) continue;
-    for (const u of (inc.units || [])) {
-      const uid = String(u.unit_id || '').trim().toUpperCase();
-      if (!uid) continue;
-      // Skip bare place-name unit IDs (all letters, no digits, > 5 chars) — these are mutual aid location markers, not units
-      if (/^[A-Z]{6,}$/.test(uid)) continue;
-      const hStatus = ppStatusToHoscad(u.status_code);
-      const existing = unitMap[uid];
-      if (!existing || (RANK[hStatus] || 9) < (RANK[existing.status] || 9)) {
-        unitMap[uid] = { unit_id: uid, agency_id: inc.agency_id, status: hStatus,
-                         display_name: uid, incident_id: inc.incident_id,
-                         address: inc.address || null,
-                         call_type: inc.call_type_description || inc.call_type || null };
-      }
-      activeUnitIds.add(uid);
-    }
-  }
-
-  // ── Phase 2: recent (cleared) incidents → populate roster as AV ──────────
-  // Ensures units we missed while active still appear on the board.
-  for (const inc of recentIncidents) {
-    if (!ppAgencyIds.has(inc.agency_id)) continue;
-    for (const u of (inc.units || [])) {
-      const uid = String(u.unit_id || '').trim().toUpperCase();
-      if (!uid || unitMap[uid]) continue;  // active takes priority
-      // Skip bare place-name unit IDs (all letters, no digits, > 5 chars) — these are mutual aid location markers, not units
-      if (/^[A-Z]{6,}$/.test(uid)) continue;
-      unitMap[uid] = { unit_id: uid, agency_id: inc.agency_id, status: 'AV',
-                       display_name: uid, incident_id: null };
-    }
-  }
-
-  const ppUnits = Object.values(unitMap);
-  _ppActiveCount = activeUnitIds.size;  // count only truly active units
-
-  // Batch upsert to backend (fire-and-forget, don't block board)
-  try {
-    await API.upsertPpUnits(TOKEN, ppUnits, [...activeUnitIds]);
-    // Trigger a board refresh so new PP units appear immediately
-    refresh();
-  } catch (e) { console.warn('[PP] upsertPpUnits error:', e); }
-}
-
-function updatePpSyncBadge() {
-  const el = document.getElementById('ppSyncBadge');
-  if (!el) return;
-  if (!_ppLastSync) { el.textContent = 'PP: --'; el.style.opacity = '.4'; el.style.color = 'var(--muted)'; return; }
-  const mins = Math.floor((Date.now() - _ppLastSync.getTime()) / 60000);
-  const age = mins === 0 ? 'NOW' : mins + 'M';
-  const cnt = _ppActiveCount > 0 ? ' (' + _ppActiveCount + ' UNIT' + (_ppActiveCount !== 1 ? 'S' : '') + ')' : '';
-  el.textContent = 'PP: ' + age + cnt;
-  el.style.opacity = mins > 10 ? '.4' : '1';
-  el.style.color   = _ppActiveCount > 0 ? '#52c41a' : (mins > 10 ? 'var(--muted)' : '#4fa3e0');
-}
-
-// ════════════════════════════════════════════════════════════════════════════
 // ── LifeFlight ADS-B Feed ────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -8945,7 +8750,6 @@ function updateClock() {
   const now = new Date();
   el.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   updatePopoutClock();
-  updatePpSyncBadge();
   updateDc911SyncBadge();
 }
 
@@ -9072,7 +8876,7 @@ function _buildIncTip(incId) {
   const rows = [
     ['Type', inc.incident_type || '—'],
     ['Priority', inc.priority || '—'],
-    ['Source', inc.pp_incident_id ? 'PulsePoint' : 'Manual'],
+    ['Source', 'Manual'],
     ['Units', unitCount + ' assigned'],
     ['Scene', inc.scene_address || '—'],
     ['Dispatched', ageStr]
@@ -9123,7 +8927,6 @@ async function start() {
   AddressLookup.load(); // async, non-blocking — autocomplete works once data arrives
   if (POLL) clearInterval(POLL);
   POLL = setInterval(refresh, 10000);
-  if (localStorage.getItem('hoscad_pp_enabled') !== 'false') startPpPolling();
   startLfnPolling();
   _applyDc911Btn(_isDc911Enabled());
   updateClock();

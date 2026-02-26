@@ -33,7 +33,6 @@
       </label>
       <button class="btn-good" onclick="openLogon()">LOGON</button>
       <button class="btn-secondary" onclick="forceRefresh()">REFRESH</button>
-      <span id="ppSyncBadge" style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#4fa3e0;opacity:.4;margin-left:6px;cursor:default;" title="PulsePoint last sync">PP: --</span>
       <span id="lfnSyncBadge" style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#4fa3e0;opacity:.4;margin-left:4px;cursor:default;" title="LifeFlight ADS-B last sync">ADS-B: --</span>
       <span id="dc911SyncBadge" style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#4fa3e0;opacity:.4;margin-left:4px;cursor:default;" title="Deschutes 911 CAD last sync">DC911: --</span>
       <a id="adminLink" href="admin/" class="btn-secondary" style="display:none;font-size:11px;padding:4px 10px;text-decoration:none;">ADMIN</a>
@@ -84,7 +83,6 @@
     <button class="toolbar-btn toolbar-btn-accent" onclick="openNewIncident()" title="New Incident (F2)">+ NEW INC <span class="shortcut-hint">F2</span></button>
     <div class="toolbar-sep"></div>
     <button id="btnToggleAssisting" class="btn-sm" onclick="toggleAssisting()" title="Show/hide assisting agency units (law/dot/support)" style="font-size:10px;padding:2px 8px;opacity:1;">AUX ON</button>
-    <button id="btnTogglePP" class="btn-sm" onclick="togglePP()" title="Toggle PulsePoint mutual aid feed" style="font-size:10px;padding:2px 8px;opacity:1;">PP ON</button>
     <button id="btnToggleDC911" class="btn-sm" onclick="toggleDc911()" title="Toggle Deschutes 911 CAD feed visibility" style="font-size:10px;padding:2px 8px;opacity:1;">DC911 ON</button>
     <div class="toolbar-sep"></div>
     <button class="btn-sm" onclick="openBugReport()" title="Report a bug or system issue" style="font-size:10px;padding:2px 8px;opacity:1;color:#e09000;">BUG</button>
