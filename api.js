@@ -497,9 +497,6 @@ const API = {
   updateAgency(token, agencyId, updates) {
     return this.call('updateAgency', token, agencyId, updates);
   },
-  relateIncident(token, incidentId, ppIncidentId) {
-    return this.call('relateIncident', token, incidentId, ppIncidentId);
-  },
   linkIncidents(token, incidentId1, incidentId2, unlink) {
     return this.call('linkIncidents', token, incidentId1, incidentId2, unlink || '');
   },
