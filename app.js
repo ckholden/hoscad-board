@@ -63,6 +63,7 @@ let _lfnSyncing        = false;// prevents overlapping fetches
 let _dc911LastSync     = null; // Date of last DC911 ingest (from STATE.dc911State.updatedAt)
 let _lastPollAt    = 0;    // unix ms of last successful getState response — used for staleness indicator
 const _expandedStacks = new Set(); // unit_ids with expanded stack rows (Phase 2D)
+let _undoStack = []; // [{description, revertFn, ts}] — max 3 entries, 5-min expiry
 
 // VIEW state for layout/display controls
 let VIEW = {
@@ -3104,6 +3105,16 @@ function updateQuickBar() {
   });
 }
 
+/**
+ * Push a reversible action onto the undo stack.
+ * @param {string} description  Short label shown in toast (e.g. "M1: AV→DP")
+ * @param {Function} revertFn   async function that performs the reversal; throw on failure
+ */
+function pushUndo(description, revertFn) {
+  _undoStack.push({ description, revertFn, ts: Date.now() });
+  if (_undoStack.length > 3) _undoStack.shift(); // keep last 3 only
+}
+
 /** Called by quick-action bar buttons — sets selected unit to status code. */
 async function qbStatus(code) {
   if (!SELECTED_UNIT_ID) return;
@@ -3121,22 +3132,32 @@ async function qbStatus(code) {
   }
   const patch = { status: code };
   if (oosPrefix || note) patch.note = oosPrefix + note;
+  const _prevQb = { uid: u.unit_id, status: u.status, note: u.note || '', incident: u.incident || '', destination: u.destination || '' };
   setLive(true, 'LIVE • UPDATE');
   const r = await API.upsertUnit(TOKEN, u.unit_id, patch, u.updated_at || '');
   if (btn) btn.disabled = false;
   if (!r.ok) return showErr(r);
   beepChange();
+  pushUndo(`${_prevQb.uid}: ${_prevQb.status}→${code}`, async () => {
+    const rv = await API.upsertUnit(TOKEN, _prevQb.uid, { status: _prevQb.status, note: _prevQb.note, incident: _prevQb.incident, destination: _prevQb.destination }, '');
+    if (!rv.ok) throw new Error(rv.error || 'API error');
+  });
   document.getElementById('qbNote').value = '';
   refresh();
 }
 
 function quickStatus(u, c) {
   const msg = 'SET ' + u.unit_id + ' → ' + c + '?' + (c === 'AV' && (u.incident || u.destination || u.note) ? '\n\nNOTE: AV CLEARS INCIDENT.' : '');
+  const _prevQs = { status: u.status, note: u.note || '', incident: u.incident || '', destination: u.destination || '' };
   showConfirm('CONFIRM STATUS CHANGE', msg, async () => {
     setLive(true, 'LIVE • UPDATE');
     const r = await API.upsertUnit(TOKEN, u.unit_id, { status: c, displayName: u.display_name }, u.updated_at || '');
     if (!r.ok) return showErr(r);
     beepChange();
+    pushUndo(`${u.unit_id}: ${_prevQs.status}→${c}`, async () => {
+      const rv = await API.upsertUnit(TOKEN, u.unit_id, { status: _prevQs.status, note: _prevQs.note, incident: _prevQs.incident, destination: _prevQs.destination }, '');
+      if (!rv.ok) throw new Error(rv.error || 'API error');
+    });
     refresh();
     autoFocusCmd();
   });
@@ -4539,6 +4560,23 @@ async function _execCmd(tx) {
 
   if (mU === 'HELP' || mU === 'H') return showHelp();
   if (mU === 'BUG') { openBugReport(); return; }
+  if (mU === 'UNDO') {
+    if (!_undoStack.length) { showToast('NOTHING TO UNDO.'); return; }
+    const entry = _undoStack[_undoStack.length - 1];
+    if (Date.now() - entry.ts > 5 * 60 * 1000) { _undoStack.pop(); showToast('UNDO EXPIRED (> 5 MIN).'); return; }
+    _undoStack.pop();
+    showToast('UNDOING: ' + entry.description + '...');
+    try {
+      await entry.revertFn();
+      setLive(true, 'LIVE • UNDO');
+      beepChange();
+      refresh();
+      showToast('UNDONE: ' + entry.description);
+    } catch (e) {
+      showErr({ error: 'UNDO FAILED: ' + (e.message || String(e)) });
+    }
+    return;
+  }
   if (mU === 'ADMIN') return showAdmin();
   if (mU === 'REFRESH') { forceRefresh(); return; }
   if (mU === 'POPOUT') { openPopout(); return; }
@@ -6719,11 +6757,16 @@ async function _execCmd(tx) {
     }
   }
 
+  const _prevStat = { status: boardUnit.status, note: boardUnit.note || '', incident: boardUnit.incident || '', destination: boardUnit.destination || '' };
   setLive(true, 'LIVE • UPDATE');
   const r = await API.upsertUnit(TOKEN, u, p, '');
   if (!r.ok) return showErr(r);
 
   beepChange();
+  pushUndo(`${u}: ${_prevStat.status}→${stCmd}`, async () => {
+    const rv = await API.upsertUnit(TOKEN, u, { status: _prevStat.status, note: _prevStat.note, incident: _prevStat.incident, destination: _prevStat.destination }, '');
+    if (!rv.ok) throw new Error(rv.error || 'API error');
+  });
   refresh();
   autoFocusCmd();
 }
