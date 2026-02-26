@@ -946,7 +946,7 @@ function tbSortChanged() {
 // ============================================================
 // Audio Feedback (board/dispatch side)
 // ============================================================
-function beepChange()     { }
+function beepChange()     { try { const a = new Audio('sounds/pg.mp3'); a.volume = 0.15; a.play().catch(() => {}); } catch(e) {} }
 function _boardPlayFile(file) {
   try {
     const a = new Audio(file);
