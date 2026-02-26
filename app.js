@@ -852,6 +852,22 @@ function toggleNightMode() {
   applyViewState();
 }
 
+function applyFeatureFlags() {
+  const ff = (STATE && STATE.featureFlags) || {};
+  // DC911 — show/hide toggle button and sync badge
+  const dc911Btn   = document.getElementById('btnToggleDC911');
+  const dc911Badge = document.getElementById('dc911SyncBadge');
+  const dc911On    = !!ff.dc911_enabled;
+  if (dc911Btn)   dc911Btn.style.display   = dc911On ? '' : 'none';
+  if (dc911Badge) dc911Badge.style.display = dc911On ? '' : 'none';
+  // MAP — show/hide board map button
+  const mapBtn = document.getElementById('tbBtnMAP');
+  if (mapBtn) mapBtn.style.display = (ff.map_enabled !== false) ? '' : 'none';
+  // Incident export — show/hide EXPORT button in incident panel
+  const exportBtn = document.getElementById('btnExportInc');
+  if (exportBtn) exportBtn.style.display = (ff.incident_export !== false) ? '' : 'none';
+}
+
 function cycleDensity() {
   const modes = ['normal', 'compact', 'expanded'];
   const idx = modes.indexOf(VIEW.density);
@@ -1524,6 +1540,7 @@ async function refresh(forceFull) {
       if (r.dc911State !== undefined) STATE.dc911State = r.dc911State;
       if (r.roster !== undefined) STATE.roster = r.roster;
       if (r.typeCodes !== undefined) STATE.typeCodes = r.typeCodes;
+      if (r.featureFlags !== undefined) STATE.featureFlags = r.featureFlags;
       STATE.serverTime = r.serverTime;
       STATE.actor = r.actor || STATE.actor;
     } else {
@@ -1537,6 +1554,7 @@ async function refresh(forceFull) {
     }
     _lastPollAt = Date.now();
     setLive(true, 'LIVE • ' + fmtTime24(STATE.serverTime));
+    applyFeatureFlags();
     ACTOR = STATE.actor || ACTOR;
     document.getElementById('userLabel').textContent = ACTOR;
     tryBeepOnStateChange();
