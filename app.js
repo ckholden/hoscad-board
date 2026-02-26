@@ -5817,7 +5817,7 @@ async function _execCmd(tx) {
   // NC - New incident in queue
   if (mU.startsWith('NC ') || mU === 'NC') {
     const ncRaw = tx.substring(2).trim();
-    if (!ncRaw) { showAlert('ERROR', 'USAGE: NC <LOCATION>; <NOTE>; <TYPE>; <PRIORITY>; @<SCENE ADDR>\nNOTE, TYPE, PRIORITY, AND SCENE ADDRESS ARE OPTIONAL. ADD "MA" IN NOTE FOR MUTUAL AID. USE [CB:PHONE] IN NOTE FOR CALLBACK. PREFIX SCENE ADDRESS WITH @.'); return; }
+    if (!ncRaw) { openNewIncident(); return; }
     const ncParts = ncRaw.split(';').map(p => p.trim().toUpperCase());
     const dest     = ncParts[0] || '';
     let   noteRaw  = ncParts[1] || '';
