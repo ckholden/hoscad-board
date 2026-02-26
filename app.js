@@ -73,7 +73,8 @@ let VIEW = {
   filterType: null,
   preset: 'dispatch',
   elapsedFormat: 'short',
-  nightMode: false
+  nightMode: false,
+  theme: 'dark'    // 'dark' | 'night' | 'light'
 };
 
 // Admin role check - SUPV1, SUPV2, MGR1, MGR2, IT have admin access
@@ -712,6 +713,8 @@ function loadViewState() {
     if (saved) {
       const parsed = JSON.parse(saved);
       Object.assign(VIEW, parsed);
+      // Migrate legacy nightMode boolean → VIEW.theme
+      if (parsed.nightMode === true && !parsed.theme) VIEW.theme = 'night';
     }
   } catch (e) { }
 }
@@ -763,14 +766,18 @@ function applyViewState() {
     wrap.classList.add('density-' + VIEW.density);
   }
 
-  // Night mode
-  if (VIEW.nightMode) document.body.classList.add('night-mode');
+  // Theme: apply data-theme attribute and legacy night-mode class
+  const theme = VIEW.theme || (VIEW.nightMode ? 'night' : 'dark');
+  document.body.setAttribute('data-theme', theme);
+  if (theme === 'night') document.body.classList.add('night-mode');
   else document.body.classList.remove('night-mode');
 
-  // Night button state
+  // Night/theme button state + label
   const nightBtn = document.getElementById('tbBtnNight');
   if (nightBtn) {
-    if (VIEW.nightMode) nightBtn.classList.add('active');
+    const labels = { dark: 'DARK', night: 'NIGHT', light: 'LIGHT' };
+    nightBtn.textContent = labels[theme] || 'DARK';
+    if (theme !== 'dark') nightBtn.classList.add('active');
     else nightBtn.classList.remove('active');
   }
 
@@ -838,7 +845,9 @@ function toggleView(panel) {
 }
 
 function toggleNightMode() {
-  VIEW.nightMode = !VIEW.nightMode;
+  const cycle = { 'dark': 'night', 'night': 'light', 'light': 'dark' };
+  VIEW.theme = cycle[VIEW.theme || 'dark'] || 'dark';
+  VIEW.nightMode = (VIEW.theme === 'night'); // backward compat
   saveViewState();
   applyViewState();
 }

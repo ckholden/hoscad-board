@@ -45,6 +45,47 @@
   --tint-oos: rgba(96,112,128,.06);
 }
 
+/* ── Light Theme ────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:      #f0f2f5;
+  --bg2:     #e4e8ee;
+  --panel:   #ffffff;
+  --panel2:  #e8ecf0;
+  --line:    #cad0da;
+  --border:  #b0bac8;
+  --text:    #1a2536;
+  --muted:   #5a6a7e;
+  --hi:      #0d1624;
+  --blue:    #1a56e8;
+  --yellow:  #b07800;
+  --red:     #cc2222;
+  --purple:  #7c3aed;
+  --green:   #167040;
+  --gray:    #5a6a7e;
+  --orange:  #c05010;
+  --teal:    #0d5e90;
+  --tint-d:   rgba(26,86,232,.12);
+  --tint-de:  rgba(176,120,0,.12);
+  --tint-os:  rgba(204,34,34,.12);
+  --tint-f:   rgba(204,34,34,.16);
+  --tint-fd:  rgba(192,80,16,.12);
+  --tint-t:   rgba(124,58,237,.12);
+  --tint-th:  rgba(13,94,144,.12);
+  --tint-av:  rgba(22,112,64,.08);
+  --tint-iq:  rgba(22,112,64,.06);
+  --tint-uv:  rgba(90,106,126,.06);
+  --tint-brk: rgba(176,120,0,.10);
+  --tint-oos: rgba(90,106,126,.05);
+}
+[data-theme="light"] body { background: var(--bg); color: var(--text); }
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] button,
+[data-theme="light"] textarea { background: var(--panel); color: var(--text); border-color: var(--border); }
+[data-theme="light"] .btn-good   { background:#d6f0e0; border-color:#6dc89a; color:#167040; }
+[data-theme="light"] .btn-danger { background:#fde8e8; border-color:#e8a0a0; color:#cc2222; }
+[data-theme="light"] .btn-warn   { background:#fff3cc; border-color:#e8c840; color:#b07800; }
+
 /* ── Reset / Base ──────────────────────────────────────────── */
 html, body { height: 100%; }
 body {
