@@ -9242,7 +9242,9 @@ window.addEventListener('load', () => {
       const cd = document.getElementById('confirmDialog');
       const ad = document.getElementById('alertDialog');
 
+      const brb = document.getElementById('bugReportBack');
       if (nib && nib.style.display === 'flex') { closeNewIncident(); return; }
+      if (brb && brb.style.display === 'flex') { closeBugReport(); return; }
       if (uhb && uhb.style.display === 'flex') { uhb.style.display = 'none'; autoFocusCmd(); return; }
       if (ib && ib.style.display === 'flex') { ib.style.display = 'none'; autoFocusCmd(); return; }
       if (msgb && msgb.style.display === 'flex') { closeMessages(); return; }

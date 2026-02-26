@@ -634,9 +634,12 @@
 </script>
 
 <!-- Report Issue Modal -->
-<div id="bugReportBack" class="modalBack" style="display:none;">
+<div id="bugReportBack" class="modalBack" style="display:none;" onclick="if(event.target===this)closeBugReport()">
   <div class="modal" style="max-width:480px;">
-    <h2>REPORT ISSUE</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <h2 style="margin:0;">REPORT ISSUE</h2>
+      <button onclick="closeBugReport()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;" title="Close">&times;</button>
+    </div>
     <div class="muted" style="margin-bottom:12px;font-size:11px;">
       REPORTER: <span id="bugReporterLabel">—</span> &nbsp;|&nbsp;
       PAGE: BOARD &nbsp;|&nbsp;
