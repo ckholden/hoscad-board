@@ -1,4 +1,5 @@
 {
+  "id": "/field/",
   "name": "HOSCAD Field",
   "short_name": "HOSCADField",
   "description": "SCMC HOSCAD Field Unit App",
@@ -26,11 +27,6 @@
     },
     {
       "src": "icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "download.png",
       "sizes": "512x512",
       "type": "image/png"
     }

@@ -3,21 +3,24 @@
  * Caches field app shell for offline resilience, handles push notifications.
  */
 
-const CACHE_NAME = 'hoscad-field-v61';
+const CACHE_NAME = 'hoscad-field-v63';
 // Audio files intentionally excluded — browser Range requests return 206 which
 // cache.addAll() rejects atomically, breaking the entire pre-cache install.
 // Audio is served from network on demand and cached at runtime by the fetch handler.
+// Paths are absolute (origin-relative) to avoid ambiguity — this SW is at root
+// but scoped to /field/, so relative paths would resolve correctly from the SW
+// script location but absolute paths are more explicit and future-proof.
 const APP_SHELL = [
-  './field/',
-  './api.js',
-  './download.png',
-  './manifest-field.json',
-  './icons/favicon.ico',
-  './icons/icon-32.png',
-  './icons/icon-192.png',
-  './icons/icon-192-maskable.png',
-  './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  '/field/',
+  '/api.js',
+  '/download.png',
+  '/manifest-field.json',
+  '/icons/favicon.ico',
+  '/icons/icon-32.png',
+  '/icons/icon-192.png',
+  '/icons/icon-192-maskable.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png'
 ];
 
 // Install — cache app shell
@@ -92,8 +95,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,
-      icon: 'download.png',
-      badge: 'download.png',
+      icon: '/download.png',
+      badge: '/download.png',
       tag: tag,
       requireInteraction: isUrgent,
       vibrate: [300, 100, 300, 100, 300],

@@ -1551,6 +1551,9 @@ async function refresh(forceFull) {
       if (r.destinations !== undefined) STATE.destinations = r.destinations;
       if (r.messages !== undefined) STATE.messages = r.messages;
       if (r.assignments !== undefined) STATE.assignments = r.assignments;
+      if (r.dc911Config !== undefined) STATE.dc911Config = r.dc911Config;
+      if (r.dc911State !== undefined) STATE.dc911State = r.dc911State;
+      if (r.roster !== undefined) STATE.roster = r.roster;
       STATE.serverTime = r.serverTime;
       STATE.actor = r.actor || STATE.actor;
     } else {
