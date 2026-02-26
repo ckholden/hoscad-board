@@ -1514,6 +1514,7 @@ async function refresh(forceFull) {
       if (r.dc911Config !== undefined) STATE.dc911Config = r.dc911Config;
       if (r.dc911State !== undefined) STATE.dc911State = r.dc911State;
       if (r.roster !== undefined) STATE.roster = r.roster;
+      if (r.typeCodes !== undefined) STATE.typeCodes = r.typeCodes;
       STATE.serverTime = r.serverTime;
       STATE.actor = r.actor || STATE.actor;
     } else {
@@ -3341,6 +3342,76 @@ function confirmRidoff() {
 }
 
 // ============================================================
+// Type Code Flat Picker
+// ============================================================
+function populateTypeCodeSelect(selectEl, includeAdmin) {
+  if (!selectEl) return;
+  const codes = (STATE && STATE.typeCodes) || [];
+  const filtered = includeAdmin ? codes : codes.filter(c => (c.category || '').toUpperCase() !== 'ADMIN');
+  const catOrder = ['CRITICAL', 'ALS', 'BLS', 'CCT', 'IFT', 'ADMIN'];
+  const groups = {};
+  filtered.forEach(c => {
+    const g = (c.category || 'OTHER').toUpperCase();
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(c);
+  });
+  const orderedCats = catOrder.filter(g => groups[g])
+    .concat(Object.keys(groups).filter(g => !catOrder.includes(g)));
+  const prevVal = selectEl.value;
+  selectEl.innerHTML = '<option value="">CALL TYPE...</option>';
+  orderedCats.forEach(cat => {
+    const grp = document.createElement('optgroup');
+    grp.label = cat;
+    (groups[cat] || []).forEach(tc => {
+      const opt = document.createElement('option');
+      opt.value = tc.code;
+      const priLabel = tc.priority ? ' · PRI-' + tc.priority : '';
+      opt.textContent = tc.code + ' — ' + tc.name + priLabel;
+      grp.appendChild(opt);
+    });
+    selectEl.appendChild(grp);
+  });
+  // Restore previous selection if still valid
+  if (prevVal) selectEl.value = prevVal;
+}
+
+function onNewIncTypeSelect(val) {
+  const typeEl = document.getElementById('newIncType');
+  if (typeEl) typeEl.value = val;
+  if (val && STATE && STATE.typeCodes) {
+    const tc = (STATE.typeCodes || []).find(c => c.code === val);
+    const priEl = document.getElementById('newIncPriority');
+    if (priEl && tc && tc.priority) priEl.value = 'PRI-' + tc.priority;
+    const locEl = document.getElementById('newIncLoc');
+    if (locEl && tc && !locEl.value) {
+      // Auto-suggest LOC from category
+      const cat = (tc.category || '').toUpperCase();
+      if (cat === 'CRITICAL' || cat === 'CCT') locEl.value = 'CCT';
+      else if (cat === 'ALS') locEl.value = 'ALS';
+      else if (cat === 'BLS') locEl.value = 'BLS';
+    }
+  }
+  renderIncSuggest();
+}
+
+function onIncTypeSelect(val) {
+  const hidEl = document.getElementById('incTypeEdit');
+  if (hidEl) hidEl.value = val;
+  if (val && STATE && STATE.typeCodes) {
+    const tc = (STATE.typeCodes || []).find(c => c.code === val);
+    const priEl = document.getElementById('incPriorityEdit');
+    if (priEl && tc && tc.priority) priEl.value = 'PRI-' + tc.priority;
+    const locEl = document.getElementById('incLocEdit');
+    if (locEl && !locEl.value && tc) {
+      const cat = (tc.category || '').toUpperCase();
+      if (cat === 'CRITICAL' || cat === 'CCT') locEl.value = 'CCT';
+      else if (cat === 'ALS') locEl.value = 'ALS';
+      else if (cat === 'BLS') locEl.value = 'BLS';
+    }
+  }
+}
+
+// ============================================================
 // New Incident Modal
 // ============================================================
 function openNewIncident(prefillScene) {
@@ -3363,18 +3434,10 @@ function openNewIncident(prefillScene) {
   if (newIncLocEl) newIncLocEl.value = '';
   document.getElementById('newIncType').value = '';
   document.getElementById('newIncNote').value = '';
-  // Cascading selects reset + dynamic category population
-  const catEl = document.getElementById('newIncCat');
-  if (catEl) {
-    // ADMIN category excluded from new incident picker — only available in edit modal
-    catEl.innerHTML = '<option value="">CATEGORY...</option>' +
-      Object.keys(INC_TYPE_TAXONOMY).filter(c => c !== 'ADMIN').map(c => '<option value="' + c + '">' + c + '</option>').join('');
-    catEl.value = '';
-  }
-  const natureEl = document.getElementById('newIncNature');
-  if (natureEl) { natureEl.value = ''; natureEl.style.display = 'none'; }
-  const detEl = document.getElementById('newIncDet');
-  if (detEl) { detEl.value = ''; detEl.style.display = 'none'; }
+  // Populate flat type code picker from STATE.typeCodes (excluding ADMIN)
+  const tcSelectEl = document.getElementById('newIncTypeSelect');
+  populateTypeCodeSelect(tcSelectEl, false);
+  if (tcSelectEl) tcSelectEl.value = '';
   // Callback + MA reset
   const cbEl = document.getElementById('newIncCallback');
   if (cbEl) cbEl.value = '';
@@ -3832,25 +3895,14 @@ async function openIncidentFromServer(iId) {
   incDestEl.value = (incDestR.recognized ? incDestR.addr.name : (inc.destination || '')).toUpperCase();
   if (incDestR.recognized) incDestEl.dataset.addrId = incDestR.addr.id;
   else delete incDestEl.dataset.addrId;
-  // Populate type selects from existing incident_type
+  // Populate flat type code picker for edit modal
   const incTypeRaw = (inc.incident_type || '').toUpperCase();
-  const catEl2 = document.getElementById('incEditCat');
-  const natureEl2 = document.getElementById('incEditNature');
-  if (catEl2) {
-    catEl2.innerHTML = '<option value="">—</option>' +
-      Object.keys(INC_TYPE_TAXONOMY).map(c => '<option value="' + c + '">' + c + '</option>').join('');
-    const parsed = parseIncType(incTypeRaw);
-    catEl2.value = parsed.cat;
-    if (parsed.cat && INC_TYPE_TAXONOMY[parsed.cat]) {
-      const nats = Object.keys(INC_TYPE_TAXONOMY[parsed.cat]?.natures || INC_TYPE_TAXONOMY[parsed.cat] || {});
-      natureEl2.innerHTML = '<option value="">—</option>' +
-        nats.map(n => '<option value="' + n + '">' + n + '</option>').join('');
-      natureEl2.style.display = '';
-      natureEl2.value = parsed.nature;
-    } else {
-      natureEl2.style.display = 'none';
-      natureEl2.value = '';
-    }
+  const incTypeSelectEl = document.getElementById('incTypeSelect');
+  populateTypeCodeSelect(incTypeSelectEl, true); // include ADMIN for edit modal
+  if (incTypeSelectEl) {
+    // Try to match current type code in the flat list; fall back to showing raw type
+    const matchCode = (STATE.typeCodes || []).find(c => c.code === incTypeRaw);
+    incTypeSelectEl.value = matchCode ? incTypeRaw : '';
   }
   document.getElementById('incTypeEdit').value = incTypeRaw;
   const priEditEl = document.getElementById('incPriorityEdit');
@@ -4233,16 +4285,19 @@ async function saveIncidentNote() {
   const newLoc = (document.getElementById('incLocEdit')?.value || '').trim().toUpperCase();
   if (!CURRENT_INCIDENT_ID) return;
 
-  // Get current incident to compare destination and scene address
+  // Get current incident to compare all fields
   const curInc = (STATE.incidents || []).find(i => i.incident_id === CURRENT_INCIDENT_ID);
   const curDest = curInc ? (curInc.destination || '') : '';
   const curScene = curInc ? (curInc.scene_address || '') : '';
   const curPriority = curInc ? (curInc.priority || '') : '';
   const curLoc = curInc ? (curInc.level_of_care || '') : '';
+  const curType = curInc ? (curInc.incident_type || '') : '';
   const destChanged = newDest !== curDest.toUpperCase();
   const sceneChanged = newScene !== undefined && newScene !== curScene.toUpperCase();
   const priorityChanged = newPriority !== curPriority.toUpperCase();
   const locChanged = newLoc !== curLoc.toUpperCase();
+  // Only flag typeChanged if type actually differs from current — avoids spurious [TYPE:] audit entries
+  const typeChanged = newType && newType !== curType.toUpperCase();
 
   // Preserve [DISP:] and [CB:] tags when saving note — re-prepend from current incident
   const curDispMatch = ((curInc && curInc.incident_note) || '').match(/\[DISP:([^\]]+)\]/i);
@@ -4251,9 +4306,9 @@ async function saveIncidentNote() {
   if (curCbMatch) mWithDisp = (mWithDisp + ' [CB:' + curCbMatch[1].toUpperCase() + ']').trim();
 
   // If anything changed, use updateIncident
-  if (newType || m || destChanged || sceneChanged || priorityChanged || locChanged) {
+  if (typeChanged || m || destChanged || sceneChanged || priorityChanged || locChanged) {
     setLive(true, 'LIVE • UPDATE INCIDENT');
-    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, newType, destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
+    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, typeChanged ? newType : '', destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
     if (!r.ok) return showErr(r);
     if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); }
     beepChange();
@@ -4262,7 +4317,7 @@ async function saveIncidentNote() {
     return;
   }
 
-  showConfirm('ERROR', 'ENTER INCIDENT NOTE, CHANGE TYPE, UPDATE DESTINATION, PRIORITY, LEVEL OF CARE, OR SCENE ADDRESS.', () => { });
+  showConfirm('ERROR', 'NO CHANGES DETECTED. UPDATE TYPE, NOTE, DESTINATION, SCENE, PRIORITY, OR LEVEL OF CARE.', () => { });
 }
 
 function renderIncidentAudit(aR) {
