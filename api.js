@@ -518,6 +518,19 @@ const API = {
     return this.call('listMA', token, incidentId);
   },
 
+  // ============================================================
+  // DC911 CadView Integration
+  // ============================================================
+  dc911GetConfig(token) {
+    return this.call('dc911GetConfig', token);
+  },
+  dc911SetConfig(token, config) {
+    return this.call('dc911SetConfig', token, config);
+  },
+  clearDc911Units(token) {
+    return this.call('clearDc911Units', token);
+  },
+
   // Issue Reports
   submitIssue(token, page, severity, description, context) {
     return this.call('submitIssue', token, page, severity, description, context || '');

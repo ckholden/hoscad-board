@@ -86,6 +86,7 @@
     <button class="tab-btn" onclick="switchTab('roster')">ROSTER</button>
     <button class="tab-btn" onclick="switchTab('crew')">CREW</button>
     <button class="tab-btn" onclick="switchTab('scope')">SCOPE</button>
+    <button class="tab-btn" onclick="switchTab('dc911')">DC911</button>
     <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES</button>
   </nav>
 
@@ -494,6 +495,64 @@
     </div>
   </section>
 
+  <!-- DC911 TAB -->
+  <section id="tabDc911" class="tab-section">
+    <h2>DC911 CADVIEW INTEGRATION</h2>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:16px;">
+      Deschutes County 911 CadView data sync. Units are read-only and sourced from the Go proxy
+      running on a 5-minute GitHub Actions cron. Config changes take effect on the board's next poll cycle.
+    </p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px;">
+
+      <!-- Status card -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:10px;">INTEGRATION STATUS</div>
+        <div id="dc911StatusBadge" style="font-size:14px;font-weight:900;margin-bottom:8px;color:var(--muted);">LOADING...</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">LAST SYNC: <span id="dc911LastSync" style="color:var(--fg);">—</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">ACTIVE DC911 UNITS: <span id="dc911UnitCount" style="color:var(--fg);">—</span></div>
+        <button class="btn-secondary" style="font-size:10px;padding:3px 10px;" onclick="refreshDc911Status()">REFRESH STATUS</button>
+      </div>
+
+      <!-- Config card -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:10px;">CONFIGURATION</div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;cursor:pointer;">
+          <input type="checkbox" id="dc911Enabled" onchange="dc911MarkDirty()">
+          ENABLE DC911 INTEGRATION
+        </label>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;">AGENCY TYPE FILTERS</div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;cursor:pointer;">
+          <input type="checkbox" id="dc911ShowEMS" onchange="dc911MarkDirty()"> SHOW EMS UNITS
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;cursor:pointer;">
+          <input type="checkbox" id="dc911ShowFire" onchange="dc911MarkDirty()"> SHOW FIRE UNITS
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;cursor:pointer;">
+          <input type="checkbox" id="dc911ShowLaw" onchange="dc911MarkDirty()"> SHOW LAW UNITS
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-good" id="dc911SaveBtn" style="font-size:11px;padding:4px 12px;" onclick="saveDc911Config()" disabled>SAVE CONFIG</button>
+          <button class="btn-secondary" style="font-size:11px;padding:4px 12px;" onclick="loadDc911Config()">RELOAD</button>
+        </div>
+        <div id="dc911ConfigStatus" style="font-size:11px;color:var(--muted);margin-top:8px;"></div>
+      </div>
+
+    </div>
+
+    <!-- Danger zone -->
+    <div style="background:rgba(220,53,69,.06);border:1px solid rgba(220,53,69,.25);border-radius:4px;padding:12px;max-width:500px;">
+      <div style="font-size:11px;font-weight:700;color:#f85149;margin-bottom:6px;">CLEAR DC911 UNITS</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+        Deactivates all DC911-sourced units and clears the last-sync snapshot.
+        Units will not return until the proxy next runs. Use if the proxy is stuck or integration is being disabled.
+      </div>
+      <button class="btn-danger" style="font-size:11px;padding:4px 12px;" onclick="clearDc911UnitsAdmin()">CLEAR DC911 UNITS</button>
+    </div>
+
+    <div id="dc911ActionStatus" style="font-size:12px;margin-top:12px;color:var(--muted);"></div>
+  </section>
+
   <!-- ISSUES TAB -->
   <section id="tabIssues" class="tab-section">
     <h2>ISSUE REPORTS</h2>
@@ -691,6 +750,92 @@
     document.getElementById('loginErr').textContent = '';
   }
 
+  // ── DC911 Tab ──────────────────────────────────────────────
+  let _dc911Dirty = false;
+
+  async function loadDc911Config() {
+    document.getElementById('dc911ConfigStatus').textContent = 'LOADING...';
+    const r = await API.dc911GetConfig(_token);
+    if (!r.ok) {
+      document.getElementById('dc911ConfigStatus').textContent = 'ERROR: ' + (r.error || 'FAILED');
+      return;
+    }
+    const cfg = r.config || {};
+    document.getElementById('dc911Enabled').checked  = !!cfg.enabled;
+    document.getElementById('dc911ShowEMS').checked  = cfg.showEMS !== false;
+    document.getElementById('dc911ShowFire').checked = cfg.showFire !== false;
+    document.getElementById('dc911ShowLaw').checked  = !!cfg.showLaw;
+    _dc911Dirty = false;
+    document.getElementById('dc911SaveBtn').disabled = true;
+    document.getElementById('dc911ConfigStatus').textContent = 'CONFIG LOADED.';
+    setTimeout(() => { const el = document.getElementById('dc911ConfigStatus'); if (el) el.textContent = ''; }, 2000);
+    await refreshDc911Status();
+  }
+
+  function dc911MarkDirty() {
+    _dc911Dirty = true;
+    document.getElementById('dc911SaveBtn').disabled = false;
+  }
+
+  async function saveDc911Config() {
+    const cfg = {
+      enabled:  document.getElementById('dc911Enabled').checked,
+      showEMS:  document.getElementById('dc911ShowEMS').checked,
+      showFire: document.getElementById('dc911ShowFire').checked,
+      showLaw:  document.getElementById('dc911ShowLaw').checked
+    };
+    document.getElementById('dc911ConfigStatus').textContent = 'SAVING...';
+    const r = await API.dc911SetConfig(_token, cfg);
+    if (!r.ok) {
+      document.getElementById('dc911ConfigStatus').textContent = 'ERROR: ' + (r.error || 'FAILED');
+      return;
+    }
+    _dc911Dirty = false;
+    document.getElementById('dc911SaveBtn').disabled = true;
+    document.getElementById('dc911ConfigStatus').textContent = 'SAVED. BOARD WILL USE NEW FILTERS ON NEXT POLL.';
+    await refreshDc911Status();
+  }
+
+  async function refreshDc911Status() {
+    const badgeEl = document.getElementById('dc911StatusBadge');
+    const syncEl  = document.getElementById('dc911LastSync');
+    const countEl = document.getElementById('dc911UnitCount');
+    // enabled state comes from checkbox (already loaded)
+    const enabled = document.getElementById('dc911Enabled')?.checked;
+    if (badgeEl) {
+      badgeEl.textContent = enabled ? 'ENABLED' : 'DISABLED';
+      badgeEl.style.color = enabled ? 'var(--green)' : 'var(--muted)';
+    }
+    // Get last sync time from getState meta passthrough (check STATE if available) or reload config
+    try {
+      const r2 = await API.dc911GetConfig(_token);
+      if (r2.ok && r2.state) {
+        const st = r2.state;
+        if (syncEl) syncEl.textContent = st.updatedAt ? new Date(st.updatedAt).toLocaleString('en-US',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : 'NEVER';
+      } else {
+        if (syncEl) syncEl.textContent = '—';
+      }
+    } catch(e) {
+      if (syncEl) syncEl.textContent = '—';
+    }
+    // Active DC911 unit count is shown on board; approximate from config
+    if (countEl) countEl.textContent = '— (VISIBLE ON BOARD)';
+  }
+
+  async function clearDc911UnitsAdmin() {
+    const ok = await showConfirm('CLEAR DC911 UNITS', 'DEACTIVATE ALL DC911-SOURCED UNITS AND CLEAR LAST-SYNC SNAPSHOT?\n\nUnits will not return until the proxy runs again.');
+    if (!ok) return;
+    const statEl = document.getElementById('dc911ActionStatus');
+    if (statEl) statEl.textContent = 'CLEARING...';
+    const r = await API.clearDc911Units(_token);
+    if (!r.ok) {
+      if (statEl) statEl.textContent = 'ERROR: ' + (r.error || 'FAILED');
+      return;
+    }
+    if (statEl) statEl.textContent = 'CLEARED ' + (r.cleared || 0) + ' DC911 UNIT(S).';
+    await refreshDc911Status();
+  }
+
   // ── Issues Tab ─────────────────────────────────────────────
   let _resolveTargetId = null;
 
@@ -781,7 +926,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','issues'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -798,6 +943,7 @@
     if (name === 'roster') loadRoster();
     if (name === 'crew') { loadCrew(); initCrewHistoryDates(); }
     if (name === 'scope') loadScopeTab();
+    if (name === 'dc911') loadDc911Config();
     if (name === 'issues') loadIssues();
   }
 
