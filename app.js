@@ -6898,6 +6898,15 @@ function openShiftReportWindow(rpt) {
   w.document.close();
 }
 
+function exportCurrentIncident() {
+  if (!CURRENT_INCIDENT_ID || !TOKEN) return;
+  setLive(true, 'LIVE • INCIDENT EXPORT');
+  API.getIncident(TOKEN, CURRENT_INCIDENT_ID).then(r => {
+    if (!r.ok) return showErr(r);
+    openIncidentPrintWindow(r);
+  });
+}
+
 function openIncidentPrintWindow(r) {
   const w = window.open('', '_blank');
   if (!w) { showAlert('BLOCKED', 'ALLOW POPUPS FOR INCIDENT REPORT.'); return; }
@@ -6909,22 +6918,35 @@ function openIncidentPrintWindow(r) {
     const m = Math.round((new Date(b) - new Date(a)) / 60000);
     return m > 0 ? m + ' min' : null;
   };
-  let html = `<!DOCTYPE html><html><head><title>INCIDENT ${inc.incident_id}</title>
-  <style>body{font-family:monospace;background:#0d1117;color:#e6edf3;padding:24px}
-  h2{color:#58a6ff}h3{color:#79c0ff;margin-top:20px}table{border-collapse:collapse;width:100%}
-  td,th{border:1px solid #30363d;padding:6px 10px;font-size:12px}
-  th{background:#161b22;text-align:left;width:160px}
-  .audit{font-size:11px;color:#8b949e;margin-top:4px}
-  .good{color:#7fffb2}.warn{color:#ffd66b}.bad{color:#ff6b6b}
+  const genAt = new Date().toISOString().replace('T',' ').slice(0,16) + ' UTC';
+  let html = `<!DOCTYPE html><html><head><title>INCIDENT REPORT — ${inc.incident_id}</title>
+  <style>
+  body{font-family:monospace;background:#fff;color:#1a1a1a;padding:24px;max-width:860px;margin:0 auto;}
+  h2{font-size:18px;margin:0 0 4px;}h3{font-size:13px;margin:16px 0 6px;text-transform:uppercase;border-bottom:1px solid #999;}
+  table{border-collapse:collapse;width:100%;margin-bottom:12px;}
+  td,th{border:1px solid #bbb;padding:5px 10px;font-size:12px;text-align:left;}
+  th{background:#eee;font-weight:bold;width:180px;}
+  .audit{font-size:11px;padding:3px 0;border-bottom:1px solid #eee;}
+  .audit-ts{color:#555;min-width:80px;display:inline-block;}
+  .audit-actor{color:#333;min-width:90px;display:inline-block;font-weight:bold;}
+  .good{color:#1a7a3a;}.warn{color:#a06000;}.bad{color:#cc2222;}
+  .footer{margin-top:24px;font-size:10px;color:#666;border-top:1px solid #ccc;padding-top:8px;}
+  .confidential{font-weight:bold;color:#cc2222;}
+  @media print{body{padding:8px;}h2,h3{break-after:avoid;}table{break-inside:avoid;}}
   </style></head><body>`;
-  html += `<h2>INCIDENT ${inc.incident_id}</h2>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;">`;
+  html += `<div><h2>HOSCAD INCIDENT REPORT</h2><div style="font-size:11px;color:#555;">HOSCAD — SCMC EMS TRACKING SYSTEM</div></div>`;
+  html += `<div class="confidential" style="font-size:10px;text-align:right;">FOR OFFICIAL USE ONLY<br>NOT FOR PUBLIC DISTRIBUTION</div></div>`;
+  html += `<h3>Incident Details</h3>`;
   html += `<table>
+    <tr><th>INCIDENT #</th><td><strong>${esc(inc.incident_id)}</strong></td></tr>
+    <tr><th>STATUS</th><td>${esc(inc.status)}</td></tr>
     <tr><th>TYPE</th><td>${esc(inc.incident_type||'—')}</td></tr>
     <tr><th>PRIORITY</th><td>${esc(inc.priority||'—')}</td></tr>
-    <tr><th>SCENE</th><td>${esc(inc.scene_address||'—')}</td></tr>
+    ${inc.level_of_care ? `<tr><th>LEVEL OF CARE</th><td>${esc(inc.level_of_care)}</td></tr>` : ''}
+    <tr><th>SCENE ADDRESS</th><td>${esc(inc.scene_address||'—')}</td></tr>
     <tr><th>DESTINATION</th><td>${esc(inc.destination||'—')}</td></tr>
-    <tr><th>UNITS</th><td>${esc(inc.units||'—')}</td></tr>
-    <tr><th>STATUS</th><td>${esc(inc.status)}</td></tr>
+    <tr><th>UNITS ASSIGNED</th><td>${esc(inc.units||'—')}</td></tr>
     ${(() => { const dm = (inc.incident_note||'').match(/\[DISP:([^\]]+)\]/i); return dm ? `<tr><th>DISPOSITION</th><td>${esc(dm[1].toUpperCase())}</td></tr>` : ''; })()}
     <tr><th>CREATED</th><td>${fmt(inc.created_at)} by ${esc(inc.created_by||'?')}</td></tr>
     <tr><th>DISPATCH TIME</th><td>${fmt(inc.dispatch_time)}</td></tr>
@@ -6933,7 +6955,7 @@ function openIncidentPrintWindow(r) {
     <tr><th>TRANSPORT TIME</th><td>${fmt(inc.transport_time)}</td></tr>
     <tr><th>AT HOSPITAL TIME</th><td>${fmt(inc.at_hospital_time)}</td></tr>
     <tr><th>HANDOFF TIME</th><td>${fmt(inc.handoff_time)}</td></tr>
-    <tr><th>NOTE</th><td>${esc((inc.incident_note||'').replace(/\[DISP:[^\]]*\]\s*/gi,'').trim()||'—')}</td></tr>
+    <tr><th>INCIDENT NOTE</th><td>${esc((inc.incident_note||'').replace(/\[DISP:[^\]]*\]\s*/gi,'').replace(/\[[A-Z]+:[^\]]*\]\s*/gi,'').trim()||'—')}</td></tr>
   </table>`;
   // Response time calculations
   const rtRows = [
@@ -6957,15 +6979,22 @@ function openIncidentPrintWindow(r) {
   }
 
   if (r.audit && r.audit.length) {
-    html += '<h3>AUDIT TRAIL</h3>';
+    html += '<h3>Incident Audit Trail</h3>';
     r.audit.forEach(a => {
-      html += `<div class="audit">[${fmt(a.ts)}] ${esc(a.actor)}: ${esc(a.message)}</div>`;
+      html += `<div class="audit"><span class="audit-ts">${fmt(a.ts)}</span> <span class="audit-actor">${esc((a.actor||'').toUpperCase())}</span> ${esc(a.message)}</div>`;
     });
   }
 
+  html += `<div class="footer">
+    <span class="confidential">FOR OFFICIAL USE ONLY — HOSCAD CONFIDENTIAL OPERATIONAL RECORD</span><br>
+    Generated: ${genAt} | HOSCAD EMS Tracking System — SCMC<br>
+    This document may contain protected health information (PHI). Handle per HIPAA requirements.
+    Do not distribute outside authorized personnel.
+  </div>`;
   html += '</body></html>';
   w.document.write(html);
   w.document.close();
+  setTimeout(() => { try { w.print(); } catch(e) {} }, 600);
 }
 
 function openUnitReportWindow(rpt) {
