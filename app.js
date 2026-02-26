@@ -1732,7 +1732,7 @@ function tryBeepOnStateChange() {
       if (now >= holdDate) {
         _holdAlertedIds.add(inc.incident_id);
         beepAlert();
-        showToast('HOLD CALL READY: INC' + String(inc.incident_id).replace(/^\d{2}-0*/, '') + ' → ' + (inc.destination || '?') + ' (SCHED ' + holdM[1] + ')');
+        showToast('HOLD CALL READY: ' + inc.incident_id + ' → ' + (inc.destination || '?') + ' (SCHED ' + holdM[1] + ')');
       }
     });
   }
@@ -1750,7 +1750,7 @@ function tryBeepOnStateChange() {
       _urgentIncAlertedIds.add(inc.incident_id);
       beepAlert();
       const shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
-      showToast('PRI-1: INC' + shortId + ' — ' + (inc.incident_type || 'INCIDENT').toUpperCase() + (inc.scene_address ? ' @ ' + inc.scene_address.toUpperCase() : ''), 'warn', 8000);
+      showToast('PRI-1: ' + inc.incident_id + ' — ' + (inc.incident_type || 'INCIDENT').toUpperCase() + (inc.scene_address ? ' @ ' + inc.scene_address.toUpperCase() : ''), 'warn', 8000);
     });
   }
 
@@ -1766,7 +1766,7 @@ function tryBeepOnStateChange() {
       _unattendedAlertedIds.add(inc.incident_id);
       beepAlert();
       const shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
-      showToast('UNATTENDED: INC' + shortId + ' QUEUED ' + Math.floor(waitMin) + 'M — NO UNIT ASSIGNED', 'warn', 8000);
+      showToast('UNATTENDED: ' + inc.incident_id + ' QUEUED ' + Math.floor(waitMin) + 'M — NO UNIT ASSIGNED', 'warn', 8000);
     });
   }
 
@@ -1979,7 +1979,7 @@ function renderActiveCallsBar() {
       : '';
 
     return '<div class="' + cardCl + '" data-inc-id="' + esc(inc.incident_id) + '" onclick="openIncident(\'' + esc(inc.incident_id) + '\')" title="' + esc(inc.scene_address || '') + '">' +
-      '<div class="acb-id">INC' + esc(shortId) + priBadgeHtml + acbMaBadge + acbAirBadge + '</div>' +
+      '<div class="acb-id">' + esc(inc.incident_id) + priBadgeHtml + acbMaBadge + acbAirBadge + '</div>' +
       '<div class="acb-type ' + typeCl + '">' + esc(incType || '—') + '</div>' +
       '<div class="' + elCl + '">' + esc(elapsedStr) + ' · ' + assignedUnits.length + ' UNIT' + (assignedUnits.length !== 1 ? 'S' : '') + '</div>' +
       '<div class="acb-units">' + esc(unitStr) + '</div>' +
@@ -2102,7 +2102,7 @@ function _appendStackSubRows(unitId, fragment) {
     subTr.innerHTML =
       '<td colspan="2" class="stack-detail-role">' + esc(roleLabel) + '</td>' +
       '<td colspan="3" class="stack-detail-inc">' +
-        '<span class="clickableIncidentNum" style="cursor:pointer;" data-inc="' + esc(a.incident_id) + '">INC' + esc(shortId) + '</span> ' + esc(typeLabel) +
+        '<span class="clickableIncidentNum" style="cursor:pointer;" data-inc="' + esc(a.incident_id) + '">' + esc(a.incident_id) + '</span> ' + esc(typeLabel) +
       '</td>' +
       '<td colspan="2" class="stack-detail-actions">' +
         (isPrimary ? '' : '<button class="stack-row-btn" onclick="event.stopPropagation();_execCmd(\'PRIMARY ' + esc(a.incident_id) + ' ' + esc(unitId) + '\')">&#9650; PRIMARY</button>') +
@@ -2631,7 +2631,7 @@ function renderBoard() {
       }
       const stackData = getUnitStackData(u.unit_id);
       const stackBadgeHtml = stackData ? renderStackBadge(stackData.depth, stackData.hasUrgent, u.unit_id) : '';
-      incHtml = dotHtml + '<span class="clickableIncidentNum" onclick="event.stopPropagation(); openIncident(\'' + esc(u.incident) + '\')">' + esc('INC' + shortInc) + '</span>' + stackBadgeHtml;
+      incHtml = dotHtml + '<span class="clickableIncidentNum" onclick="event.stopPropagation(); openIncident(\'' + esc(u.incident) + '\')">' + esc(u.incident) + '</span>' + stackBadgeHtml;
     }
     // Apply border-left: incident group border takes priority; fall back to unit type accent
     if (groupBorderColor) {
@@ -2922,7 +2922,7 @@ function renderBoardDiff() {
       }
       const stackData2 = getUnitStackData(u.unit_id);
       const stackBadgeHtml2 = stackData2 ? renderStackBadge(stackData2.depth, stackData2.hasUrgent, u.unit_id) : '';
-      incHtml = dotHtml + '<span class="clickableIncidentNum" data-inc="' + esc(u.incident) + '">' + esc('INC' + shortInc) + '</span>' + stackBadgeHtml2;
+      incHtml = dotHtml + '<span class="clickableIncidentNum" data-inc="' + esc(u.incident) + '">' + esc(u.incident) + '</span>' + stackBadgeHtml2;
     }
 
     // Compute border-left: incident group border takes priority; fall back to unit type accent
@@ -3096,7 +3096,7 @@ function updateQuickBar() {
   const qbUnit = document.getElementById('qbUnit');
   const qbStatus = document.getElementById('qbStatus');
   if (qbUnit) qbUnit.textContent = u.unit_id;
-  if (qbStatus) qbStatus.textContent = u.status + (u.incident ? ' · INC' + u.incident.replace(/^\d{2}-/, '') : '');
+  if (qbStatus) qbStatus.textContent = u.status + (u.incident ? ' · ' + u.incident : '');
 
   // Disable the button that matches current status
   bar.querySelectorAll('.qb-btn').forEach(btn => {
@@ -3736,7 +3736,7 @@ async function createNewIncident() {
   if (dupe) {
     const shortId = String(dupe.incident_id || '').replace(/^\d{2}-/, '');
     const ok = await showConfirmAsync('POSSIBLE DUPLICATE',
-      'INC' + shortId + ' (' + (dupe.incident_type || 'UNKNOWN') + ') AT ' + dupe.destination +
+      dupe.incident_id + ' (' + (dupe.incident_type || 'UNKNOWN') + ') AT ' + dupe.destination +
       ' WAS CREATED ' + Math.round((Date.now() - new Date(dupe.created_at).getTime()) / 1000) +
       'S AGO.\n\nCREATE ANYWAY?');
     if (!ok) return;
@@ -3764,7 +3764,7 @@ async function closeIncidentFromQueue(incidentId) {
   try {
     const r = await API.closeIncident(TOKEN, incidentId, disposition);
     if (!r.ok) { showAlert('ERROR', r.error || 'FAILED TO CLOSE INCIDENT'); return; }
-    showToast('INC ' + String(incidentId).replace(/^\d{2}-0*/, '') + ' CLOSED — ' + disposition);
+    showToast(incidentId + ' CLOSED — ' + disposition);
     refresh();
   } catch (e) {
     showAlert('ERROR', 'FAILED: ' + e.message);
@@ -3802,7 +3802,7 @@ function assignIncidentToUnit(incidentId) {
   input.style.cssText = 'width:100%;padding:10px;background:var(--panel);color:var(--text);border:2px solid var(--line);font-family:inherit;text-transform:uppercase;font-size:14px;margin-top:6px;';
 
   const message = document.createElement('div');
-  let msgHtml = '<div style="margin-bottom:8px;">ASSIGN INC' + esc(shortId) + ' TO UNIT:</div>';
+  let msgHtml = '<div style="margin-bottom:8px;">ASSIGN ' + esc(incidentId) + ' TO UNIT:</div>';
   if (quickPicks.length) {
     msgHtml += '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">';
     quickPicks.forEach(u => {
@@ -3966,7 +3966,7 @@ async function openIncidentFromServer(iId) {
       parts.push('<span class="muted" style="font-size:10px;">RELATED: </span>' +
         relIds.map(function(id) {
           const shortRel = id.replace(/^\d{2}-/, '');
-          return '<button type="button" class="related-inc-chip" onclick="openIncident(\'' + esc(id) + '\')">' + 'INC' + esc(shortRel) + '</button>';
+          return '<button type="button" class="related-inc-chip" onclick="openIncident(\'' + esc(id) + '\')">' + esc(id) + '</button>';
         }).join(''));
     }
     if (inc.pp_incident_id) {
@@ -4807,7 +4807,7 @@ async function _execCmd(tx) {
     const r = await API.appendIncidentNote(TOKEN, uO.incident, '[SUP] ' + nU);
     if (!r.ok) return showErr(r);
     beepChange();
-    showToast('SUP SENT TO ' + supUnit + ' (INC' + uO.incident.replace(/^\d{2}-/, '') + ')');
+    showToast('SUP SENT TO ' + supUnit + ' (' + uO.incident + ')');
     refresh();
     return;
   }
@@ -5300,7 +5300,7 @@ async function _execCmd(tx) {
         const typ = inc.incident_type ? ' [' + inc.incident_type + ']' : '';
         const wait = inc.created_at ? Math.floor((Date.now() - new Date(inc.created_at).getTime()) / 60000) + 'M' : '';
         const note = (inc.incident_note || '').replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
-        report += `INC${shortId}${pri}${dest}${typ}  ${wait}\n`;
+        report += `${inc.incident_id}${pri}${dest}${typ}  ${wait}\n`;
         if (note) report += `  ${note.substring(0, 60)}\n`;
       });
     }
@@ -5314,7 +5314,7 @@ async function _execCmd(tx) {
         const typ = inc.incident_type ? ' [' + inc.incident_type + ']' : '';
         const units = inc.units ? ' UNITS: ' + inc.units : '';
         const scene = inc.scene_address ? ' @ ' + inc.scene_address : '';
-        report += `INC${shortId}${pri}${dest}${typ}${units}\n`;
+        report += `${inc.incident_id}${pri}${dest}${typ}${units}\n`;
         if (scene) report += `  SCENE: ${scene.substring(0, 50)}\n`;
       });
     }
@@ -5755,7 +5755,7 @@ async function _execCmd(tx) {
     const r = await API.updateIncident(TOKEN, cbIncId, cbNewNote, undefined, undefined, undefined, undefined);
     if (!r.ok) return showErr(r);
     beepChange();
-    showToast('CB SET ON INC' + cbNorm.replace(/^\d{2}-0*/, '') + ': ' + cbNum);
+    showToast('CB SET ON ' + cbNorm + ': ' + cbNum);
     refresh();
     return;
   }
@@ -5783,7 +5783,7 @@ async function _execCmd(tx) {
       const r = await API.appendIncidentNote(TOKEN, CURRENT_INCIDENT_ID, fullNote);
       if (!r.ok) return showErr(r);
       beepChange();
-      showToast('NOTE ADDED TO INC' + CURRENT_INCIDENT_ID.replace(/^\d{2}-0*/, ''));
+      showToast('NOTE ADDED TO ' + CURRENT_INCIDENT_ID);
       refresh();
       return;
     }
@@ -5817,7 +5817,7 @@ async function _execCmd(tx) {
     const r = await API.createQueuedIncident(TOKEN, srcInc.destination || '', copyNote, srcInc.priority || '', '', srcInc.incident_type || '', srcInc.scene_address || '');
     if (!r.ok) return showErr(r);
     beepChange();
-    showToast('COPIED → INC' + String(r.incidentId || '').replace(/^\d{2}-0*/, ''));
+    showToast('COPIED → ' + (r.incidentId || ''));
     refresh();
     if (r.incidentId) setTimeout(() => openIncident(r.incidentId), 400);
     return;
@@ -6531,7 +6531,7 @@ async function _execCmd(tx) {
       setLive(false);
       if (!r.ok) return showErr(r);
       const verb = maSub === 'ACK' ? 'ACKNOWLEDGED' : 'RELEASED';
-      showToast('MUTUAL AID ' + verb + ': ' + maAgency + ' → INC' + maIncRaw.toUpperCase().replace(/^INC/i, '').replace(/^\d{2}-0*/, ''), 'good', 5000);
+      showToast('MUTUAL AID ' + verb + ': ' + maAgency + ' → ' + (r.incidentId || maIncRaw), 'good', 5000);
       return;
     }
     // MA LIST <INC>
@@ -6558,7 +6558,7 @@ async function _execCmd(tx) {
       if (!r.ok) return showErr(r);
       const shortId = String(r.incidentId || '').replace(/^\d{2}-0*/, '');
       const displayName = r.agencyName || r.agency || maAgency2;
-      showToast('MUTUAL AID REQUESTED: ' + displayName + ' → INC' + shortId, 'warn', 6000);
+      showToast('MUTUAL AID REQUESTED: ' + displayName + ' → ' + (r.incidentId || ''), 'warn', 6000);
       return;
     }
     showAlert('USAGE',
@@ -6587,7 +6587,7 @@ async function _execCmd(tx) {
     setLive(false);
     if (!r.ok) return showErr(r);
     const llShort = String(r.incidentId || llIncRaw).replace(/^\d{2}-0*/, '');
-    showToast('AIR LINKED: ' + llCallsign + ' \u2192 INC' + llShort, 'good', 5000);
+    showToast('AIR LINKED: ' + llCallsign + ' \u2192 ' + (r.incidentId || llIncRaw), 'good', 5000);
     return;
   }
 
@@ -6630,7 +6630,7 @@ async function _execCmd(tx) {
         const r = await API.appendIncidentNote(TOKEN, uO.incident, nU);
         if (!r.ok) return showErr(r);
         beepChange();
-        showToast('NOTE ADDED TO INC' + uO.incident.replace(/^\d{2}-/, ''));
+        showToast('NOTE ADDED TO ' + uO.incident);
         refresh();
         return;
       }
@@ -7891,7 +7891,7 @@ function renderLfnPanel() {
     else if (ac.status === 'NOSIG')   { detail = 'NO ADS-B SIGNAL'; }
     const boardHtml = boardUnit
       ? '<span class="lfn-board-link">\u2192 ' + esc(ac.callsign) +
-        (boardUnit.incident ? ' | INC' + String(boardUnit.incident).replace(/^\d{2}-0*/,'') : '') +
+        (boardUnit.incident ? ' | ' + boardUnit.incident : '') +
         '</span>'
       : '';
     return '<div class="' + scl + '">' +
@@ -8284,7 +8284,7 @@ function renderBoardMap() {
       const pri = inc.priority || '';
       const color = pri === 'PRI-1' ? '#f44336' : pri === 'PRI-2' ? '#ff9800' : '#4fa3e0';
       const shortId = String(inc.incident_id).replace(/^\d{2}-/, '');
-      const tip = '<b>INC' + shortId + '</b>' + (inc.incident_type ? '<br>' + inc.incident_type : '') + (addr ? '<br>' + addr : '');
+      const tip = '<b>' + esc(inc.incident_id) + '</b>' + (inc.incident_type ? '<br>' + inc.incident_type : '') + (addr ? '<br>' + addr : '');
       const m = L.circleMarker(geo, { radius: 9, color, weight: 2, fillColor: color, fillOpacity: 0.35 })
         .bindTooltip(tip, { permanent: false, direction: 'top' });
       m.addTo(_bmMap);
@@ -9078,7 +9078,7 @@ function _buildIncTip(incId) {
     ['Dispatched', ageStr]
   ];
   if (note) rows.push(['Note', note.length > 90 ? note.substring(0, 90) + '…' : note]);
-  return '<div class="tip-title">INC' + esc(inc.incident_id.replace(/^\d{2}-/, '')) + '</div>' +
+  return '<div class="tip-title">' + esc(inc.incident_id) + '</div>' +
     rows.map(([k, v]) => '<div class="tip-row"><span class="tip-key">' + k + '</span><span class="tip-val">' + esc(String(v)) + '</span></div>').join('');
 }
 
