@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HOSCAD</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/x-icon" href="../icons/favicon.ico?v=3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png?v=3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="../icons/apple-touch-icon.png?v=3" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #070a0f;
+      --bg2:     #0d1117;
+      --bg3:     #161b22;
+      --bg4:     #1c2128;
+      --border:  #30363d;
+      --accent:  #4fa3e0;
+      --accent2: #22c55e;
+      --text:    #e6edf3;
+      --muted:   #7d8590;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* HEADER */
+    header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px 32px;
+      text-align: center;
+    }
+    .logo-wrap { margin-bottom: 20px; }
+    .logo-wrap img { height: 64px; mix-blend-mode: screen; }
+    .agency-name {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--text);
+    }
+    header h1 span { color: var(--accent); }
+
+    /* TILES */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      max-width: 560px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+    .tile {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 24px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, transform .1s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .tile:hover { border-color: var(--accent); background: #1c2a38; transform: translateY(-1px); }
+    .tile:active { transform: translateY(0); }
+    .tile-icon { font-size: 28px; margin-bottom: 14px; }
+    .tile-name {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: .01em;
+    }
+    .tile-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .tile-roles {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-top: 14px;
+    }
+
+    /* Tile accent colors */
+    .tile-board:hover  { border-color: var(--accent); }
+    .tile-viewer:hover { border-color: var(--accent2); }
+    .tile-admin:hover  { border-color: #f59e0b; }
+    .tile-field:hover  { border-color: #a78bfa; }
+
+    /* FOOTER */
+    footer {
+      margin-top: auto;
+      text-align: center;
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
+
+    @media (max-width: 480px) {
+      header { padding: 32px 16px 24px; }
+      header h1 { font-size: 22px; }
+      .grid { grid-template-columns: 1fr; max-width: 320px; padding-bottom: 32px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <img src="../logo.png" alt="HOSCAD" />
+  </div>
+  <div class="agency-name" id="agencyName">Loading...</div>
+  <h1><span id="agencyDisplay">HOSCAD</span> Portal</h1>
+</header>
+
+<div class="grid">
+  <a class="tile tile-board" href="../index.html">
+    <div class="tile-icon">🖥️</div>
+    <div class="tile-name">Dispatch Board</div>
+    <div class="tile-desc">Live unit tracking, incident management, mutual aid coordination.</div>
+    <div class="tile-roles">Dispatchers &middot; Supervisors &middot; Managers</div>
+  </a>
+
+  <a class="tile tile-viewer" href="../viewer.html">
+    <div class="tile-icon">👁️</div>
+    <div class="tile-name">Viewer</div>
+    <div class="tile-desc">Read-only live board view. No login required beyond viewer PIN.</div>
+    <div class="tile-roles">Nurses &middot; Receiving Staff &middot; TCRN &middot; PLRN</div>
+  </a>
+
+  <a class="tile tile-admin" href="../admin.html">
+    <div class="tile-icon">⚙️</div>
+    <div class="tile-name">Admin Panel</div>
+    <div class="tile-desc">User management, unit roster, reporting, and system configuration.</div>
+    <div class="tile-roles">SUPV &middot; MGR &middot; IT</div>
+  </a>
+
+  <a class="tile tile-field" href="../field.html">
+    <div class="tile-icon">📱</div>
+    <div class="tile-name">Field MDT</div>
+    <div class="tile-desc">Mobile dispatch terminal for field crews. Optimized for phones.</div>
+    <div class="tile-roles">Field Crews &middot; UNIT Login</div>
+  </a>
+</div>
+
+<footer>
+  <a href="https://hoscad.net/login">Not your agency?</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://hoscad.net">hoscad.net</a>
+</footer>
+
+<script>
+// Agency display name lookup — keyed by subdomain slug
+// Add an entry here for each new agency when onboarding.
+var AGENCY_NAMES = {
+  'scmc':    'St. Charles Medical Center',
+  'redmond': 'Redmond Fire & Rescue',
+};
+
+(function() {
+  var slug = window.location.hostname.split('.')[0];
+  var name = AGENCY_NAMES[slug] || slug.toUpperCase();
+  document.getElementById('agencyName').textContent = name;
+  document.getElementById('agencyDisplay').textContent = name;
+  document.title = 'HOSCAD — ' + name;
+})();
+</script>
+</body>
+</html>
