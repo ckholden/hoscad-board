@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "SCMC HOSCAD",
   "short_name": "HOSCAD",
   "description": "SCMC Hospital CAD / EMS Tracking System",
@@ -7,6 +8,21 @@
   "background_color": "#070a0f",
   "theme_color": "#070a0f",
   "orientation": "any",
+  "screenshots": [
+    {
+      "src": "screenshots/desktop.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SCMC HOSCAD dispatch board"
+    },
+    {
+      "src": "screenshots/mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "label": "SCMC HOSCAD field unit app"
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-32.png",
