@@ -250,14 +250,12 @@
       display: none;
     }
 
-    /* Field Panel — scrollable container so cmd area is always reachable on small screens */
+    /* Field Panel — outer wrapper; tab content panels handle their own scrolling */
     .field-panel {
       flex: 1;
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
-      overflow-x: hidden;
-      -webkit-overflow-scrolling: touch;
+      overflow: hidden;
       min-height: 0;
     }
 
@@ -761,7 +759,6 @@
 
     /* Night mode */
     body.night-mode .field-panel,
-    body.night-mode .header,
     body.night-mode #transportOverlay > div,
     body.night-mode .info-overlay-body {
       filter: brightness(0.65) saturate(0.8);
@@ -779,34 +776,7 @@
       .field-status-btn { flex: 1 1 30%; }
     }
 
-    /* Landscape 2-column layout for MDT tablet (Change 7) */
-    @media (orientation: landscape) and (min-width: 768px) {
-      .app { flex-direction: row; max-width: none; }
-      /* Left column: banners + incident panel */
-      .field-panel {
-        flex: 0 0 52%;
-        display: flex;
-        flex-direction: column;
-        border-right: 2px solid var(--line);
-        overflow-y: auto;
-      }
-      /* Right column: status buttons + command (cmd-area fills remaining) */
-      .cmd-area {
-        flex: 1 1 auto;
-        border-top: none;
-        overflow-y: auto;
-      }
-      /* Bigger status buttons in landscape */
-      .field-status-grid .field-status-btn { min-height: 96px; font-size: 16px; }
-      /* Keep banners/incident within left panel */
-      .field-banner, .incident-panel { flex-shrink: 0; }
-    }
-    /* Remove old 600px landscape rule side-effects for smaller landscape screens */
-    @media (orientation: landscape) and (min-width: 600px) and (max-width: 767px) {
-      .app { flex-direction: row; max-width: none; }
-      .field-panel { flex: 0 0 55%; display: flex; flex-direction: column; border-right: 2px solid var(--line); overflow-y: auto; }
-      .cmd-area { flex: 1 1 auto; border-top: none; }
-    }
+    /* Landscape layout now handled by .field-tab-shell sidebar nav (Phase 1) */
 
     /* Collapsible command area toggle (Change 6) */
     .cmd-toggle-btn {
@@ -1019,6 +989,226 @@
       background: rgba(192,132,252,.12); border: 2px solid #7c3aed; color: #c084fc;
       cursor: pointer; font-family: inherit; letter-spacing: .06em;
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       PHASE 1: BOTTOM NAV + 5-TAB SHELL
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* Slim persistent header — always visible after login */
+    .field-slim-header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+      background: var(--panel2);
+      border-bottom: 1px solid var(--line);
+      flex-wrap: nowrap;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    /* Tab content panels — hidden by default, flex when active */
+    .tab-content {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+    }
+    .tab-content.active { display: flex; }
+
+    /* Bottom nav bar — hidden until logged in */
+    .bottom-nav {
+      display: none;
+      flex: 0 0 auto;
+      flex-direction: row;
+      background: var(--panel2);
+      border-top: 2px solid var(--line);
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+      z-index: 20;
+    }
+    .bottom-nav.visible { display: flex; }
+
+    /* Individual nav tab buttons */
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      border-top: 3px solid transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      min-height: 56px;
+      position: relative;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      padding: 0;
+    }
+    .nav-tab:active { filter: brightness(1.2); }
+    .nav-tab.active { color: var(--hi); border-top-color: var(--blue); }
+    .nav-tab-icon { font-size: 17px; line-height: 1; }
+    .nav-tab-badge {
+      position: absolute;
+      top: 6px;
+      right: calc(50% - 20px);
+      background: var(--red);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 900;
+      min-width: 14px;
+      height: 14px;
+      border-radius: 7px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+    }
+    .nav-tab-badge.visible { display: flex; }
+
+    /* STATUS tab dispatch feed */
+    #tabStatusFeed {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 8px 12px;
+      font-size: 11px;
+      background: var(--bg);
+      min-height: 80px;
+    }
+    .tab-status-feed-label {
+      font-size: 9px;
+      font-weight: 900;
+      color: var(--muted);
+      letter-spacing: .1em;
+      padding: 8px 0 4px;
+    }
+
+    /* ROSTER tab */
+    .roster-unit-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .roster-unit-id {
+      font-weight: 900;
+      color: var(--hi);
+      min-width: 70px;
+      font-size: 12px;
+    }
+    .roster-unit-status {
+      font-size: 11px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border: 1px solid;
+      min-width: 38px;
+      text-align: center;
+    }
+    .roster-unit-inc {
+      color: var(--yellow);
+      font-size: 11px;
+      font-weight: 700;
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .roster-unit-note {
+      font-size: 10px;
+      color: var(--muted);
+      max-width: 100px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* MORE tab utility rows */
+    .more-section-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      padding: 12px 16px 4px;
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    .more-row {
+      display: flex;
+      width: 100%;
+      text-align: left;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel2);
+      min-height: 56px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      cursor: pointer;
+      color: var(--text);
+      border-left: none;
+      border-right: none;
+      border-top: none;
+      border-radius: 0;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+    }
+    .more-row:active { filter: brightness(1.12); }
+    .more-row-label { color: var(--text); font-weight: 700; }
+    .more-row-sub { font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+    .more-row-arrow { color: var(--muted); font-size: 14px; flex-shrink: 0; margin-left: 8px; }
+
+    /* MAP tab */
+    #fieldMapTabEl { flex: 1; min-height: 200px; width: 100%; background: #0a0f17; }
+
+    /* Landscape: bottom nav becomes left sidebar */
+    @media (orientation: landscape) and (min-width: 600px) {
+      .bottom-nav {
+        flex-direction: column;
+        width: 68px;
+        height: auto;
+        border-top: none;
+        border-right: 2px solid var(--line);
+        padding-bottom: 0;
+        order: -1;
+      }
+      .nav-tab {
+        width: 68px;
+        min-height: 60px;
+        flex: 0 0 auto;
+        border-top: none;
+        border-left: 3px solid transparent;
+      }
+      .nav-tab.active { border-top: none; border-left-color: var(--blue); }
+      #fieldPanel { flex-direction: row; flex-wrap: nowrap; }
+      .field-slim-header { flex-direction: row; width: 100%; flex-shrink: 0; order: 0; }
+      .field-tab-shell { flex-direction: row; flex: 1; min-height: 0; }
+    }
+
+    /* Night mode — apply to new tab elements */
+    body.night-mode .tab-content,
+    body.night-mode .field-slim-header,
+    body.night-mode .bottom-nav {
+      filter: brightness(0.65) saturate(0.8);
+    }
   </style>
 </head>
 <body>
@@ -1084,162 +1274,279 @@
   </div>
 
   <!-- Field Panel (hidden until login) -->
-  <div id="fieldPanel" class="field-panel hidden">
-    <div class="header">
-      <span class="brand">HOSCAD FIELD</span>
+  <div id="fieldPanel" class="field-panel hidden" style="display:none;flex-direction:column;flex:1;min-height:0;">
+
+    <!-- SLIM PERSISTENT HEADER — always visible after login -->
+    <div class="field-slim-header" id="fieldSlimHeader">
       <span class="callsign-label" id="callsignLabel"></span>
       <span class="cad-unit-status cad-status-AV" id="cadUnitStatus">AV</span>
       <span class="offline-indicator" id="offlineIndicator">OFFLINE</span>
-      <span id="gpsAutoBadge" style="display:none; font-size:10px; font-weight:700; letter-spacing:.06em; color:#4caf50; padding:2px 5px; border:1px solid #4caf50; border-radius:3px; margin-left:4px;">GPS&#9650;</span>
+      <span id="gpsAutoBadge" style="display:none;font-size:10px;font-weight:700;letter-spacing:.06em;color:#4caf50;padding:2px 5px;border:1px solid #4caf50;">GPS&#9650;</span>
       <span class="pending-badge" id="pendingBadge" style="display:none;"></span>
-      <button class="btn-info" id="btnInfo" title="HOSPITAL REFERENCE">INFO<span id="fieldMsgBadge" style="display:none; background:#2f6cff; color:#fff; border-radius:10px; font-size:10px; font-weight:900; padding:1px 6px; margin-left:4px; vertical-align:middle;">0</span></button>
-      <button class="btn-wake" id="btnWake" title="KEEP SCREEN AWAKE + ENABLE ALERTS">WAKE</button>
-      <button class="btn-night" id="btnNight" title="TOGGLE NIGHT MODE">NIGHT</button>
-      <button class="btn-refresh" id="btnRefresh" title="FORCE REFRESH">REFRESH</button>
-      <button class="btn-night" id="btnChangePIN" title="CHANGE YOUR CAD PIN">PIN</button>
-      <button class="btn-night" id="btnBug" title="REPORT A BUG OR SYSTEM ISSUE" onclick="openFieldBugReport()" style="color:#e09000;">BUG</button>
-      <button class="btn-logout" id="btnLogout">LOGOUT</button>
+      <span style="flex:1;"></span>
+      <span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.06em;">HOSCAD</span>
     </div>
 
-    <!-- Unit Location Bar -->
-    <div id="fieldLocationBar" style="display:none; padding:4px 16px; background:rgba(30,40,60,0.7); border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.04em;">
-      <span style="color:var(--field-muted, #8b949e);">LOC: </span><span id="fieldLocationText" style="color:#7fb3ff; font-weight:700;"></span>
-    </div>
+    <!-- TAB SHELL -->
+    <div class="field-tab-shell" style="display:flex;flex-direction:column;flex:1;min-height:0;">
 
-    <!-- Alert/Note Banners — dispatch-only, hidden on field app -->
+      <!-- ─── TAB: MY CALL ─── -->
+      <div id="tabMyCall" class="tab-content active">
+        <!-- Alert/Note Banners (referenced by showLogin reset) -->
+        <div id="alertBanner" class="field-banner alert" style="display:none;"></div>
+        <div id="noteBanner" class="field-banner note" style="display:none;"></div>
 
-    <!-- INCIDENT DISPLAY PANEL -->
-    <div id="incidentPanel" class="incident-panel no-incident">
-      <!-- No Incident State -->
-      <div id="noIncidentView">
-        <div class="no-call-text">NO ACTIVE INCIDENT</div>
-        <div class="no-call-status" id="noIncidentStatus">AVAILABLE</div>
-      </div>
-
-      <!-- Has Incident State (hidden by default) -->
-      <div id="hasIncidentView" style="display:none;">
-        <!-- Dispatch ACK button — shown while new-call tone is repeating -->
-        <button id="dispatchAckBtn" onclick="ackDispatch()" style="display:none;width:100%;margin-bottom:6px;padding:7px 12px;background:rgba(47,108,255,0.2);border:2px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:13px;font-weight:900;letter-spacing:.08em;cursor:pointer;animation:newCallPulse 0.6s ease-out 3;">&#9679; ACK — TAP TO CONFIRM DISPATCH</button>
-        <div class="inc-header" onclick="openIncDetail()" style="cursor:pointer;" title="Tap for details / add note">
-          <span class="inc-number" id="incNumber">INC --</span>
-          <span class="inc-priority inc-priority-3" id="incPriority">ROUTINE</span>
-          <span class="inc-ma-badge" id="incMaBadge" style="display:none;">MUTUAL AID</span>
-          <span class="inc-nature" id="incNature"></span>
-          <span style="margin-left:auto;font-size:10px;color:#5ba3e6;font-weight:700;letter-spacing:.04em;white-space:nowrap;">+ NOTE ›</span>
+        <!-- Unit Location Bar -->
+        <div id="fieldLocationBar" style="display:none;padding:4px 16px;background:rgba(30,40,60,0.7);border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.04em;flex-shrink:0;">
+          <span style="color:#8b949e;">LOC: </span><span id="fieldLocationText" style="color:#7fb3ff;font-weight:700;"></span>
         </div>
-        <!-- SCENE ADDRESS (Change 1) -->
-        <div id="fieldSceneRow" style="display:none; margin-bottom:8px;">
-          <div style="font-size:10px; color:var(--field-muted, #8b949e); letter-spacing:.05em; margin-bottom:2px;">SCENE ADDRESS</div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span id="fieldSceneAddr" style="font-size:18px; font-weight:900; color:#e6edf3; flex:1;"></span>
-            <button id="btnNavScene" onclick="openNavScene()" style="padding:6px 10px; background:#1a3a6a; border:1px solid #2f6cff; color:#7fb3ff; font-family:inherit; font-size:11px; font-weight:700; cursor:pointer; border-radius:2px; white-space:nowrap;">&#9654; NAV</button>
+
+        <!-- INCIDENT DISPLAY PANEL -->
+        <div id="incidentPanel" class="incident-panel no-incident">
+          <!-- No Incident State -->
+          <div id="noIncidentView">
+            <div class="no-call-text">NO ACTIVE INCIDENT</div>
+            <div class="no-call-status" id="noIncidentStatus">AVAILABLE</div>
+          </div>
+
+          <!-- Has Incident State (hidden by default) -->
+          <div id="hasIncidentView" style="display:none;">
+            <button id="dispatchAckBtn" onclick="ackDispatch()" style="display:none;width:100%;margin-bottom:6px;padding:7px 12px;background:rgba(47,108,255,0.2);border:2px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:13px;font-weight:900;letter-spacing:.08em;cursor:pointer;animation:newCallPulse 0.6s ease-out 3;">&#9679; ACK &#8212; TAP TO CONFIRM DISPATCH</button>
+            <div class="inc-header" onclick="openIncDetail()" style="cursor:pointer;" title="Tap for details / add note">
+              <span class="inc-number" id="incNumber">INC --</span>
+              <span class="inc-priority inc-priority-3" id="incPriority">ROUTINE</span>
+              <span class="inc-ma-badge" id="incMaBadge" style="display:none;">MUTUAL AID</span>
+              <span class="inc-nature" id="incNature"></span>
+              <span style="margin-left:auto;font-size:10px;color:#5ba3e6;font-weight:700;letter-spacing:.04em;white-space:nowrap;">+ NOTE &#8250;</span>
+            </div>
+            <div id="fieldSceneRow" style="display:none;margin-bottom:8px;">
+              <div style="font-size:10px;color:#8b949e;letter-spacing:.05em;margin-bottom:2px;">SCENE ADDRESS</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span id="fieldSceneAddr" style="font-size:18px;font-weight:900;color:#e6edf3;flex:1;"></span>
+                <button id="btnNavScene" onclick="openNavScene()" style="padding:6px 10px;background:#1a3a6a;border:1px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">&#9654; NAV</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <div class="inc-address" id="incAddress" style="flex:1;margin-bottom:0;">--</div>
+              <button id="btnNavDest" onclick="openNavDest()" style="padding:6px 10px;background:#1a3a6a;border:1px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;flex-shrink:0;">&#9654; NAV</button>
+            </div>
+            <div class="inc-address-detail" id="incCity"></div>
+            <div class="inc-address-detail inc-cross" id="incCross"></div>
+            <div class="inc-address-detail inc-callback" id="incCallback"></div>
+            <div class="inc-address-detail inc-callback" id="incCbFromNote" style="display:none;"></div>
+            <div class="inc-notes-container" id="incNotesContainer" style="display:none;">
+              <div class="inc-notes-label">DISPATCH NOTES</div>
+              <div class="inc-notes-text" id="incNotes"></div>
+            </div>
+            <div class="inc-times" id="incTimes">
+              <div class="inc-time-item"><span class="inc-time-label">DISP:</span><span class="inc-time-value" id="incTimeDisp">--:--</span></div>
+              <div class="inc-time-item"><span class="inc-time-label">ENRT:</span><span class="inc-time-value" id="incTimeEnrt">--:--</span></div>
+              <div class="inc-time-item"><span class="inc-time-label">OS:</span><span class="inc-time-value" id="incTimeOS">--:--</span></div>
+              <div class="inc-time-item" id="incTimeTRow" style="display:none;"><span class="inc-time-label">TRANS:</span><span class="inc-time-value" id="incTimeTrans">--:--</span></div>
+              <div class="inc-time-item" id="incTimeTHRow" style="display:none;"><span class="inc-time-label">AT HOSP:</span><span class="inc-time-value" id="incTimeTH">--:--</span></div>
+              <div class="inc-time-item" id="incTimeElapsedRow" style="display:none;"><span class="inc-time-label">FOR:</span><span class="inc-time-value" id="incTimeElapsed" style="color:#f0a040;">--</span></div>
+            </div>
+            <div class="inc-units" id="incUnits"></div>
+            <div id="destQuickRow" class="dest-quick-row" style="display:none;"></div>
+            <button id="btnHandoff" class="btn-handoff" style="display:none;">PATIENT HANDOFF</button>
           </div>
         </div>
-        <!-- DESTINATION ADDRESS with NAV button (Change 1) -->
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-          <div class="inc-address" id="incAddress" style="flex:1; margin-bottom:0;">--</div>
-          <button id="btnNavDest" onclick="openNavDest()" style="padding:6px 10px; background:#1a3a6a; border:1px solid #2f6cff; color:#7fb3ff; font-family:inherit; font-size:11px; font-weight:700; cursor:pointer; border-radius:2px; white-space:nowrap; flex-shrink:0;">&#9654; NAV</button>
-        </div>
-        <div class="inc-address-detail" id="incCity"></div>
-        <div class="inc-address-detail inc-cross" id="incCross"></div>
-        <div class="inc-address-detail inc-callback" id="incCallback"></div>
-        <div class="inc-address-detail inc-callback" id="incCbFromNote" style="display:none;"></div>
-        <div class="inc-notes-container" id="incNotesContainer" style="display:none;">
-          <div class="inc-notes-label">DISPATCH NOTES</div>
-          <div class="inc-notes-text" id="incNotes"></div>
-        </div>
-        <div class="inc-times" id="incTimes">
-          <div class="inc-time-item"><span class="inc-time-label">DISP:</span><span class="inc-time-value" id="incTimeDisp">--:--</span></div>
-          <div class="inc-time-item"><span class="inc-time-label">ENRT:</span><span class="inc-time-value" id="incTimeEnrt">--:--</span></div>
-          <div class="inc-time-item"><span class="inc-time-label">OS:</span><span class="inc-time-value" id="incTimeOS">--:--</span></div>
-          <div class="inc-time-item" id="incTimeTRow" style="display:none;"><span class="inc-time-label">TRANS:</span><span class="inc-time-value" id="incTimeTrans">--:--</span></div>
-          <div class="inc-time-item" id="incTimeTHRow" style="display:none;"><span class="inc-time-label">AT HOSP:</span><span class="inc-time-value" id="incTimeTH">--:--</span></div>
-          <div class="inc-time-item" id="incTimeElapsedRow" style="display:none;"><span class="inc-time-label">FOR:</span><span class="inc-time-value" id="incTimeElapsed" style="color:#f0a040;">--</span></div>
-        </div>
-        <div class="inc-units" id="incUnits"></div>
-        <div id="destQuickRow" class="dest-quick-row" style="display:none;"></div>
-        <button id="btnHandoff" class="btn-handoff" style="display:none;">PATIENT HANDOFF</button>
-      </div>
-    </div>
 
-    <!-- NEXT CALL strip — Phase 2E stacked assignment -->
-    <div id="nextCallPanel" style="display:none;" class="next-call-panel">
-      <div class="next-call-hdr">
-        <span class="next-call-lbl">&#9654; NEXT CALL</span>
-        <span id="nextCallCount" class="next-call-count"></span>
-        <button id="nextCallAck" class="next-call-ack-btn" onclick="ackNextCall()">ACK</button>
-      </div>
-      <div class="next-call-body">
-        <span id="nextCallPri" class="inc-priority"></span>
-        <span id="nextCallType" class="next-call-type"></span>
-        <span id="nextCallDest" class="next-call-dest"></span>
-      </div>
-      <div id="nextCallScene" style="display:none;margin-top:2px;padding:0 2px;display:flex;align-items:center;gap:6px;">
-        <span id="nextCallSceneText" style="font-size:10px;color:#8b949e;flex:1;"></span>
-        <button id="btnNavNextCall" onclick="openNavNextCall()" style="padding:2px 7px;background:#1a3a6a;border:1px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;flex-shrink:0;">NAV</button>
-      </div>
-      <div id="nextCallNote" style="display:none;font-size:11px;color:#c9d1d9;margin-top:3px;padding:2px 2px;font-style:italic;"></div>
-      <div id="nextCallRows"></div>
-    </div>
+        <!-- NEXT CALL strip -->
+        <div id="nextCallPanel" style="display:none;" class="next-call-panel">
+          <div class="next-call-hdr">
+            <span class="next-call-lbl">&#9654; NEXT CALL</span>
+            <span id="nextCallCount" class="next-call-count"></span>
+            <button id="nextCallAck" class="next-call-ack-btn" onclick="ackNextCall()">ACK</button>
+          </div>
+          <div class="next-call-body">
+            <span id="nextCallPri" class="inc-priority"></span>
+            <span id="nextCallType" class="next-call-type"></span>
+            <span id="nextCallDest" class="next-call-dest"></span>
+          </div>
+          <div id="nextCallScene" style="display:none;margin-top:2px;padding:0 2px;display:flex;align-items:center;gap:6px;">
+            <span id="nextCallSceneText" style="font-size:10px;color:#8b949e;flex:1;"></span>
+            <button id="btnNavNextCall" onclick="openNavNextCall()" style="padding:2px 7px;background:#1a3a6a;border:1px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;flex-shrink:0;">NAV</button>
+          </div>
+          <div id="nextCallNote" style="display:none;font-size:11px;color:#c9d1d9;margin-top:3px;padding:2px 2px;font-style:italic;"></div>
+          <div id="nextCallRows"></div>
+        </div>
+      </div><!-- end #tabMyCall -->
 
-    <!-- Status Update Buttons (Change 5: 2x2 grid primary + secondary row) -->
-    <div class="field-status-grid">
-      <button class="field-status-btn field-status-de" data-status="DE">ENROUTE</button>
-      <button class="field-status-btn field-status-os" data-status="OS">ON SCENE</button>
-      <button class="field-status-btn field-status-t"  data-status="T">TRANSPORT</button>
-      <button class="field-status-btn field-status-av" data-status="AV">AVAILABLE</button>
-    </div>
-    <div class="field-status-secondary">
-      <button class="field-status-btn field-status-th" id="fieldTHBtn" data-status="TH">AT HOSP</button>
-      <button class="field-status-btn field-status-iq" data-status="IQ">IN QTRS</button>
-      <button class="field-status-btn field-status-oos" data-status="OOS">OOS</button>
-      <button class="field-status-btn field-status-brk" data-status="BRK">BREAK</button>
-      <button class="field-status-btn field-status-loc" id="fieldLocBtn" onclick="toggleFieldLocPanel()">LOC</button>
-    </div>
+      <!-- ─── TAB: STATUS ─── -->
+      <div id="tabStatus" class="tab-content">
+        <!-- Primary 2x2 status grid -->
+        <div class="field-status-grid">
+          <button class="field-status-btn field-status-de" data-status="DE">ENROUTE</button>
+          <button class="field-status-btn field-status-os" data-status="OS">ON SCENE</button>
+          <button class="field-status-btn field-status-t"  data-status="T">TRANSPORT</button>
+          <button class="field-status-btn field-status-av" data-status="AV">AVAILABLE</button>
+        </div>
+        <!-- Secondary status row -->
+        <div class="field-status-secondary">
+          <button class="field-status-btn field-status-th" id="fieldTHBtn" data-status="TH">AT HOSP</button>
+          <button class="field-status-btn field-status-iq" data-status="IQ">IN QTRS</button>
+          <button class="field-status-btn field-status-oos" data-status="OOS">OOS</button>
+          <button class="field-status-btn field-status-brk" data-status="BRK">BREAK</button>
+          <button class="field-status-btn field-status-loc" id="fieldLocBtn" onclick="toggleFieldLocPanel()">LOC</button>
+        </div>
+        <!-- LOC input panel -->
+        <div id="fieldLocPanel" class="field-loc-panel" style="display:none;">
+          <input id="fieldLocInput" placeholder="ADDRESS OR SHORTCODE" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+          <button onclick="setFieldLoc()">SET</button>
+          <button class="loc-clr-btn" onclick="clearFieldLoc()">CLR</button>
+          <button class="loc-close-btn" onclick="closeFieldLocPanel()">&#x2715;</button>
+        </div>
+        <!-- Dispatch message feed mirror -->
+        <div style="flex-shrink:0;padding:6px 12px 4px;background:var(--bg);border-top:1px solid var(--line);">
+          <div class="tab-status-feed-label">DISPATCH FEED</div>
+        </div>
+        <div id="tabStatusFeed"></div>
+      </div><!-- end #tabStatus -->
 
-    <!-- LOC input panel — slide-up when LOC button tapped -->
-    <div id="fieldLocPanel" class="field-loc-panel" style="display:none;">
-      <input id="fieldLocInput" placeholder="ADDRESS OR SHORTCODE" autocomplete="off" autocorrect="off" autocapitalize="characters" />
-      <button onclick="setFieldLoc()">SET</button>
-      <button class="loc-clr-btn" onclick="clearFieldLoc()">CLR</button>
-      <button class="loc-close-btn" onclick="closeFieldLocPanel()">✕</button>
-    </div>
+      <!-- ─── TAB: MAP ─── -->
+      <div id="tabMap" class="tab-content" style="position:relative;">
+        <div id="fieldMapTabEl"></div>
+        <div id="fmapTabStatus" style="flex-shrink:0;padding:6px 12px;font-size:10px;color:#8b949e;background:#0d1117;border-top:1px solid #1f2b3d;min-height:24px;"></div>
+        <div style="position:absolute;top:8px;right:8px;z-index:1000;">
+          <button id="fmapTabNavBtn" onclick="openFieldMapTabNav()" style="display:none;padding:6px 10px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#5ba3e6;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;">OPEN IN MAPS</button>
+        </div>
+      </div><!-- end #tabMap -->
 
-    <!-- Command Bar Area (Change 6: collapsible) -->
-    <div class="cmd-area">
-      <button id="cmdToggleBtn" class="cmd-toggle-btn" onclick="toggleCmdArea()">&#9660; COMMAND</button>
-      <div id="cmdCollapsible">
-        <div class="cmd-feed" id="cmdFeed">
-          <div class="cmd-feed-line"><span class="cmd-sys">HOSCAD FIELD READY. TYPE HELP FOR COMMANDS.</span></div>
+      <!-- ─── TAB: ROSTER ─── -->
+      <div id="tabRoster" class="tab-content">
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span style="font-weight:900;letter-spacing:.08em;">ACTIVE UNITS</span>
+          <span id="rosterUnitCount" style="color:var(--text);font-weight:700;"></span>
         </div>
-        <div class="cmd-input-row">
-          <input id="cmdInput" placeholder="COMMAND..." maxlength="300" autocomplete="off" />
-          <button id="btnCmdSend">SEND</button>
+        <div id="rosterContent" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+          <div style="color:var(--muted);text-align:center;padding:24px;font-size:12px;">WAITING FOR DATA...</div>
         </div>
-        <div class="cmd-phrases-row">
-          <button class="cmd-phrase-btn" data-phrase="ON SCENE">ON SCENE</button>
-          <button class="cmd-phrase-btn" data-phrase="PATIENT STABLE">PT STABLE</button>
-          <button class="cmd-phrase-btn" data-phrase="REQUESTING ADDITIONAL">REQ ADD</button>
-          <button class="cmd-phrase-btn" data-phrase="ETA 5 MIN">ETA 5</button>
-          <button class="cmd-phrase-btn" data-phrase="ENROUTE">ENROUTE</button>
-        </div>
-        <div class="cmd-quick-row">
-          <button class="cmd-quick-btn" data-cmd="10-4">10-4</button>
-          <button class="cmd-quick-btn" data-cmd="WHO">WHO</button>
-          <button class="cmd-quick-btn" data-cmd="UR">UR</button>
-          <button class="cmd-quick-btn" data-cmd="HOLDING">HOLDING</button>
-          <button class="cmd-quick-btn" data-cmd="CLR">CLR</button>
-          <button class="cmd-quick-btn" data-cmd="STATUS">STATUS</button>
-          <button class="cmd-quick-btn" data-cmd="MSG STA">MSG STA</button>
-          <button class="cmd-quick-btn" data-cmd="REFRESH">REFRESH</button>
-          <button class="cmd-quick-btn" onclick="openFieldMap();return false;" style="color:#5ba3e6;">MAP</button>
-          <button class="cmd-quick-btn" onclick="fieldGpsView();return false;" style="color:#4caf50;" title="Show GPS position on map (no board update)">GPS</button>
-          <button class="cmd-quick-btn" onclick="fieldGpsUpdateLocation();return false;" style="color:#ffd700;" title="Send GPS location to board">GPSUL</button>
-          <button class="cmd-quick-btn" onclick="openFieldIncHist();return false;" style="color:#a08cff;" title="View incident history for this unit">INCLOG</button>
-        </div>
-      </div>
-    </div>
-  </div>
+      </div><!-- end #tabRoster -->
+
+      <!-- ─── TAB: MORE ─── -->
+      <div id="tabMore" class="tab-content">
+        <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+          <!-- Unit identity -->
+          <div style="padding:12px 16px;border-bottom:2px solid var(--line);background:var(--panel2);flex-shrink:0;">
+            <div style="font-size:10px;color:var(--muted);letter-spacing:.08em;margin-bottom:4px;">LOGGED IN AS</div>
+            <div id="moreCallsignLabel" style="font-size:20px;font-weight:900;color:var(--green);"></div>
+            <div id="moreUnitInfo" style="font-size:11px;color:var(--muted);margin-top:2px;"></div>
+          </div>
+
+          <!-- DISPLAY controls -->
+          <div class="more-section-label">DISPLAY</div>
+          <button class="more-row" id="moreWakeBtn" onclick="toggleWakeLock()">
+            <div><div class="more-row-label">WAKE LOCK</div><div class="more-row-sub">KEEP SCREEN ON + ENABLE ALERTS</div></div>
+            <span class="more-row-arrow" id="moreWakeStatus">OFF</span>
+          </button>
+          <button class="more-row" id="moreNightBtn" onclick="toggleNightMode()">
+            <div><div class="more-row-label">NIGHT MODE</div><div class="more-row-sub">REDUCE BRIGHTNESS</div></div>
+            <span class="more-row-arrow" id="moreNightStatus">AUTO</span>
+          </button>
+          <button class="more-row" onclick="pollOnce();feedSys('REFRESHING...');">
+            <div><div class="more-row-label">REFRESH</div><div class="more-row-sub">FORCE POLL NOW</div></div>
+            <span class="more-row-arrow">&#8635;</span>
+          </button>
+
+          <!-- TOOLS -->
+          <div class="more-section-label">TOOLS</div>
+          <button class="more-row" onclick="showInfoOverlay()">
+            <div>
+              <div class="more-row-label">HOSPITAL REFERENCE
+                <span id="fieldMsgBadge" style="display:none;background:#2f6cff;color:#fff;border-radius:10px;font-size:10px;font-weight:900;padding:1px 6px;margin-left:6px;vertical-align:middle;">0</span>
+              </div>
+              <div class="more-row-sub">FACILITIES, CAPABILITIES, DESTINATIONS</div>
+            </div>
+            <span class="more-row-arrow">&#9654;</span>
+          </button>
+          <button class="more-row" onclick="openFieldIncHist()">
+            <div><div class="more-row-label">INCIDENT LOG</div><div class="more-row-sub">YOUR RECENT CALLS</div></div>
+            <span class="more-row-arrow">&#9654;</span>
+          </button>
+          <button class="more-row" onclick="fieldGpsUpdateLocation()">
+            <div><div class="more-row-label">GPS UPDATE</div><div class="more-row-sub">SEND LOCATION TO BOARD NOW</div></div>
+            <span class="more-row-arrow">&#9654;</span>
+          </button>
+
+          <!-- ACCOUNT -->
+          <div class="more-section-label">ACCOUNT</div>
+          <button class="more-row" onclick="openPinChangeDialog()">
+            <div><div class="more-row-label">CHANGE PIN</div><div class="more-row-sub">UPDATE YOUR CAD PIN</div></div>
+            <span class="more-row-arrow">&#9654;</span>
+          </button>
+          <button class="more-row" onclick="openFieldBugReport()">
+            <div><div class="more-row-label" style="color:#e09000;">REPORT ISSUE</div><div class="more-row-sub">SUBMIT BUG REPORT</div></div>
+            <span class="more-row-arrow">&#9654;</span>
+          </button>
+          <button class="more-row" id="btnLogout">
+            <div><div class="more-row-label" style="color:var(--red);">LOG OUT</div><div class="more-row-sub">END SESSION</div></div>
+            <span class="more-row-arrow" style="color:var(--red);">&#9654;</span>
+          </button>
+
+          <!-- COMMAND CONSOLE (collapsible) -->
+          <div class="more-section-label">COMMAND CONSOLE</div>
+          <button id="cmdToggleBtn" class="cmd-toggle-btn" onclick="toggleCmdArea()">&#9660; EXPAND CONSOLE</button>
+          <div id="cmdCollapsible" class="collapsed">
+            <div class="cmd-feed" id="cmdFeed">
+              <div class="cmd-feed-line"><span class="cmd-sys">HOSCAD FIELD READY. TYPE HELP FOR COMMANDS.</span></div>
+            </div>
+            <div class="cmd-input-row">
+              <input id="cmdInput" placeholder="COMMAND..." maxlength="300" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+              <button id="btnCmdSend">SEND</button>
+            </div>
+            <div class="cmd-phrases-row">
+              <button class="cmd-phrase-btn" data-phrase="ON SCENE">ON SCENE</button>
+              <button class="cmd-phrase-btn" data-phrase="PATIENT STABLE">PT STABLE</button>
+              <button class="cmd-phrase-btn" data-phrase="REQUESTING ADDITIONAL">REQ ADD</button>
+              <button class="cmd-phrase-btn" data-phrase="ETA 5 MIN">ETA 5</button>
+              <button class="cmd-phrase-btn" data-phrase="ENROUTE">ENROUTE</button>
+            </div>
+            <div class="cmd-quick-row">
+              <button class="cmd-quick-btn" data-cmd="10-4">10-4</button>
+              <button class="cmd-quick-btn" data-cmd="WHO">WHO</button>
+              <button class="cmd-quick-btn" data-cmd="UR">UR</button>
+              <button class="cmd-quick-btn" data-cmd="HOLDING">HOLDING</button>
+              <button class="cmd-quick-btn" data-cmd="CLR">CLR</button>
+              <button class="cmd-quick-btn" data-cmd="STATUS">STATUS</button>
+              <button class="cmd-quick-btn" data-cmd="MSG STA">MSG STA</button>
+              <button class="cmd-quick-btn" data-cmd="REFRESH">REFRESH</button>
+              <button class="cmd-quick-btn" onclick="switchTab('map');return false;" style="color:#5ba3e6;">MAP</button>
+              <button class="cmd-quick-btn" onclick="switchTab('map');return false;" style="color:#4caf50;" title="Show GPS position on map">GPS</button>
+              <button class="cmd-quick-btn" onclick="fieldGpsUpdateLocation();return false;" style="color:#ffd700;" title="Send GPS location to board">GPSUL</button>
+              <button class="cmd-quick-btn" onclick="openFieldIncHist();return false;" style="color:#a08cff;" title="View incident history">INCLOG</button>
+            </div>
+          </div><!-- end #cmdCollapsible -->
+        </div><!-- end inner scroll div -->
+      </div><!-- end #tabMore -->
+
+      <!-- BOTTOM NAV BAR (hidden until login) -->
+      <nav class="bottom-nav" id="bottomNav">
+        <button class="nav-tab active" id="navMyCall" onclick="switchTab('mycall')">
+          <span class="nav-tab-icon">&#128222;</span>
+          <span>MY CALL</span>
+        </button>
+        <button class="nav-tab" id="navStatus" onclick="switchTab('status')">
+          <span class="nav-tab-icon">&#9654;</span>
+          <span>STATUS</span>
+        </button>
+        <button class="nav-tab" id="navMap" onclick="switchTab('map')">
+          <span class="nav-tab-icon">&#9974;</span>
+          <span>MAP</span>
+        </button>
+        <button class="nav-tab" id="navRoster" onclick="switchTab('roster')">
+          <span class="nav-tab-icon">&#9776;</span>
+          <span>ROSTER</span>
+        </button>
+        <button class="nav-tab" id="navMore" onclick="switchTab('more')">
+          <span class="nav-tab-badge" id="moreTabBadge"></span>
+          <span class="nav-tab-icon">&#8943;</span>
+          <span>MORE</span>
+        </button>
+      </nav>
+
+    </div><!-- end .field-tab-shell -->
+  </div><!-- end #fieldPanel -->
 </div>
 
 <!-- Confirm Dialog -->
@@ -1435,6 +1742,241 @@
   const offlineIndicator = document.getElementById('offlineIndicator');
 
   // ════════════════════════════════════════════════════════════════════════════
+  // PHASE 1: TAB NAVIGATION STATE
+  // ════════════════════════════════════════════════════════════════════════════
+  var _activeTab = 'mycall';
+  var _mapTabInitialized = false;
+  var _fieldMapTabObj = null;
+  var _fieldMapTabLayers = [];
+  var _fmapTabNavUrl = null;
+  var _tabStatusFeedEl = document.getElementById('tabStatusFeed');
+
+  var TAB_MAP = {
+    'mycall': { content: 'tabMyCall',  nav: 'navMyCall'  },
+    'status': { content: 'tabStatus', nav: 'navStatus' },
+    'map':    { content: 'tabMap',    nav: 'navMap'    },
+    'roster': { content: 'tabRoster', nav: 'navRoster' },
+    'more':   { content: 'tabMore',   nav: 'navMore'   }
+  };
+
+  function switchTab(tabId) {
+    if (!TAB_MAP[tabId]) return;
+    Object.keys(TAB_MAP).forEach(function(id) {
+      var el = document.getElementById(TAB_MAP[id].content);
+      if (el) el.classList.remove('active');
+      var nav = document.getElementById(TAB_MAP[id].nav);
+      if (nav) nav.classList.remove('active');
+    });
+    var target = document.getElementById(TAB_MAP[tabId].content);
+    if (target) target.classList.add('active');
+    var navBtn = document.getElementById(TAB_MAP[tabId].nav);
+    if (navBtn) navBtn.classList.add('active');
+    _activeTab = tabId;
+
+    if (tabId === 'map') {
+      if (!_mapTabInitialized) {
+        _mapTabInitialized = true;
+        _loadLeaflet(function() { _renderFieldMapTab(); });
+      } else if (_fieldMapTabObj) {
+        setTimeout(function() { _fieldMapTabObj.invalidateSize(); }, 50);
+      }
+    }
+    if (tabId === 'roster') _renderRosterTab();
+    if (tabId === 'more')   _updateMoreTab();
+    if (tabId === 'status') { _unreadMessages = 0; updateMsgBadge(); }
+
+    try { localStorage.setItem('hoscadfield_tab', tabId); } catch(e) {}
+  }
+
+  function _autoSwitchOnDispatch() {
+    if (_activeTab !== 'mycall') switchTab('mycall');
+  }
+
+  function _renderRosterTab() {
+    var content = document.getElementById('rosterContent');
+    var countEl = document.getElementById('rosterUnitCount');
+    if (!content) return;
+    if (!_lastState || !_lastState.units) {
+      content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px;font-size:12px;">NO DATA &#8212; WAITING FOR POLL</div>';
+      return;
+    }
+    var activeUnits = (_lastState.units || []).filter(function(u) { return u.active; });
+    if (countEl) countEl.textContent = activeUnits.length;
+    if (!activeUnits.length) {
+      content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px;font-size:12px;">NO ACTIVE UNITS</div>';
+      return;
+    }
+    var STATUS_SORT = { D:0, DE:1, OS:2, T:3, TH:4, AV:5, IQ:6, BRK:7, OOS:8, UV:9 };
+    activeUnits.sort(function(a, b) {
+      if (a.unit_id === _cadCallsign) return -1;
+      if (b.unit_id === _cadCallsign) return 1;
+      var sa = STATUS_SORT[a.status] !== undefined ? STATUS_SORT[a.status] : 99;
+      var sb = STATUS_SORT[b.status] !== undefined ? STATUS_SORT[b.status] : 99;
+      if (sa !== sb) return sa - sb;
+      return (a.unit_id || '').localeCompare(b.unit_id || '');
+    });
+    var html = activeUnits.map(function(u) {
+      var isSelf = u.unit_id === _cadCallsign;
+      var incText = u.incident ? ('INC ' + String(u.incident).replace(/^\d{2}-0*/, '')) : '';
+      var noteText = (u.note && !incText) ? u.note : '';
+      var statusClass = 'cad-status-' + (u.status || 'UV');
+      return '<div class="roster-unit-row" style="' + (isSelf ? 'background:rgba(47,108,255,0.07);' : '') + '">' +
+        '<span class="roster-unit-id">' + esc(u.unit_id) + (isSelf ? ' &#9654;' : '') + '</span>' +
+        '<span class="roster-unit-status ' + statusClass + '">' + esc(u.status || '?') + '</span>' +
+        '<span class="roster-unit-inc">' + esc(incText) + '</span>' +
+        '<span class="roster-unit-note">' + esc(noteText) + '</span>' +
+        '</div>';
+    }).join('');
+    content.innerHTML = html;
+  }
+
+  function _updateMoreTab() {
+    var moreCS = document.getElementById('moreCallsignLabel');
+    if (moreCS) moreCS.textContent = _cadCallsign || '';
+    var moreUI = document.getElementById('moreUnitInfo');
+    if (moreUI) moreUI.textContent = _cadUnitInfo || '';
+    var wakeStatus = document.getElementById('moreWakeStatus');
+    if (wakeStatus) wakeStatus.textContent = _wakeLock ? 'ON' : 'OFF';
+    var nightStatus = document.getElementById('moreNightStatus');
+    if (nightStatus) {
+      if (_nightOverride === true) nightStatus.textContent = 'ON';
+      else if (_nightOverride === false) nightStatus.textContent = 'OFF';
+      else nightStatus.textContent = 'AUTO';
+    }
+  }
+
+  function _renderFieldMapTab() {
+    var el = document.getElementById('fieldMapTabEl');
+    var stat = document.getElementById('fmapTabStatus');
+    var navBtn = document.getElementById('fmapTabNavBtn');
+    if (!el || !window.L) return;
+
+    var center = [44.058, -121.315];
+    var curIncId = _currentIncident || '';
+    var incs  = (_lastState && _lastState.incidents) || [];
+    var units = (_lastState && _lastState.units)     || [];
+    var curInc = curIncId ? incs.find(function(i) { return i.incident_id === curIncId; }) : null;
+
+    if (!_fieldMapTabObj) {
+      _fieldMapTabObj = L.map(el, { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_fieldMapTabObj);
+    } else {
+      _fieldMapTabLayers.forEach(function(ly) { try { _fieldMapTabObj.removeLayer(ly); } catch(e2) {} });
+      _fieldMapTabLayers = [];
+    }
+    setTimeout(function() { if (_fieldMapTabObj) _fieldMapTabObj.invalidateSize(); }, 120);
+
+    function addTabLayer(ly) { ly.addTo(_fieldMapTabObj); _fieldMapTabLayers.push(ly); return ly; }
+
+    var bounds = [];
+
+    // Unit markers — same logic as overlay map
+    var activeUnits = units.filter(function(u) { return u.active; });
+    activeUnits.forEach(function(u) {
+      var pos = null;
+      var locMatch = (u.note || '').match(/\[LOC:(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\]/i);
+      if (locMatch) { pos = [parseFloat(locMatch[1]), parseFloat(locMatch[2])]; }
+      if (!pos) { pos = (_SUGGEST_AGENCY_COORDS_FIELD && _SUGGEST_AGENCY_COORDS_FIELD[String(u.agency_id || '').toUpperCase()]) || null; }
+      if (!pos) return;
+      var isSelf = (u.unit_id === _cadCallsign);
+      addTabLayer(L.circleMarker(pos, {
+        radius: isSelf ? 10 : 7,
+        color: isSelf ? '#5ba3e6' : '#ffd66b',
+        fillColor: isSelf ? '#1a3a5c' : '#3a2800',
+        fillOpacity: 0.85, weight: 2
+      }).bindPopup('<b>' + esc(u.unit_id) + '</b><br>' + esc(u.status || '') +
+        (u.incident ? '<br>INC: ' + esc(String(u.incident).replace(/^\d{2}-0*/, '')) : '')));
+      bounds.push(pos);
+    });
+
+    // GPS dot
+    if (_fieldGpsPos) {
+      addTabLayer(L.circleMarker(_fieldGpsPos, {
+        radius: 10, color: '#00e5ff', fillColor: '#001a2e', fillOpacity: 0.9, weight: 3, dashArray: '4 2'
+      }).bindPopup('<b>YOU ARE HERE</b>'));
+      bounds.push(_fieldGpsPos);
+    }
+
+    // Incident markers
+    _fmapTabNavUrl = null;
+    if (navBtn) navBtn.style.display = 'none';
+    var geoQueue = [];
+
+    var activeIncs = incs.filter(function(i) {
+      return i.status === 'ACTIVE' || i.status === 'QUEUED' || i.status === 'IQ';
+    });
+    activeIncs.forEach(function(inc) {
+      if (!inc.scene_address) return;
+      var addr = inc.scene_address.trim();
+      var isCur = (inc.incident_id === curIncId);
+      if (isCur) {
+        _fmapTabNavUrl = 'https://maps.google.com/?q=' + encodeURIComponent(addr);
+        if (navBtn) navBtn.style.display = '';
+      }
+      var color = isCur ? '#ff4444' : '#ff9900';
+      var fillColor = isCur ? '#8b0000' : '#7a4300';
+      var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
+      var normAddr = addr.toUpperCase().trim();
+      if (_FIELD_KNOWN_COORDS && _FIELD_KNOWN_COORDS[normAddr]) {
+        var kc = _FIELD_KNOWN_COORDS[normAddr];
+        var mk = addTabLayer(L.circleMarker(kc, { radius: 12, color: color, fillColor: fillColor, fillOpacity: 0.9, weight: 3 }).bindPopup(label));
+        if (isCur) mk.openPopup();
+        bounds.push(kc);
+      } else {
+        geoQueue.push({ inc: inc, addr: addr, isCur: isCur, color: color, fillColor: fillColor, label: label });
+      }
+    });
+
+    // Fit bounds
+    if (bounds.length > 1) _fieldMapTabObj.fitBounds(bounds, { padding: [30, 30] });
+    else if (bounds.length === 1) _fieldMapTabObj.setView(bounds[0], curInc ? 14 : 12);
+    else _fieldMapTabObj.setView(center, 12);
+
+    if (stat) stat.textContent = curInc && curInc.scene_address ? ('SCENE: ' + curInc.scene_address.trim()) : (activeIncs.length ? (activeIncs.length + ' ACTIVE INCIDENTS') : 'NO ACTIVE INCIDENTS');
+
+    // Geocode queue — Nominatim 1 req/1.5s
+    if (geoQueue.length) {
+      var idx = 0;
+      function _tabGeoNext() {
+        if (idx >= geoQueue.length || !_fieldMapTabObj) return;
+        var item = geoQueue[idx++];
+        var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
+                         .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
+        if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
+        fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data && data[0] && _fieldMapTabObj) {
+              var lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+              var mk = addTabLayer(L.circleMarker([lat, lon], { radius: 12, color: item.color, fillColor: item.fillColor, fillOpacity: 0.9, weight: 3 }).bindPopup(item.label));
+              if (item.isCur) mk.openPopup();
+              bounds.push([lat, lon]);
+              if (bounds.length > 1) _fieldMapTabObj.fitBounds(bounds, { padding: [30, 30] });
+              else _fieldMapTabObj.setView([lat, lon], 14);
+            }
+            setTimeout(_tabGeoNext, 1500);
+          })
+          .catch(function() { setTimeout(_tabGeoNext, 1500); });
+      }
+      _tabGeoNext();
+    }
+  }
+
+  function openFieldMapTabNav() {
+    if (_fmapTabNavUrl) window.open(_fmapTabNavUrl, '_blank');
+  }
+
+  function _maybeRefreshMapTab() {
+    if (_activeTab === 'map' && _fieldMapTabObj && _mapTabInitialized) {
+      _renderFieldMapTab();
+    }
+  }
+
+  // Expose for inline onclick handlers
+  window.switchTab = switchTab;
+  window.openFieldMapTabNav = openFieldMapTabNav;
+
+  // ════════════════════════════════════════════════════════════════════════════
   // AUDIO TONES - Different sounds for different events
   // Field CAD needs MORE audio feedback than dispatch since crews aren't watching
   // ════════════════════════════════════════════════════════════════════════════
@@ -1512,6 +2054,8 @@
     _dispatchAlertCount = 1;
     var ackEl = document.getElementById('dispatchAckBtn');
     if (ackEl) { ackEl.style.display = 'inline-block'; ackEl.textContent = 'ACK (5 MORE)'; }
+    // Auto-switch to MY CALL tab so crew sees the incident immediately
+    _autoSwitchOnDispatch();
     _dispatchAlertTimer = setInterval(function() {
       _dispatchAlertCount++;
       _toneDispatch();
@@ -1705,6 +2249,14 @@
     cmdFeed.appendChild(div);
     while (cmdFeed.children.length > 300) cmdFeed.removeChild(cmdFeed.firstChild);
     cmdFeed.scrollTop = cmdFeed.scrollHeight;
+    // Mirror to STATUS tab dispatch feed
+    var sfEl = _tabStatusFeedEl || document.getElementById('tabStatusFeed');
+    if (sfEl) {
+      var div2 = div.cloneNode(true);
+      sfEl.appendChild(div2);
+      while (sfEl.children.length > 100) sfEl.removeChild(sfEl.firstChild);
+      sfEl.scrollTop = sfEl.scrollHeight;
+    }
   }
 
   function feedSys(text) { feedAppend('<span class="cmd-sys">' + esc(text) + '</span>'); }
@@ -2697,6 +3249,7 @@
     _nightOverride = !isOn;
     document.body.classList.toggle('night-mode', !isOn);
     try { localStorage.setItem('hoscadfield_nightoverride', String(_nightOverride)); } catch(e) {}
+    _updateMoreTab();
   }
 
   function loadNightOverride() {
@@ -2714,15 +3267,18 @@
   // ════════════════════════════════════════════════════════════════════════════
   let _wakeLock = null;
 
-  async function toggleWakeLock() {
-    const btn = document.getElementById('btnWake');
+  function _setWakeStatus(on) {
+    var ws = document.getElementById('moreWakeStatus');
+    if (ws) ws.textContent = on ? 'ON' : 'OFF';
+  }
 
-    // Request notification permission now — this IS a direct user gesture so iOS allows it
+  async function toggleWakeLock() {
+    // Request notification permission — must be inside a direct user gesture (iOS)
     if ('Notification' in window && Notification.permission === 'default') {
       try { await Notification.requestPermission(); } catch(e) {}
     }
 
-    // Request GPS location permission — needed for GPS tracking feature
+    // Request GPS location permission
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         function() { feedSys('GPS: LOCATION PERMISSION GRANTED.'); },
@@ -2732,11 +3288,11 @@
     }
 
     if (_wakeLock) {
-      // Turn off
       try { await _wakeLock.release(); } catch(e) {}
       _wakeLock = null;
-      if (btn) { btn.classList.remove('wake-active'); btn.textContent = 'WAKE'; }
+      _setWakeStatus(false);
       feedSys('SCREEN WAKE LOCK OFF.');
+      _updateMoreTab();
       return;
     }
 
@@ -2747,29 +3303,30 @@
 
     try {
       _wakeLock = await navigator.wakeLock.request('screen');
-      if (btn) { btn.classList.add('wake-active'); btn.textContent = 'WAKE ON'; }
-      feedSys('SCREEN WAKE LOCK ON — SCREEN WILL STAY AWAKE.');
+      _setWakeStatus(true);
+      feedSys('SCREEN WAKE LOCK ON \u2014 SCREEN WILL STAY AWAKE.');
 
-      // Re-acquire after page visibility change (wake lock releases when tab is hidden)
       _wakeLock.addEventListener('release', function() {
         _wakeLock = null;
-        if (btn) { btn.classList.remove('wake-active'); btn.textContent = 'WAKE'; }
+        _setWakeStatus(false);
+        _updateMoreTab();
       });
 
       document.addEventListener('visibilitychange', async function reacquire() {
         if (document.visibilityState === 'visible' && !_wakeLock) {
           try {
             _wakeLock = await navigator.wakeLock.request('screen');
-            if (btn) { btn.classList.add('wake-active'); btn.textContent = 'WAKE ON'; }
+            _setWakeStatus(true);
             _wakeLock.addEventListener('release', function() {
               _wakeLock = null;
-              if (btn) { btn.classList.remove('wake-active'); btn.textContent = 'WAKE'; }
+              _setWakeStatus(false);
+              _updateMoreTab();
             });
           } catch(e) {}
         }
-        // Stop listening once wake lock is off
         if (!_wakeLock) document.removeEventListener('visibilitychange', reacquire);
       });
+      _updateMoreTab();
     } catch(e) {
       feedSys('WAKE LOCK FAILED: ' + (e.message || e));
     }
@@ -2865,12 +3422,19 @@
 
   function updateMsgBadge() {
     const badge = document.getElementById('fieldMsgBadge');
-    if (!badge) return;
-    if (_unreadMessages > 0) {
-      badge.textContent = _unreadMessages;
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
+    if (badge) {
+      if (_unreadMessages > 0) {
+        badge.textContent = _unreadMessages;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    // Also show on MORE tab nav button
+    var tabBadge = document.getElementById('moreTabBadge');
+    if (tabBadge) {
+      tabBadge.textContent = _unreadMessages > 0 ? _unreadMessages : '';
+      tabBadge.classList.toggle('visible', _unreadMessages > 0);
     }
   }
 
@@ -2880,12 +3444,26 @@
   function showField(callsign) {
     loginScreen.style.display = 'none';
     fieldPanel.classList.remove('hidden');
+    fieldPanel.style.display = 'flex';
     callsignLabel.textContent = callsign;
+
+    // Show bottom nav
+    var nav = document.getElementById('bottomNav');
+    if (nav) nav.classList.add('visible');
+
+    // Restore last saved tab, default to STATUS when no active call
+    var savedTab = '';
+    try { savedTab = localStorage.getItem('hoscadfield_tab') || ''; } catch(e) {}
+    var startTab = savedTab || (_currentIncident ? 'mycall' : 'status');
+    if (!TAB_MAP[startTab]) startTab = 'mycall';
+    switchTab(startTab);
+    _updateMoreTab();
   }
 
   function showLogin() {
     loginScreen.style.display = 'flex';
     fieldPanel.classList.add('hidden');
+    fieldPanel.style.display = 'none';
     callsignLabel.textContent = '';
     cadUnitStatus.textContent = '--';
     cadUnitStatus.className = 'cad-unit-status';
@@ -2898,6 +3476,16 @@
     panel.classList.remove('has-incident');
     document.getElementById('noIncidentView').style.display = '';
     document.getElementById('hasIncidentView').style.display = 'none';
+    // Hide bottom nav + reset tab state
+    var nav = document.getElementById('bottomNav');
+    if (nav) nav.classList.remove('visible');
+    _activeTab = 'mycall';
+    _mapTabInitialized = false;
+    if (_fieldMapTabObj) {
+      try { _fieldMapTabObj.remove(); } catch(e) {}
+      _fieldMapTabObj = null;
+      _fieldMapTabLayers = [];
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -3257,6 +3845,11 @@
         _lastStack = [];
       }
       updateNextCallPanel(_lastStack);
+
+      // Refresh active tab that depends on live state
+      if (_activeTab === 'roster') _renderRosterTab();
+      if (_activeTab === 'map')    _maybeRefreshMapTab();
+      if (_activeTab === 'more')   _updateMoreTab();
 
     } catch(e) {
       console.error('[field] Poll error:', e);
@@ -3928,12 +4521,6 @@
     showLogin();
   });
 
-  // Refresh
-  document.getElementById('btnRefresh').addEventListener('click', function() {
-    feedSys('REFRESHING...');
-    pollOnce().then(function() { feedSys('REFRESH COMPLETE.'); });
-  });
-
   // Patient Handoff (in-panel button)
   document.getElementById('btnHandoff').addEventListener('click', async function() {
     const ok = await showConfirm('PATIENT HANDOFF', 'CONFIRM PATIENT HANDOFF?\nUNIT WILL BE SET TO AVAILABLE.');
@@ -3953,14 +4540,8 @@
     }
   });
 
-  // Night mode
-  document.getElementById('btnNight').addEventListener('click', toggleNightMode);
-  document.getElementById('btnWake').addEventListener('click', toggleWakeLock);
-
-  // Hospital quick reference
-  document.getElementById('btnInfo').addEventListener('click', showInfoOverlay);
+  // Hospital quick reference close (btnInfo/btnNight/btnWake/btnChangePIN now in MORE tab via inline onclick)
   document.getElementById('btnInfoClose').addEventListener('click', closeInfoOverlay);
-  document.getElementById('btnChangePIN').addEventListener('click', openPinChangeDialog);
   // pinChangeDialog lives after this script block — delegate to document
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && document.activeElement &&
@@ -3986,10 +4567,13 @@
     if (e.key === 'Enter') document.getElementById('btnCmdSend').click();
   });
 
-  // iOS: scroll command area into view when keyboard opens
+  // iOS: ensure MORE tab is visible when command console input is focused
   cmdInput.addEventListener('focus', function() {
     setTimeout(function() {
-      var cmdArea = document.querySelector('.cmd-area');
+      if (_activeTab !== 'more') switchTab('more');
+      var cmdCollapsible = document.getElementById('cmdCollapsible');
+      if (cmdCollapsible) cmdCollapsible.classList.remove('collapsed');
+      var cmdArea = document.getElementById('cmdCollapsible');
       if (cmdArea) cmdArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 350);
   });
