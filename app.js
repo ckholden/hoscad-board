@@ -3351,9 +3351,6 @@ function openNewIncident(prefillScene) {
     unitSelect.appendChild(opt);
   });
 
-  const newIncDestEl = document.getElementById('newIncDest');
-  newIncDestEl.value = '';
-  delete newIncDestEl.dataset.addrId;
   const newIncSceneEl = document.getElementById('newIncScene');
   if (newIncSceneEl) newIncSceneEl.value = prefillScene ? prefillScene.toUpperCase() : '';
   const newIncPriorityEl = document.getElementById('newIncPriority');
@@ -3383,7 +3380,14 @@ function openNewIncident(prefillScene) {
   document.getElementById('newIncBack').style.display = 'flex';
   AddrHistory.attach('newIncScene', 'addrHistList1');
   renderIncSuggest();
-  setTimeout(() => newIncDestEl.focus(), 50);
+  setTimeout(() => { if (newIncSceneEl) newIncSceneEl.focus(); }, 50);
+}
+
+function ncUseLast() {
+  const last = AddrHistory.get()[0];
+  if (!last) { showToast('NO ADDRESS HISTORY YET.'); return; }
+  const el = document.getElementById('newIncScene');
+  if (el) { el.value = last; renderIncSuggest(); }
 }
 
 function closeNewIncident() {
@@ -3629,8 +3633,6 @@ function onIncDetChange() {
 }
 
 async function createNewIncident() {
-  const destEl = document.getElementById('newIncDest');
-  const dest = destEl.dataset.addrId || destEl.value.trim().toUpperCase();
   let note = document.getElementById('newIncNote').value.trim().toUpperCase();
   const priority = (document.getElementById('newIncPriority')?.value || '').trim().toUpperCase();
   const unitId = document.getElementById('newIncUnit').value;
@@ -3639,25 +3641,25 @@ async function createNewIncident() {
   const callback = (document.getElementById('newIncCallback')?.value || '').trim();
   const mutualAid = document.getElementById('newIncMA')?.checked || false;
 
-  if (!dest) {
-    showAlert('ERROR', 'LOCATION REQUIRED. ENTER RECEIVING FACILITY CODE (E.G. STCH, BEND).');
+  if (!sceneAddress) {
+    showAlert('ERROR', 'SCENE ADDRESS REQUIRED.');
     return;
   }
 
-  // Duplicate dispatch guard — warn if same destination+type created in last 30 seconds
+  // Duplicate dispatch guard — warn if same scene+type created in last 30 seconds
   const thirtySecAgo = Date.now() - 30000;
   const dupe = (STATE && STATE.incidents || []).find(inc => {
     if (inc.status === 'CLOSED') return false;
     const created = inc.created_at ? new Date(inc.created_at).getTime() : 0;
     if (created < thirtySecAgo) return false;
-    const sameDest = (inc.destination || '').toUpperCase() === dest.toUpperCase();
+    const sameScene = (inc.scene_address || inc.destination || '').toUpperCase() === sceneAddress.toUpperCase();
     const sameType = incType && (inc.incident_type || '').toUpperCase() === incType.toUpperCase();
-    return sameDest && (!incType || sameType);
+    return sameScene && (!incType || sameType);
   });
   if (dupe) {
-    const shortId = String(dupe.incident_id || '').replace(/^\d{2}-/, '');
     const ok = await showConfirmAsync('POSSIBLE DUPLICATE',
-      dupe.incident_id + ' (' + (dupe.incident_type || 'UNKNOWN') + ') AT ' + dupe.destination +
+      dupe.incident_id + ' (' + (dupe.incident_type || 'UNKNOWN') + ') AT ' +
+      (dupe.scene_address || dupe.destination || 'SAME LOCATION') +
       ' WAS CREATED ' + Math.round((Date.now() - new Date(dupe.created_at).getTime()) / 1000) +
       'S AGO.\n\nCREATE ANYWAY?');
     if (!ok) return;
@@ -3670,7 +3672,7 @@ async function createNewIncident() {
   if (prefixes.length) note = prefixes.join(' ') + (note ? ' ' + note : '');
 
   setLive(true, 'LIVE • CREATE INCIDENT');
-  const r = await API.createQueuedIncident(TOKEN, dest, note, priority, unitId, incType, sceneAddress);
+  const r = await API.createQueuedIncident(TOKEN, '', note, priority, unitId, incType, sceneAddress);
   if (!r.ok) return showErr(r);
   if (sceneAddress) { AddrHistory.push(sceneAddress); _geoVerifyAddress(sceneAddress); }
   beepChange();
@@ -9106,7 +9108,6 @@ async function start() {
 window.addEventListener('load', () => {
   // Attach address autocomplete to destination inputs
   AddrAutocomplete.attach(document.getElementById('mDestination'));
-  AddrAutocomplete.attach(document.getElementById('newIncDest'));
   AddrAutocomplete.attach(document.getElementById('incDestEdit'));
 
   // Attach address autocomplete to scene fields — onSelect fills street address
