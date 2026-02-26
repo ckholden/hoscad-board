@@ -1,0 +1,5 @@
+Contact: mailto:security@hoscad.net
+Expires: 2027-12-31T23:59:59Z
+Preferred-Languages: en
+Canonical: https://scmc.hoscad.net/.well-known/security.txt
+Policy: HOSCAD is an internal EMS dispatch system operated by St. Charles Medical Center, Bend, Oregon. It is not a public-facing service. Report suspected vulnerabilities to the contact address above.
