@@ -45,7 +45,7 @@
   <!-- Toolbar Bar -->
   <div class="toolbar" id="toolbar">
     <div class="toolbar-group">
-      <label class="toolbar-label">STATUS:</label>
+      <label for="tbFilterStatus" class="toolbar-label">STATUS:</label>
       <select id="tbFilterStatus" class="toolbar-select" onchange="tbFilterChanged()">
         <option value="">ALL</option>
         <option value="D">D</option>
@@ -62,7 +62,7 @@
       </select>
     </div>
     <div class="toolbar-group">
-      <label class="toolbar-label">SORT:</label>
+      <label for="tbSort" class="toolbar-label">SORT:</label>
       <select id="tbSort" class="toolbar-select" onchange="tbSortChanged()">
         <option value="status">STATUS</option>
         <option value="unit">UNIT</option>
@@ -643,7 +643,7 @@
       TIME: <span id="bugTimeLabel">—</span>
     </div>
     <div class="row">
-      <label class="muted" style="font-size:11px;width:80px;flex-shrink:0;">SEVERITY</label>
+      <label for="bugSeverity" class="muted" style="font-size:11px;width:80px;flex-shrink:0;">SEVERITY</label>
       <select id="bugSeverity" style="flex:1;">
         <option value="LOW">LOW — Minor / cosmetic</option>
         <option value="MED" selected>MED — Functional problem</option>
