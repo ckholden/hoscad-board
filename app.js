@@ -4195,9 +4195,9 @@ function suggestUnits(incId) {
 }
 
 function fillAssignCmd(unitId, incId) {
-  const inp = document.getElementById('cmdInput');
+  const inp = document.getElementById('cmd');
   if (inp) {
-    inp.value = 'ASSIGN ' + unitId + '; ' + incId;
+    inp.value = 'ASSIGN ' + incId + ' ' + unitId;
     inp.focus();
     inp.select();
   }
