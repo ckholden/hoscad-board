@@ -1905,6 +1905,8 @@ function renderActiveCallsBar() {
     const isUrgent = (inc.incident_note || '').includes('[URGENT]') || pri === 'PRI-1' || pri === 'CRITICAL';
     const cardCl = 'acb-card' + (isUrgent ? ' acb-urgent' : '');
     const priBadgeHtml = pri ? '<span class="acb-pri ' + esc('priority-' + pri) + '">' + esc(pri) + '</span>' : '';
+    const locValAcb = (inc.level_of_care || '').toUpperCase();
+    const locBadgeAcb = locValAcb ? '<span style="font-size:9px;font-weight:900;margin-left:3px;padding:1px 4px;background:rgba(121,192,255,.15);border:1px solid rgba(121,192,255,.35);color:#79c0ff;border-radius:2px;">' + esc(locValAcb) + '</span>' : '';
     const isStale = elapsedMin > 60;
     const elCl = isStale ? 'acb-elapsed stale' : elapsedMin > 30 ? 'acb-elapsed warn' : 'acb-elapsed';
     // MA badge for active calls bar
@@ -1922,7 +1924,7 @@ function renderActiveCallsBar() {
       : '';
 
     return '<div class="' + cardCl + '" data-inc-id="' + esc(inc.incident_id) + '" onclick="openIncident(\'' + esc(inc.incident_id) + '\')" title="' + esc(inc.scene_address || '') + '">' +
-      '<div class="acb-id">' + esc(inc.incident_id) + priBadgeHtml + acbMaBadge + acbAirBadge + '</div>' +
+      '<div class="acb-id">' + esc(inc.incident_id) + priBadgeHtml + locBadgeAcb + acbMaBadge + acbAirBadge + '</div>' +
       '<div class="acb-type ' + typeCl + '">' + esc(incType || '—') + '</div>' +
       '<div class="' + elCl + '">' + esc(elapsedStr) + ' · ' + assignedUnits.length + ' UNIT' + (assignedUnits.length !== 1 ? 'S' : '') + '</div>' +
       '<div class="acb-units">' + esc(unitStr) + '</div>' +
@@ -2213,10 +2215,12 @@ function renderIncidentQueue() {
     const incType = inc.incident_type || '';
     const typeCl = getIncidentTypeClass(incType);
     const priBadge = pri ? `<span class="priority-${esc(pri)}" style="font-size:10px;font-weight:900;margin-left:4px;">${esc(pri)}</span>` : '';
+    const locVal = (inc.level_of_care || '').toUpperCase();
+    const locBadge = locVal ? `<span style="font-size:9px;font-weight:900;margin-left:3px;padding:1px 4px;background:rgba(121,192,255,.15);border:1px solid rgba(121,192,255,.35);color:#79c0ff;border-radius:2px;">${esc(locVal)}</span>` : '';
     const sceneDisplay = (inc.scene_address || '').substring(0, 20) || '—';
 
     html += `<tr class="${rowCl}" data-inc-id="${esc(inc.incident_id)}" onclick="openIncident('${esc(inc.incident_id)}')">`;
-    html += `<td class="inc-id">${urgent ? 'HOT ' : ''}${esc(inc.incident_id)}${priBadge}${maBadge}${cbBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
+    html += `<td class="inc-id">${urgent ? 'HOT ' : ''}${esc(inc.incident_id)}${priBadge}${locBadge}${maBadge}${cbBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
     const incDestResolved = AddressLookup.resolve(inc.destination);
     const incDestDisplay = incDestResolved.recognized ? incDestResolved.addr.name : (inc.destination || 'NO DEST');
     html += `<td class="inc-dest${incDestResolved.recognized ? ' dest-recognized' : ''}">${esc(incDestDisplay)}</td>`;
@@ -3355,6 +3359,8 @@ function openNewIncident(prefillScene) {
   if (newIncSceneEl) newIncSceneEl.value = prefillScene ? prefillScene.toUpperCase() : '';
   const newIncPriorityEl = document.getElementById('newIncPriority');
   if (newIncPriorityEl) newIncPriorityEl.value = '';
+  const newIncLocEl = document.getElementById('newIncLoc');
+  if (newIncLocEl) newIncLocEl.value = '';
   document.getElementById('newIncType').value = '';
   document.getElementById('newIncNote').value = '';
   // Cascading selects reset + dynamic category population
@@ -3638,6 +3644,7 @@ async function createNewIncident() {
   const unitId = document.getElementById('newIncUnit').value;
   const incType = (document.getElementById('newIncType').value || '').trim().toUpperCase();
   const sceneAddress = (document.getElementById('newIncScene')?.value || '').trim().toUpperCase();
+  const levelOfCare = (document.getElementById('newIncLoc')?.value || '').trim().toUpperCase();
   const callback = (document.getElementById('newIncCallback')?.value || '').trim();
   const mutualAid = document.getElementById('newIncMA')?.checked || false;
 
@@ -3672,7 +3679,7 @@ async function createNewIncident() {
   if (prefixes.length) note = prefixes.join(' ') + (note ? ' ' + note : '');
 
   setLive(true, 'LIVE • CREATE INCIDENT');
-  const r = await API.createQueuedIncident(TOKEN, '', note, priority, unitId, incType, sceneAddress);
+  const r = await API.createQueuedIncident(TOKEN, '', note, priority, unitId, incType, sceneAddress, levelOfCare);
   if (!r.ok) return showErr(r);
   if (sceneAddress) { AddrHistory.push(sceneAddress); _geoVerifyAddress(sceneAddress); }
   beepChange();
@@ -3848,6 +3855,8 @@ async function openIncidentFromServer(iId) {
   document.getElementById('incTypeEdit').value = incTypeRaw;
   const priEditEl = document.getElementById('incPriorityEdit');
   if (priEditEl) priEditEl.value = (inc.priority || '').toUpperCase();
+  const locEditEl = document.getElementById('incLocEdit');
+  if (locEditEl) locEditEl.value = (inc.level_of_care || '').toUpperCase();
   document.getElementById('incUpdated').textContent = inc.last_update ? fmtTime24(inc.last_update) : '—';
 
   const bC = getRoleColor(inc.updated_by);
@@ -4221,6 +4230,7 @@ async function saveIncidentNote() {
   const newDest = destEl.dataset.addrId || (destEl.value || '').trim().toUpperCase();
   const newScene = (document.getElementById('incSceneAddress')?.value || '').trim().toUpperCase() || undefined;
   const newPriority = (document.getElementById('incPriorityEdit')?.value || '').trim().toUpperCase();
+  const newLoc = (document.getElementById('incLocEdit')?.value || '').trim().toUpperCase();
   if (!CURRENT_INCIDENT_ID) return;
 
   // Get current incident to compare destination and scene address
@@ -4228,9 +4238,11 @@ async function saveIncidentNote() {
   const curDest = curInc ? (curInc.destination || '') : '';
   const curScene = curInc ? (curInc.scene_address || '') : '';
   const curPriority = curInc ? (curInc.priority || '') : '';
+  const curLoc = curInc ? (curInc.level_of_care || '') : '';
   const destChanged = newDest !== curDest.toUpperCase();
   const sceneChanged = newScene !== undefined && newScene !== curScene.toUpperCase();
   const priorityChanged = newPriority !== curPriority.toUpperCase();
+  const locChanged = newLoc !== curLoc.toUpperCase();
 
   // Preserve [DISP:] and [CB:] tags when saving note — re-prepend from current incident
   const curDispMatch = ((curInc && curInc.incident_note) || '').match(/\[DISP:([^\]]+)\]/i);
@@ -4239,9 +4251,9 @@ async function saveIncidentNote() {
   if (curCbMatch) mWithDisp = (mWithDisp + ' [CB:' + curCbMatch[1].toUpperCase() + ']').trim();
 
   // If anything changed, use updateIncident
-  if (newType || m || destChanged || sceneChanged || priorityChanged) {
+  if (newType || m || destChanged || sceneChanged || priorityChanged || locChanged) {
     setLive(true, 'LIVE • UPDATE INCIDENT');
-    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, newType, destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined);
+    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, newType, destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
     if (!r.ok) return showErr(r);
     if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); }
     beepChange();
@@ -4250,7 +4262,7 @@ async function saveIncidentNote() {
     return;
   }
 
-  showConfirm('ERROR', 'ENTER INCIDENT NOTE, CHANGE TYPE, UPDATE DESTINATION, PRIORITY, OR SCENE ADDRESS.', () => { });
+  showConfirm('ERROR', 'ENTER INCIDENT NOTE, CHANGE TYPE, UPDATE DESTINATION, PRIORITY, LEVEL OF CARE, OR SCENE ADDRESS.', () => { });
 }
 
 function renderIncidentAudit(aR) {
@@ -5732,7 +5744,7 @@ async function _execCmd(tx) {
     // Strip all bracket tags from note — keep human-readable text only
     const copyNote = (srcInc.incident_note || '').replace(/\[[^\]]*\]\s*/g, '').trim().toUpperCase();
     setLive(true, 'LIVE • COPY INCIDENT');
-    const r = await API.createQueuedIncident(TOKEN, srcInc.destination || '', copyNote, srcInc.priority || '', '', srcInc.incident_type || '', srcInc.scene_address || '');
+    const r = await API.createQueuedIncident(TOKEN, srcInc.destination || '', copyNote, srcInc.priority || '', '', srcInc.incident_type || '', srcInc.scene_address || '', srcInc.level_of_care || '');
     if (!r.ok) return showErr(r);
     beepChange();
     showToast('COPIED → ' + (r.incidentId || ''));

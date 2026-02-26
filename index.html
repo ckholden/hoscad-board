@@ -350,6 +350,7 @@
       <div class="pill">DEST: <input id="incDestEdit" style="width:140px;padding:2px 6px;font-size:12px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:var(--green);font-family:inherit;text-transform:uppercase;" placeholder="DESTINATION" autocomplete="off" /></div>
       <div class="pill" style="align-items:center;gap:3px;">TYPE:&nbsp;<select id="incEditCat" onchange="onIncEditCatChange()" style="padding:2px 4px;font-size:11px;font-weight:700;background:#0b1018;border:1px solid var(--line);color:var(--yellow);font-family:inherit;"><option value="">—</option></select><select id="incEditNature" onchange="onIncEditNatureChange()" style="display:none;padding:2px 4px;font-size:11px;font-weight:700;background:#0b1018;border:1px solid var(--line);color:var(--yellow);font-family:inherit;margin-left:3px;"><option value="">—</option></select><input id="incTypeEdit" type="hidden" value="" /></div>
       <div class="pill" style="align-items:center;gap:3px;">PRI:&nbsp;<select id="incPriorityEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#ff7b72;font-family:inherit;"><option value="">—</option><option value="PRI-1">PRI-1</option><option value="PRI-2">PRI-2</option><option value="PRI-3">PRI-3</option><option value="PRI-4">PRI-4</option><option value="NONE">NONE</option></select></div>
+      <div class="pill" style="align-items:center;gap:3px;">LOC:&nbsp;<select id="incLocEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#79c0ff;font-family:inherit;"><option value="">—</option><option value="BLS">BLS</option><option value="ALS">ALS</option><option value="CCT">CCT</option><option value="W/C">W/C</option><option value="STRETCHER">STRETCHER</option></select></div>
       <div class="pill">UPDATED: <span id="incUpdated">-</span></div>
       <div class="pill">BY: <span id="incBy">-</span></div>
       <div class="pill" id="incCbPill" style="display:none;" title="Click to copy">CB: <span id="incCbNumber" style="color:#e6edf3;cursor:pointer;font-weight:900;text-decoration:underline dotted;" onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='#3fb950';setTimeout(()=>this.style.color='#e6edf3',1200)})">-</span></div>
@@ -453,6 +454,16 @@
     </div>
     <div class="row">
       <input type="text" id="newIncType" placeholder="TYPE CODE — AUTO-FILLED ABOVE OR ENTER CUSTOM (E.G. IFT-ALS-CARDIAC-PRI-2)" style="flex:1" autocomplete="off" />
+    </div>
+    <div class="row">
+      <select id="newIncLoc" style="flex:0 0 auto">
+        <option value="">LEVEL OF CARE (OPT)</option>
+        <option value="BLS">BLS</option>
+        <option value="ALS">ALS</option>
+        <option value="CCT">CCT</option>
+        <option value="W/C">W/C</option>
+        <option value="STRETCHER">STRETCHER</option>
+      </select>
     </div>
     <div class="row">
       <input type="tel" id="newIncCallback" placeholder="CALLBACK # (OPTIONAL)" style="flex:1" autocomplete="off" />

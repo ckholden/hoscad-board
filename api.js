@@ -131,16 +131,16 @@ const API = {
   // Incident Operations
   // ============================================================
 
-  createQueuedIncident(token, destination, note, priority, assignUnitId, incidentType, sceneAddress) {
-    return this.call('createQueuedIncident', token, destination, note, priority, assignUnitId, incidentType, sceneAddress);
+  createQueuedIncident(token, destination, note, priority, assignUnitId, incidentType, sceneAddress, levelOfCare) {
+    return this.call('createQueuedIncident', token, destination, note, priority, assignUnitId, incidentType, sceneAddress, levelOfCare);
   },
 
   getIncident(token, incidentId) {
     return this.call('getIncident', token, incidentId);
   },
 
-  updateIncident(token, incidentId, message, incidentType, destination, sceneAddress, priority) {
-    return this.call('updateIncident', token, incidentId, message, incidentType, destination, sceneAddress, priority);
+  updateIncident(token, incidentId, message, incidentType, destination, sceneAddress, priority, levelOfCare) {
+    return this.call('updateIncident', token, incidentId, message, incidentType, destination, sceneAddress, priority, levelOfCare);
   },
 
   appendIncidentNote(token, incidentId, message) {
