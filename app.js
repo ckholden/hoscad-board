@@ -7323,7 +7323,7 @@ NOTES
 function openPopouts() {
   // Board (viewer)
   if (!_popoutBoardWindow || _popoutBoardWindow.closed) {
-    _popoutBoardWindow = window.open('/hoscad/viewer/', 'hoscad-board',
+    _popoutBoardWindow = window.open('/viewer/', 'hoscad-board',
       'width=1280,height=800,left=0,top=0');
     if (_popoutBoardWindow) {
       monitorPopout(_popoutBoardWindow, 'board');
@@ -7347,7 +7347,7 @@ function openPopouts() {
   }
   // Incident queue
   if (!_popoutIncWindow || _popoutIncWindow.closed) {
-    _popoutIncWindow = window.open('/hoscad/popout-inc/', 'hoscad-inc',
+    _popoutIncWindow = window.open('/popout-inc/', 'hoscad-inc',
       'width=480,height=950,left=0,top=0');
     if (_popoutIncWindow) {
       monitorPopout(_popoutIncWindow, 'inc');
@@ -7383,7 +7383,7 @@ function openPopoutInc() {
     showToast('INCIDENT QUEUE ALREADY OPEN.');
     return;
   }
-  _popoutIncWindow = window.open('/hoscad/popout-inc/', 'hoscad-inc',
+  _popoutIncWindow = window.open('/popout-inc/', 'hoscad-inc',
     'width=480,height=950,left=0,top=0');
   if (!_popoutIncWindow) {
     showToast('POPUP BLOCKED — ALLOW POPUPS FOR THIS SITE.', 'warn');
@@ -7422,7 +7422,7 @@ function openPopout() {
     showToast('BOARD ALREADY ON SECONDARY MONITOR.');
     return;
   }
-  _popoutBoardWindow = window.open('/hoscad/viewer/', 'hoscad-board', 'width=1280,height=800');
+  _popoutBoardWindow = window.open('/viewer/', 'hoscad-board', 'width=1280,height=800');
   if (!_popoutBoardWindow) {
     showErr({ error: 'POPUP BLOCKED. ALLOW POPUPS FOR THIS SITE.' });
     return;
@@ -8863,7 +8863,7 @@ function openPopoutMap() {
     if (btn) btn.classList.remove('active');
     _stopBmGeoQueue();
   }
-  _popoutMapWindow = window.open('/hoscad/popout-map/', 'hoscad-map', 'width=1000,height=750,left=0,top=0');
+  _popoutMapWindow = window.open('/popout-map/', 'hoscad-map', 'width=1000,height=750,left=0,top=0');
   if (!_popoutMapWindow) {
     showToast('POPUP BLOCKED — ALLOW POPUPS FOR THIS SITE.', 'warn');
     return;

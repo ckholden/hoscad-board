@@ -2,7 +2,7 @@
   "name": "HOSCAD Field",
   "short_name": "HOSCADField",
   "description": "SCMC HOSCAD Field Unit App",
-  "start_url": "/hoscad/field/",
+  "start_url": "/field/",
   "display": "standalone",
   "background_color": "#070a0f",
   "theme_color": "#070a0f",

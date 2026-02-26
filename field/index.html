@@ -4869,7 +4869,7 @@
   window.addEventListener('load', async function() {
     // Service worker
     if ('serviceWorker' in navigator && !window.desktopAPI) {
-      navigator.serviceWorker.register('../sw-field.js', { scope: '/hoscad/field/', updateViaCache: 'none' })
+      navigator.serviceWorker.register('../sw-field.js', { scope: '/field/', updateViaCache: 'none' })
         .then(function(reg) {
           setInterval(function() { reg.update(); }, 5 * 60 * 1000);
           reg.addEventListener('updatefound', function() {
