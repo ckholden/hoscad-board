@@ -1390,7 +1390,22 @@
       </div>
       <!-- Add note -->
       <div style="margin-bottom:10px;">
-        <div style="font-size:10px;color:#8b949e;letter-spacing:.05em;margin-bottom:4px;">ADD NOTE</div>
+        <div style="font-size:10px;color:#8b949e;letter-spacing:.05em;margin-bottom:6px;">ADD NOTE</div>
+        <!-- Quick-tap note buttons -->
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+          <button onclick="appendFieldNote('PT STABLE')" style="padding:7px 10px;background:#0a1a0a;border:1px solid #2aaa5a44;color:#7fffb2;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">PT STABLE</button>
+          <button onclick="appendFieldNote('PT CRITICAL')" style="padding:7px 10px;background:#1a0a0a;border:1px solid #cc222244;color:#ff8888;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">PT CRITICAL</button>
+          <button onclick="appendFieldNote('ON SCENE')" style="padding:7px 10px;background:#0a120a;border:1px solid #2aaa5a44;color:#7fffb2;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">ON SCENE</button>
+          <button onclick="appendFieldNote('TRANSPORT CONFIRMED')" style="padding:7px 10px;background:#0a0a1a;border:1px solid #7b57ff44;color:#a888ff;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">TRANSPORT CONFIRMED</button>
+          <button onclick="appendFieldNote('DECLINED TRANSPORT')" style="padding:7px 10px;background:#1a1000;border:1px solid #ffd66b44;color:#ffd66b;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">DECLINED TX</button>
+          <button onclick="appendFieldNote('CLEAR')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">CLEAR</button>
+          <button onclick="appendFieldNote('BLS ASSESSMENT COMPLETE')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#c9d1d9;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">BLS DONE</button>
+          <button onclick="appendFieldNote('ALS ASSESSMENT COMPLETE')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#c9d1d9;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">ALS DONE</button>
+          <button onclick="appendFieldNote('VITALS OBTAINED')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#c9d1d9;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">VITALS</button>
+          <button onclick="appendFieldNote('IV ACCESS ESTABLISHED')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#c9d1d9;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">IV ACCESS</button>
+          <button onclick="appendFieldNote('AIRWAY SECURED')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#c9d1d9;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">AIRWAY</button>
+          <button onclick="appendFieldNote('NARCAN ADMINISTERED')" style="padding:7px 10px;background:#0a0f17;border:1px solid #30363d;color:#c9d1d9;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;white-space:nowrap;">NARCAN</button>
+        </div>
         <textarea id="idmNoteInput" style="width:100%;box-sizing:border-box;background:#0a0f17;border:1px solid #1f2b3d;color:#e6edf3;font-family:inherit;font-size:13px;padding:10px;min-height:80px;resize:vertical;text-transform:uppercase;" placeholder="E.G. PATIENT STABLE. GCS 15. VITALS WNL." autocorrect="off" autocapitalize="characters"></textarea>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -4787,6 +4802,15 @@
   window.openFieldBugReport  = openFieldBugReport;
   window.closeFieldBugReport = closeFieldBugReport;
   window.submitFieldBugReport = submitFieldBugReport;
+
+  function appendFieldNote(text) {
+    const ta = document.getElementById('idmNoteInput');
+    if (!ta) return;
+    const cur = ta.value.trim();
+    ta.value = cur ? cur + '. ' + text : text;
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
 
   async function saveFieldIncNote() {
     if (!_currentIncident || !_cadToken) return;
