@@ -3339,7 +3339,7 @@ function confirmRidoff() {
 // ============================================================
 // New Incident Modal
 // ============================================================
-function openNewIncident() {
+function openNewIncident(prefillScene) {
   const unitSelect = document.getElementById('newIncUnit');
   unitSelect.innerHTML = '<option value="">ASSIGN UNIT (OPTIONAL)</option>';
 
@@ -3355,7 +3355,7 @@ function openNewIncident() {
   newIncDestEl.value = '';
   delete newIncDestEl.dataset.addrId;
   const newIncSceneEl = document.getElementById('newIncScene');
-  if (newIncSceneEl) newIncSceneEl.value = '';
+  if (newIncSceneEl) newIncSceneEl.value = prefillScene ? prefillScene.toUpperCase() : '';
   const newIncPriorityEl = document.getElementById('newIncPriority');
   if (newIncPriorityEl) newIncPriorityEl.value = '';
   document.getElementById('newIncType').value = '';
@@ -7434,6 +7434,121 @@ function updatePopoutStats() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ── Search Panel (F3 / Ctrl+F) ───────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+let _searchPanelTimer = null;
+
+function openSearchPanel() {
+  const el = document.getElementById('searchBack');
+  if (!el) return;
+  el.style.display = 'flex';
+  const inp = document.getElementById('searchPanelInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+  const results = document.getElementById('searchPanelResults');
+  if (results) results.innerHTML = '<div class="muted" style="padding:20px 16px;text-align:center;font-size:12px;">TYPE TO SEARCH ADDRESSES AND CALLS</div>';
+}
+
+function closeSearchPanel() {
+  const el = document.getElementById('searchBack');
+  if (el) el.style.display = 'none';
+  autoFocusCmd();
+}
+
+function _searchPanelDebounce() {
+  if (_searchPanelTimer) clearTimeout(_searchPanelTimer);
+  _searchPanelTimer = setTimeout(_doSearchPanel, 350);
+}
+
+function _searchPanelKeydown(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closeSearchPanel(); }
+}
+
+function _doSearchPanel() {
+  const inp = document.getElementById('searchPanelInput');
+  if (!inp) return;
+  const q = inp.value.trim().toUpperCase();
+  const results = document.getElementById('searchPanelResults');
+  if (!results) return;
+  if (q.length < 2) {
+    results.innerHTML = '<div class="muted" style="padding:20px 16px;text-align:center;font-size:12px;">TYPE TO SEARCH ADDRESSES AND CALLS</div>';
+    return;
+  }
+
+  let html = '';
+
+  // ── Address directory (client-side, instant) ──
+  const addrs = AddressLookup.search ? AddressLookup.search(q) : [];
+  if (addrs.length) {
+    html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);">ADDRESS DIRECTORY (' + addrs.length + ')</div>';
+    addrs.slice(0, 8).forEach(a => {
+      const addrJ = JSON.stringify(a.addr || a.address || a.name || '');
+      html += '<div class="search-result-row">' +
+        '<div class="search-result-label">' +
+          '<span style="font-weight:900;">' + esc(a.code || '') + '</span>' +
+          '<span style="color:var(--muted);font-size:11px;margin-left:6px;">' + esc(a.addr || a.address || a.name || '') + '</span>' +
+        '</div>' +
+        '<div class="search-result-actions">' +
+          '<button class="btn-sm" onclick="searchPanelUse(' + addrJ + ')">USE</button>' +
+          '<button class="btn-sm" onclick="searchPanelNc(' + addrJ + ')">NC→</button>' +
+        '</div>' +
+      '</div>';
+    });
+  }
+
+  // ── Incident search (from current STATE) ──
+  const incs = ((STATE && STATE.incidents) ? STATE.incidents : [])
+    .filter(inc => {
+      const id = (inc.incident_id || '').toUpperCase();
+      const addr = (inc.scene_address || '').toUpperCase();
+      const dest = (inc.destination || '').toUpperCase();
+      return id.includes(q) || addr.includes(q) || dest.includes(q);
+    })
+    .sort((a, b) => new Date(_normalizeTs(b.created_at)) - new Date(_normalizeTs(a.created_at)))
+    .slice(0, 8);
+
+  if (incs.length) {
+    html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">INCIDENTS (' + incs.length + ')</div>';
+    incs.forEach(inc => {
+      const addrText = inc.scene_address || inc.destination || '—';
+      const type = inc.incident_type || '';
+      const status = inc.status || '';
+      const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
+      const incIdJ = JSON.stringify(inc.incident_id);
+      const addrJ = JSON.stringify(inc.scene_address || '');
+      html += '<div class="search-result-row">' +
+        '<div class="search-result-label">' +
+          '<span style="font-weight:900;color:var(--yellow);">' + esc(inc.incident_id) + '</span>' +
+          (type ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;">' + esc(type) + '</span>' : '') +
+          ' <span style="font-size:10px;font-weight:900;color:' + statusColor + ';">' + esc(status) + '</span>' +
+          '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
+        '</div>' +
+        '<div class="search-result-actions">' +
+          '<button class="btn-sm" onclick="openIncident(' + incIdJ + ');closeSearchPanel()">OPEN</button>' +
+          (status !== 'ACTIVE' && inc.scene_address ? '<button class="btn-sm" onclick="searchPanelNc(' + addrJ + ')">NC→</button>' : '') +
+        '</div>' +
+      '</div>';
+    });
+  }
+
+  if (!html) {
+    html = '<div class="muted" style="padding:20px 16px;text-align:center;font-size:12px;">NO RESULTS FOR "' + esc(q) + '"</div>';
+  }
+  results.innerHTML = html;
+}
+
+function searchPanelUse(addr) {
+  const inp = document.getElementById('cmd');
+  if (inp) { inp.value = addr; inp.focus(); }
+  closeSearchPanel();
+}
+
+function searchPanelNc(addr) {
+  closeSearchPanel();
+  openNewIncident(addr);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ── LifeFlight ADS-B Feed ────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -9089,8 +9204,10 @@ window.addEventListener('load', () => {
       const ad = document.getElementById('alertDialog');
 
       const brb = document.getElementById('bugReportBack');
+      const srb = document.getElementById('searchBack');
       if (nib && nib.style.display === 'flex') { closeNewIncident(); return; }
       if (brb && brb.style.display === 'flex') { closeBugReport(); return; }
+      if (srb && srb.style.display === 'flex') { closeSearchPanel(); return; }
       if (uhb && uhb.style.display === 'flex') { uhb.style.display = 'none'; autoFocusCmd(); return; }
       if (ib && ib.style.display === 'flex') { ib.style.display = 'none'; autoFocusCmd(); return; }
       if (msgb && msgb.style.display === 'flex') { closeMessages(); return; }
@@ -9108,10 +9225,23 @@ window.addEventListener('load', () => {
     if (e.ctrlKey && e.key === 'k') { e.preventDefault(); cI.focus(); }
     if (e.ctrlKey && e.key === 'l') { e.preventDefault(); openLogon(); }
     if (e.ctrlKey && e.key === 'd') { e.preventDefault(); cycleDensity(); }
+    if (e.ctrlKey && e.key === 'f') { e.preventDefault(); openSearchPanel(); }
+    if (e.ctrlKey && e.key === 'm') { e.preventDefault(); toggleBoardMap(); }
+    if (e.ctrlKey && e.key === 'b') { e.preventDefault(); openBugReport(); }
     if (e.key === 'F1') { e.preventDefault(); cI.focus(); }
     if (e.key === 'F2') { e.preventDefault(); openNewIncident(); }
-    if (e.key === 'F3') { e.preventDefault(); cI.focus(); }
+    if (e.key === 'F3') { e.preventDefault(); openSearchPanel(); }
     if (e.key === 'F4') { e.preventDefault(); openMessages(); }
+    if (e.key === 'F5') { e.preventDefault(); toggleBoardMap(); }
+    if (e.key === 'F6') { e.preventDefault(); _execCmd('INCQ'); }
+    if (e.key === 'F7') { e.preventDefault(); _execCmd('WHO'); }
+    if (e.key === 'F8') { e.preventDefault(); _execCmd('UR'); }
+    if (e.key === 'F9') {
+      e.preventDefault();
+      const role = localStorage.getItem('ems_role') || '';
+      const isSupervisor = ['SUPV1','SUPV2','MGR1','MGR2','IT'].includes(role.toUpperCase());
+      if (isSupervisor) _execCmd('SHIFT REPORT'); else showToast('F9 SHIFT REPORT — SUPV/MGR/IT ONLY.');
+    }
   });
 
   // Confirm dialog handlers
