@@ -757,9 +757,9 @@
       color: var(--red);
     }
 
-    /* Night mode — applied to the single field panel root; overlays are outside and unaffected */
+    /* Night mode — dims field panel for night driving; overlays outside #fieldPanel are unaffected */
     body.night-mode #fieldPanel {
-      filter: brightness(0.65) saturate(0.8);
+      filter: brightness(0.45) saturate(0.7);
     }
 
     /* Mobile sizing */
@@ -1541,7 +1541,7 @@
             <div><div class="more-row-label">NIGHT MODE</div><div class="more-row-sub">REDUCE BRIGHTNESS</div></div>
             <span class="more-row-arrow" id="moreNightStatus">AUTO</span>
           </button>
-          <button class="more-row" onclick="pollOnce();feedSys('REFRESHING...');">
+          <button class="more-row" id="moreRefreshBtn" onclick="(function(btn){btn.style.color='var(--green)';btn.disabled=true;feedSys('REFRESHING...');pollOnce().then(function(){feedSys('REFRESH COMPLETE.');btn.style.color='';btn.disabled=false;}).catch(function(){btn.style.color='';btn.disabled=false;});})(this)">
             <div><div class="more-row-label">REFRESH</div><div class="more-row-sub">FORCE POLL NOW</div></div>
             <span class="more-row-arrow">&#8635;</span>
           </button>
@@ -4477,6 +4477,11 @@
         // If conflict, suggest retry
         if (res.conflict) {
           feedSys('HINT: STATUS CONFLICT — REFRESH AND TRY AGAIN.');
+        }
+        // FSM violation: server rejected the transition — sync actual status from server
+        if (res.fsmViolation) {
+          feedSys('SYNCING CURRENT STATUS FROM SERVER...');
+          pollOnce();
         }
       }
     } catch(e) {

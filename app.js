@@ -1754,8 +1754,8 @@ function tryBeepOnStateChange() {
     LAST_MSG_COUNT = mC;
     if (uU > 0) beepHotMessage(); else beepMessage();
   }
-  if (mI && mI > LAST_INCIDENT_TOUCH) { LAST_INCIDENT_TOUCH = mI; beepChange(); }
-  if (mU && mU > LAST_MAX_UPDATED_AT) { LAST_MAX_UPDATED_AT = mU; beepChange(); }
+  if (mI && mI > LAST_INCIDENT_TOUCH) { LAST_INCIDENT_TOUCH = mI; } // no beep — unit/incident status changes are silent
+  if (mU && mU > LAST_MAX_UPDATED_AT) { LAST_MAX_UPDATED_AT = mU; } // audio only for messages, alerts, banners
 
   // HOLD call maturity — beep once when a scheduled call's time arrives
   if (BASELINED) {
@@ -6818,12 +6818,17 @@ async function _execCmd(tx) {
   }
 
   // AV FORCE check
+  // Note: "AV AMBLS1 FORCE" is parsed as ma="AV AMBLS1" nU="FORCE" by the tokenizer,
+  // so rawUnit comes out as "AMBLS1" and nU is "FORCE". Check both patterns.
   let avForce = false;
   if (stCmd === 'AV') {
     const forceMatch = rawUnit.match(/^(.+?)\s+FORCE$/i);
     if (forceMatch) {
       avForce = true;
       rawUnit = forceMatch[1].trim();
+    } else if (nU.trim().toUpperCase() === 'FORCE') {
+      avForce = true;
+      // rawUnit is already just the unit name (FORCE was in nU)
     } else {
       // No FORCE — check if unit has active incident
       const avUnitId = canonicalUnit(rawUnit);

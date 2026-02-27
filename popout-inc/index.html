@@ -10,6 +10,12 @@
 :root{--bg:#07090d;--panel:#0b1018;--line:#1a2233;--text:#c8d6e8;--muted:#4a5a6e;
   --green:#4dff91;--yellow:#ffd66b;--red:#ff5555;--blue:#4fa3e0;
   --hi:#ffffff;--ok:#52c41a;--warn:#fa8c16;--danger:#ff4d4f;}
+[data-theme="light"]{--bg:#f0f2f5;--panel:#ffffff;--line:#cad0da;--text:#1a2536;--muted:#5a6a7e;
+  --green:#167040;--yellow:#b07800;--red:#cc2222;--blue:#1a56e8;
+  --hi:#0d1624;--ok:#167040;--warn:#b07800;--danger:#cc2222;}
+[data-theme="night"]{--bg:#000000;--panel:#03050a;--line:rgba(255,255,255,.05);--text:#8e9aaa;--muted:#4a5a6e;
+  --green:#4dff91;--yellow:#ffd66b;--red:#ff5555;--blue:#4fa3e0;
+  --hi:#ffffff;--ok:#52c41a;--warn:#fa8c16;--danger:#ff4d4f;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Courier New',monospace;font-size:12px;overflow:hidden;}
 body{display:flex;flex-direction:column;}
 .topbar{display:flex;align-items:center;gap:12px;padding:5px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
@@ -111,6 +117,7 @@ select.modal-select{width:100%;background:#0b1018;border:1px solid var(--line);c
     <span class="brand">INCIDENT QUEUE</span>
     <span id="livePill" class="live-pill">CONNECTING...</span>
     <span class="clock" id="clockEl">--:--:--</span>
+    <button id="btnTheme" onclick="cycleTheme()" style="margin-left:8px;font-family:inherit;font-size:10px;font-weight:700;padding:2px 8px;background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer;letter-spacing:.05em;">DARK</button>
   </div>
   <div id="summaryStrip">
     <span class="ss-item s-q">QUEUED: <strong id="ssQueued">-</strong></span>
@@ -447,6 +454,27 @@ function closeConfirm(ok) {
   document.getElementById('confirmModal').style.display = 'none';
   if (_confirmCb) { _confirmCb(ok); _confirmCb = null; }
 }
+
+// ── Theme ──────────────────────────────────────────────────────────────
+const _INC_THEMES = ['dark', 'night', 'light'];
+function cycleTheme() {
+  const cur = document.body.getAttribute('data-theme') || 'dark';
+  const next = _INC_THEMES[(_INC_THEMES.indexOf(cur) + 1) % _INC_THEMES.length];
+  document.body.setAttribute('data-theme', next);
+  const btn = document.getElementById('btnTheme');
+  if (btn) btn.textContent = next.toUpperCase();
+  try { localStorage.setItem('hoscad_inc_theme', next); } catch(e) {}
+}
+(function loadTheme() {
+  try {
+    const t = localStorage.getItem('hoscad_inc_theme');
+    if (t && _INC_THEMES.includes(t)) {
+      document.body.setAttribute('data-theme', t);
+      const btn = document.getElementById('btnTheme');
+      if (btn) btn.textContent = t.toUpperCase();
+    }
+  } catch(e) {}
+})();
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 setupRelay();

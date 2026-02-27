@@ -348,10 +348,10 @@
       #viewerContent { flex-direction: column; }
     }
 
-    /* Night mode */
-    body.night { --bg:#000000; --panel:#03050a; --text:#8e9aaa; --line:rgba(255,255,255,.05); }
-    body.night #viewerHeader,
-    body.night #viewerSummary { background:rgba(0,0,0,.98); }
+    /* Night mode (body.night kept for backwards compat; data-theme="night" is primary) */
+    body.night, [data-theme="night"] { --bg:#000000; --panel:#03050a; --text:#8e9aaa; --line:rgba(255,255,255,.05); }
+    body.night #viewerHeader, [data-theme="night"] #viewerHeader,
+    body.night #viewerSummary, [data-theme="night"] #viewerSummary { background:rgba(0,0,0,.98); }
 
     /* Night / ShowAll controls */
     .viewer-ctrl-btn {
@@ -454,7 +454,7 @@
       <div id="livePill" class="pill">CONNECTING...</div>
       <div class="row right">
         <div id="clockPill" class="pill clock-pill">--:--</div>
-        <button class="viewer-ctrl-btn" id="btnViewerNight" onclick="toggleNightMode()" title="TOGGLE NIGHT MODE">NIGHT</button>
+        <button class="viewer-ctrl-btn" id="btnViewerNight" onclick="cycleViewerTheme()" title="CYCLE THEME: DARK → NIGHT → LIGHT">DARK</button>
         <button class="viewer-ctrl-btn" id="btnViewerIncQ" onclick="toggleViewerIncQ()" title="TOGGLE INCIDENT QUEUE">INC Q</button>
         <button class="viewer-ctrl-btn" id="btnViewerMap" onclick="toggleViewerMap()" title="TOGGLE MAP">MAP</button>
       </div>
@@ -791,23 +791,44 @@ function formatLocationHtml(unit) {
 // ============================================================
 // SECTION: Clock
 // ============================================================
-// SECTION: Night mode
+// SECTION: Theme (dark / night / light)
 // ============================================================
-function toggleNightMode() {
-  const isNight = document.body.classList.toggle('night');
+const _VIEWER_THEME_CYCLE = ['dark', 'night', 'light'];
+
+function _applyViewerTheme(theme) {
+  document.body.setAttribute('data-theme', theme);
+  // Legacy class for night mode CSS compat
+  document.body.classList.toggle('night', theme === 'night');
   const btn = document.getElementById('btnViewerNight');
-  if (btn) btn.classList.toggle('active', isNight);
-  try { localStorage.setItem('hoscad_viewer_night', isNight ? '1' : '0'); } catch(e) {}
+  if (btn) {
+    btn.textContent = theme.toUpperCase();
+    btn.classList.toggle('active', theme !== 'dark');
+  }
 }
+
+function cycleViewerTheme() {
+  const current = document.body.getAttribute('data-theme') || 'dark';
+  const idx = _VIEWER_THEME_CYCLE.indexOf(current);
+  const next = _VIEWER_THEME_CYCLE[(idx + 1) % _VIEWER_THEME_CYCLE.length];
+  _applyViewerTheme(next);
+  try { localStorage.setItem('hoscad_viewer_theme', next); } catch(e) {}
+}
+
+// Keep old name for any stale onclick references
+function toggleNightMode() { cycleViewerTheme(); }
 
 function loadNightMode() {
   try {
-    if (localStorage.getItem('hoscad_viewer_night') === '1') {
-      document.body.classList.add('night');
-      const btn = document.getElementById('btnViewerNight');
-      if (btn) btn.classList.add('active');
+    const saved = localStorage.getItem('hoscad_viewer_theme');
+    // Migrate legacy hoscad_viewer_night boolean
+    if (!saved && localStorage.getItem('hoscad_viewer_night') === '1') {
+      _applyViewerTheme('night');
+    } else if (saved && _VIEWER_THEME_CYCLE.includes(saved)) {
+      _applyViewerTheme(saved);
+    } else {
+      _applyViewerTheme('dark');
     }
-  } catch(e) {}
+  } catch(e) { _applyViewerTheme('dark'); }
 }
 
 // ============================================================
