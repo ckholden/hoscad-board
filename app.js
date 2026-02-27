@@ -81,8 +81,29 @@ let VIEW = {
   theme: 'dark'    // 'dark' | 'night' | 'light'
 };
 
+// Hardcoded fallback positions — used immediately on page load before API responds.
+// Overwritten by live DB data once init() completes.
+const POSITIONS_FALLBACK = [
+  { position_id: 'DP1',   label: 'Dispatcher 1',    display_order: 10,  is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'DP2',   label: 'Dispatcher 2',    display_order: 20,  is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'DP3',   label: 'Dispatcher 3',    display_order: 30,  is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'DP4',   label: 'Dispatcher 4',    display_order: 40,  is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'DP5',   label: 'Dispatcher 5',    display_order: 50,  is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'DP6',   label: 'Dispatcher 6',    display_order: 60,  is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'SUPV1', label: 'Supervisor 1',    display_order: 70,  is_dispatcher: true,  is_admin: true,  can_reset: false },
+  { position_id: 'SUPV2', label: 'Supervisor 2',    display_order: 80,  is_dispatcher: true,  is_admin: true,  can_reset: false },
+  { position_id: 'MGR1',  label: 'Manager 1',       display_order: 90,  is_dispatcher: true,  is_admin: true,  can_reset: true  },
+  { position_id: 'MGR2',  label: 'Manager 2',       display_order: 100, is_dispatcher: true,  is_admin: true,  can_reset: true  },
+  { position_id: 'EMS',   label: 'EMS Coordinator', display_order: 110, is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'TCRN',  label: 'Transport RN',    display_order: 120, is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'PLRN',  label: 'Placement RN',    display_order: 130, is_dispatcher: true,  is_admin: false, can_reset: false },
+  { position_id: 'IT',    label: 'IT Support',      display_order: 140, is_dispatcher: true,  is_admin: true,  can_reset: true  },
+  { position_id: 'UNIT',  label: 'Field Unit',      display_order: 150, is_dispatcher: false, is_admin: false, can_reset: false },
+  { position_id: 'VIEWER',label: 'Viewer',          display_order: 160, is_dispatcher: false, is_admin: false, can_reset: false },
+];
+
 // Positions metadata — populated from API on startup; drives dropdown + role checks
-let POSITIONS_META = [];
+let POSITIONS_META = [...POSITIONS_FALLBACK];
 
 // Admin role check — uses POSITIONS_META when loaded, falls back to hardcoded list
 function isAdminRole() {
@@ -116,6 +137,11 @@ function _populateLoginRoleDropdown(positions) {
   // Restore previously selected value if it still exists
   if (prev) sel.value = prev;
 }
+
+// Populate dropdown immediately with fallback so it's never empty on page load
+document.addEventListener('DOMContentLoaded', function() {
+  _populateLoginRoleDropdown(POSITIONS_FALLBACK.filter(p => p.is_dispatcher));
+});
 
 // Unit display name mappings
 const UNIT_LABELS = {
@@ -9292,18 +9318,10 @@ function _rtDisconnect() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function start() {
-  // Load positions for role dropdown and admin checks
-  try {
-    const posRes = await API.getPositions();
-    if (posRes && posRes.ok && Array.isArray(posRes.positions)) {
-      POSITIONS_META = posRes.positions;
-      _populateLoginRoleDropdown(POSITIONS_META);
-    }
-  } catch (_) {}
-  // Also load full positions including is_admin flag via init
+  // Refresh positions from live DB (fallback already applied at DOMContentLoaded)
   try {
     const initRes = await API.init();
-    if (initRes && initRes.ok && Array.isArray(initRes.positions)) {
+    if (initRes && initRes.ok && Array.isArray(initRes.positions) && initRes.positions.length > 0) {
       POSITIONS_META = initRes.positions;
       _populateLoginRoleDropdown(initRes.positions.filter(p => p.is_dispatcher));
     }
