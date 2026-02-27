@@ -1130,6 +1130,9 @@ const DISPOSITION_CODES = [
   { code: 'NO-PATIENT-FOUND',       label: 'NO PATIENT FOUND' },
   { code: 'DUPLICATE',              label: 'DUPLICATE CALL' },
   { code: 'DATA-ERROR',             label: 'DATA ENTRY ERROR' },
+  { code: 'REFUSED-BY-RECEIVING',   label: 'REFUSED BY RECEIVING FACILITY' },
+  { code: 'DIVERTED-EN-ROUTE',      label: 'DIVERTED EN ROUTE' },
+  { code: 'CONVERTED-TO-911',       label: 'CONVERTED TO 911 RESPONSE' },
   { code: 'OTHER',                  label: 'OTHER / UNSPECIFIED' },
 ];
 
@@ -2573,8 +2576,8 @@ function renderBoard() {
     }
     if (!noteText) noteText = (u.note || '').replace(/^\[OOS:[^\]]+\]\s*/, '').replace(/\[LOC:[^\]]*\]\s*/g, '').replace(/\[ETA:\d+\]\s*/g, '');
     noteText = noteText.toUpperCase();
-    const oosMatch = (u.note || '').match(/^\[OOS:([^\]]+)\]/);
-    const oosBadge = oosMatch ? '<span class="oos-badge">' + esc(oosMatch[1]) + '</span>' : '';
+    const oosReason = u.oos_reason || ((u.note || '').match(/^\[OOS:([^\]]+)\]/) || [])[1] || '';
+    const oosBadge = oosReason ? '<span class="oos-badge">' + esc(oosReason) + '</span>' : '';
     const patMatch = (u.note || '').match(/\[PAT:([^\]]+)\]/);
     const patBadge = patMatch ? '<span class="pat-badge">PAT:' + esc(patMatch[1]) + '</span>' : '';
     const locMatch = (u.note || '').match(/\[LOC:([^\]]+)\]/);
@@ -2858,8 +2861,8 @@ function renderBoardDiff() {
     }
     if (!noteText) noteText = (u.note || '').replace(/^\[OOS:[^\]]+\]\s*/, '').replace(/\[LOC:[^\]]*\]\s*/g, '').replace(/\[ETA:\d+\]\s*/g, '');
     noteText = noteText.toUpperCase();
-    const oosMatch = (u.note || '').match(/^\[OOS:([^\]]+)\]/);
-    const oosBadge = oosMatch ? '<span class="oos-badge">' + esc(oosMatch[1]) + '</span>' : '';
+    const oosReason2 = u.oos_reason || ((u.note || '').match(/^\[OOS:([^\]]+)\]/) || [])[1] || '';
+    const oosBadge = oosReason2 ? '<span class="oos-badge">' + esc(oosReason2) + '</span>' : '';
     const patMatch = (u.note || '').match(/\[PAT:([^\]]+)\]/);
     const patBadge = patMatch ? '<span class="pat-badge">PAT:' + esc(patMatch[1]) + '</span>' : '';
     const locMatch2 = (u.note || '').match(/\[LOC:([^\]]+)\]/);
@@ -3089,14 +3092,15 @@ async function qbStatus(code) {
   const btn = document.querySelector('.qb-' + code);
   if (btn) btn.disabled = true;
   const note = (document.getElementById('qbNote')?.value || '').trim().toUpperCase();
-  let oosPrefix = '';
+  let oosReason = null;
   if (code === 'OOS') {
     const reason = await promptOOSReason(SELECTED_UNIT_ID);
     if (!reason) { if (btn) btn.disabled = false; return; }
-    oosPrefix = `[OOS:${reason}] `;
+    oosReason = reason;
   }
   const patch = { status: code };
-  if (oosPrefix || note) patch.note = oosPrefix + note;
+  if (oosReason) patch.oosReason = oosReason;
+  if (note) patch.note = note;
   const _prevQb = { uid: u.unit_id, status: u.status, note: u.note || '', incident: u.incident || '', destination: u.destination || '' };
   setLive(true, 'LIVE • UPDATE');
   const r = await API.upsertUnit(TOKEN, u.unit_id, patch, u.updated_at || '');
@@ -6099,7 +6103,7 @@ async function _execCmd(tx) {
         inc = 'SC' + yy + '-' + inc;
       }
       if (note) await API.appendIncidentNote(TOKEN, inc, note);
-      const r = await API.closeIncident(TOKEN, inc, 'CANCELLED');
+      const r = await API.closeIncident(TOKEN, inc, 'CANCELLED-PRIOR');
       if (!r.ok) return showErr(r);
       beepChange();
       showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' CANCELLED');
