@@ -1125,6 +1125,7 @@ const DISPOSITION_CODES = [
   { code: 'PATIENT-REFUSED',        label: 'PATIENT REFUSED' },
   { code: 'NO-PATIENT-FOUND',       label: 'NO PATIENT FOUND' },
   { code: 'DUPLICATE',              label: 'DUPLICATE CALL' },
+  { code: 'DATA-ERROR',             label: 'DATA ENTRY ERROR' },
   { code: 'OTHER',                  label: 'OTHER / UNSPECIFIED' },
 ];
 
@@ -1134,7 +1135,7 @@ function promptDisposition(incidentId) {
     const overlay = document.getElementById('dispositionOverlay');
     const label = document.getElementById('dispositionIncLabel');
     const btns = document.getElementById('dispositionBtns');
-    if (label) label.textContent = 'INCIDENT ' + String(incidentId).replace(/^\d{2}-0*/, '');
+    if (label) label.textContent = 'INCIDENT ' + String(incidentId).replace(/^[A-Z]*\d{2}-0*/, '');
     if (btns) {
       btns.innerHTML = DISPOSITION_CODES.map(d =>
         '<button onclick="selectDisposition(\'' + d.code.replace(/'/g, "\\'") + '\')" style="padding:8px 6px;background:#0a1628;border:1px solid #1a3a5c;color:#c9d1d9;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;text-align:center;letter-spacing:.04em;line-height:1.3;">' + esc(d.label) + '</button>'
@@ -1688,8 +1689,8 @@ function tryBeepOnStateChange() {
     LAST_MSG_COUNT = mC;
     if (uU > 0) beepHotMessage(); else beepMessage();
   }
-  if (mI && mI !== LAST_INCIDENT_TOUCH) { LAST_INCIDENT_TOUCH = mI; beepChange(); }
-  if (mU && mU !== LAST_MAX_UPDATED_AT) { LAST_MAX_UPDATED_AT = mU; beepChange(); }
+  if (mI && mI > LAST_INCIDENT_TOUCH) { LAST_INCIDENT_TOUCH = mI; beepChange(); }
+  if (mU && mU > LAST_MAX_UPDATED_AT) { LAST_MAX_UPDATED_AT = mU; beepChange(); }
 
   // HOLD call maturity — beep once when a scheduled call's time arrives
   if (BASELINED) {
@@ -1720,7 +1721,7 @@ function tryBeepOnStateChange() {
       if (ageMin == null || ageMin > 3) return; // ignore incidents older than 3 min (pre-existing)
       _urgentIncAlertedIds.add(inc.incident_id);
       beepAlert();
-      const shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
+      const shortId = String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
       showToast('PRI-1: ' + inc.incident_id + ' — ' + (inc.incident_type || 'INCIDENT').toUpperCase() + (inc.scene_address ? ' @ ' + inc.scene_address.toUpperCase() : ''), 'warn', 8000);
     });
   }
@@ -1736,7 +1737,7 @@ function tryBeepOnStateChange() {
       if (waitMin == null || waitMin < 30) return;
       _unattendedAlertedIds.add(inc.incident_id);
       beepAlert();
-      const shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
+      const shortId = String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
       showToast('UNATTENDED: ' + inc.incident_id + ' QUEUED ' + Math.floor(waitMin) + 'M — NO UNIT ASSIGNED', 'warn', 8000);
     });
   }
@@ -1917,7 +1918,7 @@ function renderActiveCallsBar() {
 
   const now = Date.now();
   const cards = active.map(inc => {
-    const shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
+    const shortId = String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
     const elapsedMs = now - new Date(_normalizeTs(inc.dispatch_time || inc.created_at)).getTime();
     const elapsedMin = Math.floor(elapsedMs / 60000);
     const elapsedStr = elapsedMin >= 60
@@ -2069,7 +2070,7 @@ function _appendStackSubRows(unitId, fragment) {
     const roleLabel = isPrimary ? 'PRIMARY' : 'QUEUED #' + (a.assignment_order || '?');
     const inc = (STATE.incidents || []).find(i => i.incident_id === a.incident_id);
     const typeLabel = inc ? (inc.incident_type || '') : '';
-    const shortId = String(a.incident_id).replace(/^\d{2}-0*/, '');
+    const shortId = String(a.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
     const subTr = document.createElement('tr');
     subTr.className = 'stack-detail-row';
     subTr.innerHTML =
@@ -4277,7 +4278,7 @@ async function closeIncidentAction() {
     const r = await API.closeIncident(TOKEN, incId, disposition);
     if (!r.ok) { showAlert('ERROR', r.error || 'FAILED TO CLOSE INCIDENT'); return; }
     closeIncidentPanel();
-    showToast('INCIDENT ' + String(incId).replace(/^\d{2}-0*/, '') + ' CLOSED — ' + disposition);
+    showToast('INCIDENT ' + String(incId).replace(/^[A-Z]*\d{2}-0*/, '') + ' CLOSED — ' + disposition);
     refresh();
   } catch (e) {
     showAlert('ERROR', 'FAILED TO CLOSE INCIDENT: ' + e.message);
@@ -5105,7 +5106,7 @@ async function _execCmd(tx) {
   if (mU.startsWith('STACK ')) {
     const stackParts = (mU + ' ' + nU).trim().split(/\s+/);
     const secondToken = stackParts[1] || '';
-    const looksLikeInc = /^\d{2}-\d{4}$/i.test(secondToken) || /^INC/i.test(secondToken) || /^0\d{3}$/.test(secondToken);
+    const looksLikeInc = /^\d{2}-\d{4}$/i.test(secondToken) || /^[A-Z]{1,4}\d{2}-\d{4}$/i.test(secondToken) || /^INC/i.test(secondToken) || /^0\d{3}$/.test(secondToken);
     if (stackParts.length >= 3 && looksLikeInc) {
       // Write path: STACK <INC> <UNIT>
       const incArg = stackParts[1].replace(/^INC-?/i, '').trim();
@@ -5735,7 +5736,7 @@ async function _execCmd(tx) {
   if (mU.startsWith('CB ')) {
     const cbArg = ma.substring(3).trim().toUpperCase();
     const cbPhone = nU.trim().toUpperCase();
-    const isIncId = /^INC\d+$/.test(cbArg) || /^\d{2}-\d{4}$/.test(cbArg) || /^\d{3,4}$/.test(cbArg);
+    const isIncId = /^INC\d+$/.test(cbArg) || /^[A-Z]{1,4}\d{2}-\d{4}$/.test(cbArg) || /^\d{2}-\d{4}$/.test(cbArg) || /^\d{3,4}$/.test(cbArg);
     let cbIncId, cbNum;
     if (isIncId && cbPhone) {
       cbIncId = cbArg;
@@ -5777,7 +5778,7 @@ async function _execCmd(tx) {
   // U <NOTE>        — uses currently-open incident panel (no ID required)
   if (mU.startsWith('U ')) {
     const iR = ma.substring(2).trim().toUpperCase();
-    const isIncId = /^INC\d+$/.test(iR) || /^\d{2}-\d{4}$/.test(iR) || /^\d{3,4}$/.test(iR);
+    const isIncId = /^INC\d+$/.test(iR) || /^[A-Z]{1,4}\d{2}-\d{4}$/.test(iR) || /^\d{2}-\d{4}$/.test(iR) || /^\d{3,4}$/.test(iR);
     if (isIncId) {
       if (!nU) { showConfirm('ERROR', 'USAGE: U INC0001 MESSAGE', () => { }); return; }
       setLive(true, 'LIVE • ADD NOTE');
@@ -6018,7 +6019,7 @@ async function _execCmd(tx) {
       'OOS:          ' + String(byStatus['OOS']).padStart(3),
       showIf('ON BREAK:     ', byStatus['BRK']),
       '═'.repeat(36),
-      longestId ? 'LONGEST INC:  ' + String(longestId).replace(/^\d{2}-0*/,'') + ' (' + fmtLong(longestMins) + ')' : 'NO ACTIVE INCIDENTS',
+      longestId ? 'LONGEST INC:  ' + String(longestId).replace(/^[A-Z]*\d{2}-0*/,'') + ' (' + fmtLong(longestMins) + ')' : 'NO ACTIVE INCIDENTS',
       'TOTAL UNITS:  ' + statsUnits.length,
     ].filter(l => l !== null);
     showAlert('BOARD STATS', lines.join('\n'));
@@ -6077,30 +6078,58 @@ async function _execCmd(tx) {
     return;
   }
 
-  // DEL / CAN / CLOSE incident — flexible syntax
-  // Accepts: DEL 023, CAN 0023, 023 DEL, DEL INC 0023, CLOSE 0023, etc.
+  // CAN <inc> [note] — quick cancel with optional note (no picker)
   {
-    const _delFull = (mU + ' ' + nU).trim();
-    const delCanMatch = _delFull.match(/^(?:DEL|CAN)\s+(?:INC\s*)?(\d{3,4})$/) ||
-                        _delFull.match(/^(\d{3,4})\s+(?:DEL|CAN)$/) ||
-                        _delFull.match(/^(?:DEL|CAN)(\d{3,4})$/) ||
-                        _delFull.match(/^(\d{3,4})(?:DEL|CAN)$/);
-    if (delCanMatch) {
-      let incNum = delCanMatch[1];
-      if (incNum.length === 3) incNum = '0' + incNum;
-      const yy = String(new Date().getFullYear()).slice(-2);
-      const fullInc = yy + '-' + incNum;
-      const disposition = await promptDisposition(fullInc);
-      if (!disposition) return; // user cancelled
-      setLive(true, 'LIVE • CLOSE INCIDENT');
-      try {
-        const r = await API.closeIncident(TOKEN, fullInc, disposition);
-        if (!r.ok) { showAlert('ERROR', r.error || 'FAILED TO CLOSE INCIDENT ' + fullInc); return; }
-        showToast('INC ' + incNum.replace(/^0+/, '') + ' CLOSED — ' + disposition);
-        refresh();
-      } catch (e) {
-        showAlert('ERROR', 'FAILED: ' + e.message);
+    const canFull = (mU + ' ' + nU).trim();
+    const canMatch = canFull.match(/^CAN\s+(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})(?:\s+(.+))?$/) ||
+                     canFull.match(/^(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})\s+CAN$/);
+    if (canMatch) {
+      let inc = canMatch[1];
+      const note = (canMatch[2] || '').trim();
+      if (/^\d{3,4}$/.test(inc)) {
+        if (inc.length === 3) inc = '0' + inc;
+        const yy = String(new Date().getFullYear()).slice(-2);
+        inc = 'SC' + yy + '-' + inc;
       }
+      if (note) await API.appendIncidentNote(TOKEN, inc, note);
+      const r = await API.closeIncident(TOKEN, inc, 'CANCELLED');
+      if (!r.ok) return showErr(r);
+      beepChange();
+      showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' CANCELLED');
+      refresh();
+      return;
+    }
+  }
+
+  // DEL <inc> [dup|err] — close with structured reason; prompts if no reason given
+  {
+    const delFull = (mU + ' ' + nU).trim();
+    const delMatch = delFull.match(/^DEL\s+(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})(?:\s+(\S+))?$/) ||
+                     delFull.match(/^(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})\s+DEL$/) ||
+                     delFull.match(/^DEL([A-Z]*\d{2}-\d{4}|\d{3,4})$/);
+    // Don't match DEL MSG... (handled by message handler below)
+    if (delMatch && !/^MSG/i.test(delMatch[1])) {
+      let inc = delMatch[1];
+      const reasonRaw = (delMatch[2] || '').toUpperCase();
+      if (/^\d{3,4}$/.test(inc)) {
+        if (inc.length === 3) inc = '0' + inc;
+        const yy = String(new Date().getFullYear()).slice(-2);
+        inc = 'SC' + yy + '-' + inc;
+      }
+      let disposition = '';
+      if (reasonRaw === 'DUP' || reasonRaw === 'DUPLICATE') {
+        disposition = 'DUPLICATE';
+      } else if (reasonRaw === 'ERR' || reasonRaw === 'ERROR') {
+        disposition = 'DATA-ERROR';
+      } else {
+        disposition = await promptDisposition(inc);
+        if (!disposition) return;
+      }
+      const r = await API.closeIncident(TOKEN, inc, disposition);
+      if (!r.ok) return showErr(r);
+      beepChange();
+      showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' DEL — ' + disposition);
+      refresh();
       return;
     }
   }
@@ -6121,7 +6150,7 @@ async function _execCmd(tx) {
     const r = await API.closeIncident(TOKEN, inc, disposition);
     if (!r.ok) return showErr(r);
     beepChange();
-    showToast('INC ' + inc.replace(/^\d{2}-0*/, '') + ' CLOSED — ' + disposition);
+    showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' CLOSED — ' + disposition);
     refresh();
     return;
   }
@@ -6556,7 +6585,7 @@ async function _execCmd(tx) {
       const r = await API.requestMA(TOKEN, maIncRaw2, maAgency2);
       setLive(false);
       if (!r.ok) return showErr(r);
-      const shortId = String(r.incidentId || '').replace(/^\d{2}-0*/, '');
+      const shortId = String(r.incidentId || '').replace(/^[A-Z]*\d{2}-0*/, '');
       const displayName = r.agencyName || r.agency || maAgency2;
       showToast('MUTUAL AID REQUESTED: ' + displayName + ' → ' + (r.incidentId || ''), 'warn', 6000);
       return;
@@ -6586,7 +6615,7 @@ async function _execCmd(tx) {
     const r = await API.appendIncidentNote(TOKEN, llIncRaw, '[AIR:' + llCallsign + ':LINKED]');
     setLive(false);
     if (!r.ok) return showErr(r);
-    const llShort = String(r.incidentId || llIncRaw).replace(/^\d{2}-0*/, '');
+    const llShort = String(r.incidentId || llIncRaw).replace(/^[A-Z]*\d{2}-0*/, '');
     showToast('AIR LINKED: ' + llCallsign + ' \u2192 ' + (r.incidentId || llIncRaw), 'good', 5000);
     return;
   }
@@ -6693,8 +6722,8 @@ async function _execCmd(tx) {
     oosNotePrefix = `[OOS:${reason}] `;
   }
 
-  // Check for incident ID at end of unit (e.g. "D AMWC1 INC-0001")
-  const incMatch = rawUnit.match(/\s+(INC\s*\d{2}-\d{4}|INC\s*\d{4}|\d{2}-\d{4}|\d{4})$/i);
+  // Check for incident ID at end of unit (e.g. "D AMWC1 INC-0001" or "D AMWC1 SC26-0001")
+  const incMatch = rawUnit.match(/\s+(INC\s*[A-Z]*\d{2}-\d{4}|INC\s*\d{4}|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4})$/i);
   if (incMatch) {
     incidentId = incMatch[1].replace(/^INC\s*/i, '').trim().toUpperCase();
     if (/^\d{4}$/.test(incidentId)) {
@@ -6705,11 +6734,11 @@ async function _execCmd(tx) {
     rawUnit = rawUnit.substring(0, incMatch.index).trim();
   }
 
-  // Also check if nU looks like an incident ID (e.g. "D AMWC1 INC-0001")
+  // Also check if nU looks like an incident ID (e.g. "D AMWC1 INC-0001" or "D AMWC1 SC26-0001")
   let nuUsedAsIncident = false;
   const dispatchLikeStatuses = new Set(['D', 'DE', 'AT', 'TH']);
   if (!incidentId && dispatchLikeStatuses.has(stCmd) && nU) {
-    const nuIncMatch = nU.trim().match(/^(INC[-\s]?\d{2}-\d{4}|INC[-\s]?\d{4}|\d{2}-\d{4}|\d{4})$/i);
+    const nuIncMatch = nU.trim().match(/^(INC[-\s]?[A-Z]*\d{2}-\d{4}|INC[-\s]?\d{4}|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4})$/i);
     if (nuIncMatch) {
       incidentId = nuIncMatch[1].replace(/^INC[-\s]*/i, '').trim().toUpperCase();
       if (/^\d{4}$/.test(incidentId)) {
@@ -7223,10 +7252,13 @@ U <INC>; <MESSAGE>      Add note to incident
 OK INC<ID>              Touch incident timestamp
 LINK <U1> <U2> <INC>    Assign both units to incident
 TRANSFER <FROM> <TO> <INC>   Transfer incident
-CLOSE <INC>             Manually close incident
-DEL/CAN <INC>           Close incident (flexible)
-  DEL 023, CAN 0023, 023 DEL, DEL INC 0023
-  023CAN, CAN023 — all work (3 or 4 digits)
+CLOSE <INC>             Manually close incident (full picker)
+CAN <INC> [NOTE]        Quick cancel (CANCELLED — no picker)
+  CAN SC26-0045, CAN 0045, CAN 0045 PER HOSPITAL
+DEL <INC> [DUP|ERR]     Delete with structured reason
+  DEL SC26-0045 DUP  (duplicate call)
+  DEL SC26-0045 ERR  (data entry error)
+  DEL SC26-0045      (opens reason picker)
 RQ <INC>                Reopen incident
 
 ═══════════════════════════════════════════════════

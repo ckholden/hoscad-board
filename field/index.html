@@ -1671,6 +1671,20 @@
   </div>
 </div>
 
+<!-- Delete Incident overlay — reason picker for DEL command -->
+<div id="delReasonOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
+  <div style="background:#0d1117;border:2px solid #c0392b;padding:24px;min-width:280px;max-width:90vw;">
+    <div style="font-size:14px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#e6edf3;">DELETE INCIDENT</div>
+    <div style="font-size:12px;color:#8b949e;margin-bottom:4px;" id="delReasonIncLabel"></div>
+    <div style="font-size:10px;font-weight:700;color:#ffd700;margin-bottom:14px;">INCIDENT REMAINS AUDITABLE — SELECT REASON</div>
+    <div style="display:flex;gap:8px;flex-direction:column;">
+      <button id="btnDelDup" style="padding:12px;background:rgba(255,170,0,.1);border:2px solid rgba(255,170,0,.4);color:#ffd700;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;">DUPLICATE CALL (DUP)</button>
+      <button id="btnDelErr" style="padding:12px;background:rgba(255,107,107,.1);border:2px solid rgba(255,107,107,.4);color:#ff6b6b;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;">DATA ENTRY ERROR (ERR)</button>
+      <button id="btnDelCancel" style="padding:10px;background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;">CANCEL</button>
+    </div>
+  </div>
+</div>
+
 <!-- Hospital Quick Reference Overlay -->
 <div id="infoOverlay" class="info-overlay" style="display:none;">
   <div class="info-overlay-header">
@@ -1929,7 +1943,7 @@
     });
     var html = activeUnits.map(function(u) {
       var isSelf = u.unit_id === _cadCallsign;
-      var incText = u.incident ? ('INC ' + String(u.incident).replace(/^\d{2}-0*/, '')) : '';
+      var incText = u.incident ? ('INC ' + String(u.incident).replace(/^[A-Z]*\d{2}-0*/, '')) : '';
       var noteText = (u.note && !incText) ? u.note : '';
       var statusClass = 'cad-status-' + (u.status || 'UV');
       return '<div class="roster-unit-row" style="' + (isSelf ? 'background:rgba(47,108,255,0.07);' : '') + '">' +
@@ -1978,7 +1992,7 @@
       else if (pri === 'PRI-3') priClass = 'inc-priority-3';
       else if (pri === 'PRI-4') priClass = 'inc-priority-4';
       var units = Array.isArray(inc.units) ? inc.units : (inc.units ? String(inc.units).split(',').map(function(s){return s.trim();}).filter(Boolean) : []);
-      var shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
+      var shortId = String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
       var isSelf = units.indexOf(_cadCallsign) !== -1;
       var isOpen = units.length === 0;
       return '<div class="call-queue-row' + (isOpen ? ' is-new' : '') + '" onclick="openCallDetail(\'' + esc(inc.incident_id) + '\')">' +
@@ -2008,7 +2022,7 @@
     var stackItem = (_lastStack || []).find(function(x) { return x.incident_id === incId; });
     var src = inc || stackItem;
     if (!src) return;
-    var shortId = String(incId).replace(/^\d{2}-0*/, '');
+    var shortId = String(incId).replace(/^[A-Z]*\d{2}-0*/, '');
     var pri = ((inc && inc.priority) || (stackItem && stackItem.priority) || '').toUpperCase();
     var units = Array.isArray(inc && inc.units) ? inc.units : (inc && inc.units ? String(inc.units).split(',').map(function(s){return s.trim();}).filter(Boolean) : []);
     var noteRaw = (inc && inc.incident_note) || (stackItem && stackItem.incident_note) || '';
@@ -2063,7 +2077,7 @@
   }
 
   function handleSelfAssign(incId, statusCode) {
-    var shortId = String(incId).replace(/^\d{2}-0*/, '');
+    var shortId = String(incId).replace(/^[A-Z]*\d{2}-0*/, '');
     closeCallDetail();
     feedSys(statusCode + ' SELF-ASSIGNING TO INC' + shortId + '...');
     API.selfAssign(_cadToken, incId, statusCode).then(function(res) {
@@ -2138,7 +2152,7 @@
         fillColor: isSelf ? '#1a3a5c' : '#3a2800',
         fillOpacity: 0.85, weight: 2
       }).bindPopup('<b>' + esc(u.unit_id) + '</b><br>' + esc(u.status || '') +
-        (u.incident ? '<br>INC: ' + esc(String(u.incident).replace(/^\d{2}-0*/, '')) : '')));
+        (u.incident ? '<br>INC: ' + esc(String(u.incident).replace(/^[A-Z]*\d{2}-0*/, '')) : '')));
       bounds.push(pos);
     });
 
@@ -2168,7 +2182,7 @@
       }
       var color = isCur ? '#ff4444' : '#ff9900';
       var fillColor = isCur ? '#8b0000' : '#7a4300';
-      var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
+      var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
       var normAddr = addr.toUpperCase().trim();
       if (_FIELD_KNOWN_COORDS && _FIELD_KNOWN_COORDS[normAddr]) {
         var kc = _FIELD_KNOWN_COORDS[normAddr];
@@ -3278,7 +3292,7 @@
       extras.forEach(function(a, i) {
         var extraType = a.incident_type || a.incident_id || '';
         var extraDest = a.destination ? (' \u2192 ' + a.destination) : '';
-        var shortId   = String(a.incident_id).replace(/^\d{2}-0*/, '');
+        var shortId   = String(a.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
         extraHtml += '<div class="next-call-extra-row">' +
           '<span class="next-call-extra-num">' + (i + 2) + '.</span>' +
           '<span>' + esc('INC' + shortId) + '</span>' +
@@ -4229,6 +4243,31 @@
     if (e.key === 'Escape') { _resolveClearNote(null); }
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // DEL REASON DIALOG — structured reason picker for DEL command
+  // ════════════════════════════════════════════════════════════════════════════
+  let _delReasonResolve = null;
+
+  function promptDelReason(incId) {
+    return new Promise(function(resolve) {
+      _delReasonResolve = resolve;
+      var label = document.getElementById('delReasonIncLabel');
+      if (label) label.textContent = incId;
+      var el = document.getElementById('delReasonOverlay');
+      if (el) el.style.display = 'flex';
+    });
+  }
+
+  function _resolveDelReason(reason) {
+    var el = document.getElementById('delReasonOverlay');
+    if (el) el.style.display = 'none';
+    if (_delReasonResolve) { _delReasonResolve(reason); _delReasonResolve = null; }
+  }
+
+  document.getElementById('btnDelDup').addEventListener('click', function() { _resolveDelReason('DUPLICATE'); });
+  document.getElementById('btnDelErr').addEventListener('click', function() { _resolveDelReason('DATA-ERROR'); });
+  document.getElementById('btnDelCancel').addEventListener('click', function() { _resolveDelReason(null); });
+
   // Go available — tap AV button → optional note → set status AV
   async function goAvailable() {
     var note = '';
@@ -4342,7 +4381,7 @@
     if (!text) return;
 
     // Status commands — DE/OS optionally followed by INC#### for self-assignment
-    const statusMatch = text.match(/^(DE|OS|T|TH|AV|OOS|BRK|UV|F|FD)(?:\s+(INC\S+|\d{2}-\d{4}|\d{4}))?(?:\s*;\s*(.*))?$/); // D excluded — only board can dispatch
+    const statusMatch = text.match(/^(DE|OS|T|TH|AV|OOS|BRK|UV|F|FD)(?:\s+(INC\S+|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4}))?(?:\s*;\s*(.*))?$/); // D excluded — only board can dispatch
     if (statusMatch) {
       const statusCode = statusMatch[1].toUpperCase();
       const incArg = statusMatch[2] ? statusMatch[2].replace(/^INC/i, '') : null;
@@ -4693,6 +4732,44 @@
       return;
     }
 
+    // CAN <inc> [note] — quick cancel with optional note
+    const canMatch = text.match(/^CAN\s+(\S+)(?:\s+(.+))?$/);
+    if (canMatch) {
+      (async function() {
+        var incArg = canMatch[1];
+        var note = (canMatch[2] || '').trim();
+        if (note) {
+          try { await API.appendIncidentNote(_cadToken, incArg, note); } catch(e) {}
+        }
+        var r = await API.closeIncident(_cadToken, incArg, 'CANCELLED');
+        if (r.ok) feedSys('[' + nowTS() + '] ' + incArg + ' CANCELLED' + (note ? ' — ' + note : ''));
+        else feedErr('CAN FAILED: ' + (r.error || 'UNKNOWN'));
+      })();
+      return;
+    }
+
+    // DEL <inc> [dup|err] — close with structured reason
+    const delMatch = text.match(/^DEL\s+(\S+)(?:\s+(\S+))?$/);
+    if (delMatch) {
+      (async function() {
+        var incArg = delMatch[1];
+        var reasonRaw = (delMatch[2] || '').toUpperCase();
+        var disposition = '';
+        if (reasonRaw === 'DUP' || reasonRaw === 'DUPLICATE') {
+          disposition = 'DUPLICATE';
+        } else if (reasonRaw === 'ERR' || reasonRaw === 'ERROR') {
+          disposition = 'DATA-ERROR';
+        } else {
+          disposition = await promptDelReason(incArg);
+          if (!disposition) return;
+        }
+        var r = await API.closeIncident(_cadToken, incArg, disposition);
+        if (r.ok) feedSys('[' + nowTS() + '] ' + incArg + ' DELETED — ' + disposition);
+        else feedErr('DEL FAILED: ' + (r.error || 'UNKNOWN'));
+      })();
+      return;
+    }
+
     // R <inc>
     const reviewMatch = text.match(/^R\s+(.+)$/);
     if (reviewMatch) {
@@ -4757,6 +4834,13 @@
       feedSys('DEST                    CLEAR DESTINATION');
       feedSys('ADDR <SEARCH>           FACILITY LOOKUP');
       feedSys('R <INC>                 REVIEW INCIDENT');
+      feedSys('CLOSE <INC>             CLOSE INCIDENT');
+      feedSys('CAN <INC> [NOTE]        QUICK CANCEL (NO PICKER)');
+      feedSys('  CAN SC26-0045, CAN 0045, CAN 0045 PER HOSPITAL');
+      feedSys('DEL <INC> [DUP|ERR]     DELETE WITH REASON');
+      feedSys('  DEL SC26-0045 DUP  (DUPLICATE)');
+      feedSys('  DEL SC26-0045 ERR  (DATA ERROR)');
+      feedSys('  DEL SC26-0045      (OPENS PICKER)');
       feedSys('REFRESH                 FORCE POLL');
       feedSys('LO                      LOG OUT');
       feedSys('CLS                     CLEAR SCREEN');
@@ -5367,7 +5451,7 @@
     var units = (_lastState && _lastState.units)     || [];
 
     var curInc = curIncId ? incs.find(function(i) { return i.incident_id === curIncId; }) : null;
-    if (incLabel) incLabel.textContent = curInc ? ('INC' + String(curIncId).replace(/^\d{2}-0*/, '')) : '';
+    if (incLabel) incLabel.textContent = curInc ? ('INC' + String(curIncId).replace(/^[A-Z]*\d{2}-0*/, '')) : '';
 
     // Init or reuse map — remove previously tracked layers
     if (!_fieldMapObj) {
@@ -5401,7 +5485,7 @@
         fillColor: isSelf ? '#1a3a5c' : '#3a2800',
         fillOpacity: 0.85, weight: 2
       }).bindPopup('<b>' + esc(u.unit_id) + '</b><br>' + esc(u.status || '') +
-        (u.incident ? '<br>INC: ' + esc(String(u.incident).replace(/^\d{2}-0*/, '')) : '')));
+        (u.incident ? '<br>INC: ' + esc(String(u.incident).replace(/^[A-Z]*\d{2}-0*/, '')) : '')));
       bounds.push(pos);
     });
 
@@ -5424,7 +5508,7 @@
       }
       var color = isCur ? '#ff4444' : '#ff9900';
       var fillColor = isCur ? '#8b0000' : '#7a4300';
-      var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
+      var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
 
       var normAddr = addr.toUpperCase().trim();
       if (_FIELD_KNOWN_COORDS[normAddr]) {
@@ -5550,7 +5634,7 @@
     }
 
     var html = incs.map(function(inc) {
-      var shortId = String(inc.incident_id).replace(/^\d{2}-0*/, '');
+      var shortId = String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '');
       var status = inc.status || '';
       var statusColor = status === 'CLOSED' ? '#8b949e' : status === 'ACTIVE' ? '#4caf50' : '#e8c030';
       var incType = (inc.incident_type || '—').toUpperCase();
