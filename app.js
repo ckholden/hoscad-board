@@ -6810,8 +6810,9 @@ async function _execCmd(tx) {
   }
   const dN = displayNameForUnit(u);
   const p = { status: stCmd, displayName: dN };
-  if (oosNotePrefix || (nU && !nuUsedAsIncident)) p.note = oosNotePrefix + nU;
-  else if (avForce) p.note = '[AV-FORCE]';
+  // nU='FORCE' is consumed as the AV-FORCE flag — don't write it as a unit note
+  const _nuNote = (avForce && nU.trim().toUpperCase() === 'FORCE') ? '' : nU;
+  if (oosNotePrefix || (_nuNote && !nuUsedAsIncident)) p.note = oosNotePrefix + _nuNote;
   if (incidentId) {
     p.incident = incidentId;
     // Auto-copy incident destination to unit
