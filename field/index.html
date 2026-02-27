@@ -1379,7 +1379,7 @@
           <div id="hasIncidentView" style="display:none;">
             <button id="dispatchAckBtn" onclick="ackDispatch()" style="display:none;width:100%;margin-bottom:6px;padding:7px 12px;background:rgba(47,108,255,0.2);border:2px solid #2f6cff;color:#7fb3ff;font-family:inherit;font-size:13px;font-weight:900;letter-spacing:.08em;cursor:pointer;animation:newCallPulse 0.6s ease-out 3;">&#9679; ACK &#8212; TAP TO CONFIRM DISPATCH</button>
             <div class="inc-header" onclick="openIncDetail()" style="cursor:pointer;" title="Tap for details / add note">
-              <span class="inc-number" id="incNumber">INC --</span>
+              <span class="inc-number" id="incNumber">--</span>
               <span class="inc-priority inc-priority-3" id="incPriority">ROUTINE</span>
               <span class="inc-ma-badge" id="incMaBadge" style="display:none;">MUTUAL AID</span>
               <span class="inc-nature" id="incNature"></span>
@@ -1651,6 +1651,22 @@
     <div class="confirm-buttons">
       <button class="btn-confirm-yes" id="confirmYes">YES</button>
       <button class="btn-confirm-no" id="confirmNo">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clear Note overlay — optional note before going AV or patient handoff -->
+<div id="clearNoteOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
+  <div style="background:#0d1117;border:2px solid #1a3a5c;padding:24px;min-width:280px;max-width:90vw;">
+    <div style="font-size:14px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#e6edf3;" id="clearNoteTitle">CLEARING FROM CALL</div>
+    <div style="font-size:11px;color:#8b949e;margin-bottom:12px;">OPTIONAL NOTE — LEAVE BLANK TO SKIP</div>
+    <input id="clearNoteInput" type="text" autocomplete="off"
+      style="width:100%;box-sizing:border-box;padding:10px 8px;background:#0a1628;border:2px solid #1a3a5c;color:#e6edf3;font-family:inherit;font-size:14px;font-weight:700;text-transform:uppercase;outline:none;"
+      placeholder="E.G. PT STABLE, NO TRANSPORT..." />
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="btnClearNoteConfirm" style="flex:1;padding:12px;background:#1a3a5c;border:none;color:#5ba3e6;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;text-transform:uppercase;">CLEAR</button>
+      <button id="btnClearNoteSkip" style="flex:1;padding:12px;background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;">NO NOTE</button>
+      <button id="btnClearNoteCancel" style="padding:12px;background:transparent;border:1px solid #c0392b;color:#ff6b6b;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;">CANCEL</button>
     </div>
   </div>
 </div>
@@ -1976,7 +1992,7 @@
           (isSelf ? '<div style="font-size:10px;color:var(--green);font-weight:900;">YOU</div>' : '') +
           (isOpen ? '<div style="font-size:10px;color:var(--yellow);font-weight:900;">OPEN</div>' : '') +
           (!isSelf && !isOpen ? '<div class="call-queue-units">' + units.length + ' UNIT' + (units.length > 1 ? 'S' : '') + '</div>' : '') +
-          '<div style="font-size:9px;color:var(--muted);margin-top:2px;">INC ' + shortId + '</div>' +
+          '<div style="font-size:9px;color:var(--muted);margin-top:2px;">' + inc.incident_id + '</div>' +
         '</div>' +
         '<span style="color:var(--muted);font-size:16px;margin-left:8px;flex-shrink:0;">&#9654;</span>' +
         '</div>';
@@ -2003,7 +2019,7 @@
     var dest = (inc && inc.destination) || (stackItem && stackItem.destination) || '';
 
     var titleEl = document.getElementById('cdsTitle');
-    if (titleEl) titleEl.textContent = 'INC ' + shortId + (incType ? ' \u2014 ' + incType : '');
+    if (titleEl) titleEl.textContent = incId + (incType ? ' \u2014 ' + incType : '');
 
     var fieldsEl = document.getElementById('cdsFields');
     if (!fieldsEl) return;
@@ -2860,10 +2876,13 @@
   }
 
   function _updateHandoffBtn() {
-    // Inline HANDOFF button in incident panel (T status only)
+    // Show PATIENT HANDOFF button for T (transporting) and TH (at hospital) status
     const btn = document.getElementById('btnHandoff');
-    if (btn) btn.style.display = (_currentStatus === 'T' && _currentIncident) ? '' : 'none';
-    // TH button in secondary row: only relevant when in T status (transition T → TH)
+    if (btn) {
+      var show = (_currentStatus === 'T' || _currentStatus === 'TH') && _currentIncident;
+      btn.style.display = show ? '' : 'none';
+      btn.textContent = _currentStatus === 'TH' ? 'PATIENT HANDOFF / CLEAR' : 'PATIENT HANDOFF';
+    }
     const thBtn = document.getElementById('fieldTHBtn');
     if (thBtn) thBtn.style.opacity = (_currentStatus === 'T' || _currentStatus === 'TH') ? '1' : '0.45';
   }
@@ -2900,7 +2919,7 @@
       if (sceneRowEl) sceneRowEl.style.display = '';
 
       // Incident number
-      document.getElementById('incNumber').textContent = 'INC ' + unit.incident;
+      document.getElementById('incNumber').textContent = unit.incident;
 
       if (inc) {
         _currentNature = inc.incident_type || '';
@@ -3624,30 +3643,33 @@
   // ════════════════════════════════════════════════════════════════════════════
   // HANDOFF BUTTON (Change 5)
   // ════════════════════════════════════════════════════════════════════════════
-  function fieldHandoff() {
+  async function fieldHandoff() {
     if (!_cadCallsign || !_currentIncident) {
       showFieldToast('NO ACTIVE INCIDENT FOR HANDOFF.', 'warn');
       return;
     }
-    (async function() {
-      feedSys('RECORDING HANDOFF...');
-      try {
-        const r = await API.handoffUnit(_cadToken, _cadCallsign, '');
-        if (r.ok) {
-          _stopDispatchAlert();
-          _toneStatus();
-          feedSys('HANDOFF COMPLETE. STATUS: AV');
-          _pendingStatus = 'AV';
-          _currentStatus = 'AV';
-          updateStatusBadge('AV');
-          pollOnce();
-        } else {
-          feedErr('HANDOFF FAILED: ' + (r.error || 'UNKNOWN'));
-        }
-      } catch(e) {
-        feedErr('HANDOFF FAILED: NETWORK ERROR.');
+    var note = await promptClearNote('PATIENT HANDOFF');
+    if (note === null) return; // cancelled
+    feedSys('RECORDING HANDOFF...');
+    try {
+      if (note) {
+        try { await API.appendIncidentNote(_cadToken, _currentIncident, note); } catch(e) {}
       }
-    })();
+      const r = await API.handoffUnit(_cadToken, _cadCallsign, '');
+      if (r.ok) {
+        _stopDispatchAlert();
+        _toneStatus();
+        feedSys('HANDOFF COMPLETE. STATUS: AV');
+        _pendingStatus = 'AV';
+        _currentStatus = 'AV';
+        updateStatusBadge('AV');
+        pollOnce();
+      } else {
+        feedErr('HANDOFF FAILED: ' + (r.error || 'UNKNOWN'));
+      }
+    } catch(e) {
+      feedErr('HANDOFF FAILED: NETWORK ERROR.');
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -3996,6 +4018,15 @@
           const label = STATUS_LABELS[_currentStatus] || _currentStatus;
           feedAppend('<span class="cmd-status-change">[' + nowTS() + '] STATUS CHANGED TO ' + label + ' BY DISPATCH</span>');
           _toneStatus();
+          // Show alert banner in MY CALL tab so crew sees notification regardless of active tab
+          (function() {
+            var ab = document.getElementById('alertBanner');
+            if (ab) {
+              ab.textContent = '\u25CF STATUS SET TO ' + label + ' BY DISPATCH';
+              ab.style.display = '';
+              setTimeout(function() { if (ab.textContent.indexOf(label) !== -1) ab.style.display = 'none'; }, 8000);
+            }
+          })();
           _notify('STATUS: ' + label, _cadCallsign + ' status changed to ' + label,
             'cad-status-' + Date.now(), false);
         }
@@ -4159,6 +4190,58 @@
   document.getElementById('transportDestInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { _resolveTransport((this.value || '').trim().toUpperCase() || null); }
   });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // CLEAR NOTE DIALOG — optional note before going AV / patient handoff
+  // ════════════════════════════════════════════════════════════════════════════
+  let _clearNoteResolve = null;
+
+  function promptClearNote(title) {
+    return new Promise(function(resolve) {
+      _clearNoteResolve = resolve;
+      var titleEl = document.getElementById('clearNoteTitle');
+      if (titleEl) titleEl.textContent = title || 'CLEARING FROM CALL';
+      var input = document.getElementById('clearNoteInput');
+      if (input) input.value = '';
+      var el = document.getElementById('clearNoteOverlay');
+      if (el) { el.style.display = 'flex'; setTimeout(function() { if (input) input.focus(); }, 100); }
+    });
+  }
+
+  function _resolveClearNote(note) {
+    var el = document.getElementById('clearNoteOverlay');
+    if (el) el.style.display = 'none';
+    if (_clearNoteResolve) { _clearNoteResolve(note); _clearNoteResolve = null; }
+  }
+
+  document.getElementById('btnClearNoteConfirm').addEventListener('click', function() {
+    var note = (document.getElementById('clearNoteInput').value || '').trim();
+    _resolveClearNote(note); // empty string = no note, still proceed
+  });
+  document.getElementById('btnClearNoteSkip').addEventListener('click', function() {
+    _resolveClearNote(''); // skip note, proceed
+  });
+  document.getElementById('btnClearNoteCancel').addEventListener('click', function() {
+    _resolveClearNote(null); // null = cancelled
+  });
+  document.getElementById('clearNoteInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { _resolveClearNote((this.value || '').trim()); }
+    if (e.key === 'Escape') { _resolveClearNote(null); }
+  });
+
+  // Go available — tap AV button → optional note → set status AV
+  async function goAvailable() {
+    var note = '';
+    if (_currentIncident) {
+      var resp = await promptClearNote('GO AVAILABLE');
+      if (resp === null) return; // cancelled
+      note = resp;
+    }
+    if (note) {
+      try { await API.appendIncidentNote(_cadToken, _currentIncident, note); } catch(e) {}
+    }
+    updateFieldStatus('AV');
+  }
 
   // ════════════════════════════════════════════════════════════════════════════
   // CONFIRM DIALOG
@@ -4757,24 +4840,8 @@
     showLogin();
   });
 
-  // Patient Handoff (in-panel button)
-  document.getElementById('btnHandoff').addEventListener('click', async function() {
-    const ok = await showConfirm('PATIENT HANDOFF', 'CONFIRM PATIENT HANDOFF?\nUNIT WILL BE SET TO AVAILABLE.');
-    if (!ok) return;
-    feedSys('RECORDING HANDOFF...');
-    const r = await API.handoffUnit(_cadToken, _cadCallsign, '');
-    if (r.ok) {
-      _stopDispatchAlert();
-      _toneStatus();
-      feedSys('HANDOFF COMPLETE. STATUS: AV');
-      _pendingStatus = 'AV';
-      _currentStatus = 'AV';
-      updateStatusBadge('AV');
-      pollOnce();
-    } else {
-      feedErr('HANDOFF FAILED: ' + (r.error || 'UNKNOWN'));
-    }
-  });
+  // Patient Handoff (in-panel button) — delegates to fieldHandoff() which handles note prompt
+  document.getElementById('btnHandoff').addEventListener('click', function() { fieldHandoff(); });
 
   // Hospital quick reference close (btnInfo/btnNight/btnWake/btnChangePIN now in MORE tab via inline onclick)
   document.getElementById('btnInfoClose').addEventListener('click', closeInfoOverlay);
@@ -4836,40 +4903,11 @@
     });
   });
 
-  // Status buttons — AV and TH require 800ms hold, all others fire on click
-  let _avHoldTimer = null;
-  let _thHoldTimer = null;
+  // Status buttons — TH requires confirm, AV prompts for note, others fire on click
   document.querySelectorAll('.field-status-btn').forEach(function(btn) {
     const statusCode = btn.dataset.status;
     if (statusCode === 'AV') {
-      var _avStartX = 0, _avStartY = 0;
-      function avStart(e) {
-        e.preventDefault();
-        _avStartX = e.clientX; _avStartY = e.clientY;
-        btn.style.opacity = '0.5';
-        _avHoldTimer = setTimeout(function() {
-          _avHoldTimer = null;
-          btn.style.opacity = '';
-          btn.style.boxShadow = '0 0 0 3px #7fffb2 inset';
-          updateFieldStatus('AV');
-          setTimeout(function() { btn.style.boxShadow = ''; }, 600);
-        }, 800);
-      }
-      function avCancel() {
-        if (_avHoldTimer) { clearTimeout(_avHoldTimer); _avHoldTimer = null; }
-        btn.style.opacity = '';
-      }
-      function avMove(e) {
-        if (!_avHoldTimer) return;
-        var dx = e.clientX - _avStartX, dy = e.clientY - _avStartY;
-        if (dx * dx + dy * dy > 400) avCancel(); // 20px threshold
-      }
-      btn.addEventListener('pointerdown', avStart);
-      btn.addEventListener('pointerup', avCancel);
-      btn.addEventListener('pointerleave', avCancel);
-      btn.addEventListener('pointermove', avMove);
-      btn.addEventListener('pointercancel', avCancel);
-      btn.addEventListener('click', function(e) { e.preventDefault(); });
+      btn.addEventListener('click', function() { goAvailable(); });
     } else if (statusCode === 'TH') {
       btn.addEventListener('click', async function() {
         const ok = await showConfirm('AT HOSPITAL', 'CONFIRM ARRIVAL AT HOSPITAL?');
@@ -5618,6 +5656,7 @@
   window.openFieldBugReport  = openFieldBugReport;
   window.closeFieldBugReport = closeFieldBugReport;
   window.submitFieldBugReport = submitFieldBugReport;
+  window.appendFieldNote = appendFieldNote;
 
   function appendFieldNote(text) {
     const ta = document.getElementById('idmNoteInput');

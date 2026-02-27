@@ -3,7 +3,7 @@
  * Caches field app shell for offline resilience, handles push notifications.
  */
 
-const CACHE_NAME = 'hoscad-field-v67';
+const CACHE_NAME = 'hoscad-field-v68';
 // Audio files intentionally excluded — browser Range requests return 206 which
 // cache.addAll() rejects atomically, breaking the entire pre-cache install.
 // Audio is served from network on demand and cached at runtime by the fetch handler.
