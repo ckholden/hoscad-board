@@ -6529,7 +6529,7 @@ async function _execCmd(tx) {
 
   if (mU.startsWith('MSG ')) {
     const tR = ma.substring(4).trim().toUpperCase();
-    if (!tR || !nU) { showAlert('ERROR', 'USAGE: MSG STA2 MESSAGE TEXT'); return; }
+    if (!tR || !nU) { showAlert('ERROR', 'USAGE: MSG DP2 MESSAGE TEXT'); return; }
     const r = await API.sendMessage(TOKEN, tR, nU, false);
     if (!r.ok) return showErr(r);
     refresh();
@@ -6538,7 +6538,7 @@ async function _execCmd(tx) {
 
   if (mU.startsWith('HTMSG ')) {
     const tR = ma.substring(6).trim().toUpperCase();
-    if (!tR || !nU) { showConfirm('ERROR', 'USAGE: HTMSG STA2 URGENT MESSAGE', () => { }); return; }
+    if (!tR || !nU) { showConfirm('ERROR', 'USAGE: HTMSG DP2 URGENT MESSAGE', () => { }); return; }
     const r = await API.sendMessage(TOKEN, tR, nU, true);
     if (!r.ok) return showErr(r);
     refresh();
@@ -7351,7 +7351,7 @@ ALERT; CLEAR            Clear alert
 MESSAGING SYSTEM
 ═══════════════════════════════════════════════════
 MSG <ROLE/UNIT>; <TEXT> Send normal message
-  MSG STA2; NEED COVERAGE AT 1400
+  MSG DP2; NEED COVERAGE AT 1400
   MSG EMS12; CALL ME
 
 HTMSG <ROLE/UNIT>; <TEXT> Send URGENT message (hot)
@@ -7376,7 +7376,7 @@ HTDP; <TEXT>            URGENT message all dispatchers
 MSGU; <TEXT>            Message all active field units
 HTU; <TEXT>             URGENT message all field units
 
-ROLES: STA1-6, SUPV1-2, MGR1-2, EMS, TCRN, PLRN, IT
+ROLES: DP1-6, SUPV1-2, MGR1-2, EMS, TCRN, PLRN, IT
 
 DEL ALL MSG             Delete all your messages
 
