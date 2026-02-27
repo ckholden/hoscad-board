@@ -757,10 +757,8 @@
       color: var(--red);
     }
 
-    /* Night mode */
-    body.night-mode .field-panel,
-    body.night-mode #transportOverlay > div,
-    body.night-mode .info-overlay-body {
+    /* Night mode — applied to the single field panel root; overlays are outside and unaffected */
+    body.night-mode #fieldPanel {
       filter: brightness(0.65) saturate(0.8);
     }
 
@@ -1269,12 +1267,6 @@
       .field-tab-shell { flex-direction: row; flex: 1; min-height: 0; }
     }
 
-    /* Night mode — apply to new tab elements */
-    body.night-mode .tab-content,
-    body.night-mode .field-slim-header,
-    body.night-mode .bottom-nav {
-      filter: brightness(0.65) saturate(0.8);
-    }
   </style>
 </head>
 <body>
@@ -1490,8 +1482,7 @@
           <button class="cmd-quick-btn" data-cmd="NOTE; ">NOTE</button>
           <button class="cmd-quick-btn" data-cmd="ETA ">ETA</button>
           <button class="cmd-quick-btn" data-cmd="DEST; ">DEST</button>
-          <button class="cmd-quick-btn" data-cmd="MSGDP ">MSG DP</button>
-          <button class="cmd-quick-btn" data-cmd="MSG STA ">MSG STA</button>
+          <button class="cmd-quick-btn" data-cmd="MSGDP ">MSGDP</button>
           <button class="cmd-quick-btn" data-cmd="REFRESH">REFRESH</button>
           <button class="cmd-quick-btn" onclick="switchTab('map');return false;" style="color:#5ba3e6;">MAP</button>
           <button class="cmd-quick-btn" onclick="fieldGpsUpdateLocation();return false;" style="color:#ffd700;">GPS&#9650;</button>
