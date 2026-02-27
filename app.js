@@ -60,6 +60,10 @@ let _dc911LastSync     = null; // Date of last DC911 ingest (from STATE.dc911Sta
 let _lastPollAt    = 0;    // unix ms of last successful getState response — used for staleness indicator
 const _expandedStacks = new Set(); // unit_ids with expanded stack rows (Phase 2D)
 let _undoStack = []; // [{description, revertFn, ts}] — max 3 entries, 5-min expiry
+let _RT = null;            // Supabase Realtime WebSocket
+let _rtHbTimer = null;     // heartbeat interval (25s)
+let _rtReconTimer = null;  // reconnect timeout (5s)
+let _rtRef = 0;            // Phoenix message ref counter
 
 // VIEW state for layout/display controls
 let VIEW = {
@@ -1514,6 +1518,7 @@ async function refresh(forceFull) {
         ACTOR = '';
         if (POLL) clearInterval(POLL);
         stopLfnPolling();
+        _rtDisconnect();
         document.getElementById('loginBack').style.display = 'flex';
         document.getElementById('userLabel').textContent = '—';
         return;
@@ -5463,6 +5468,7 @@ async function _execCmd(tx) {
     document.getElementById('userLabel').textContent = '—';
     if (POLL) clearInterval(POLL);
     stopLfnPolling();
+    _rtDisconnect();
     return;
   }
 
@@ -9193,6 +9199,63 @@ function _initTooltipSystem() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Realtime — WebSocket triggered-poll (Supabase Realtime, Phoenix protocol)
+// On any postgres_changes event for units or incidents, triggers refresh().
+// refresh() is guarded by _refreshing so concurrent calls are safely dropped.
+// ─────────────────────────────────────────────────────────────────────────────
+function _rtSend(msg) {
+  if (_RT && _RT.readyState === WebSocket.OPEN) {
+    try { _RT.send(JSON.stringify(msg)); } catch(e) {}
+  }
+}
+
+function _rtConnect() {
+  if (_RT && (_RT.readyState === WebSocket.OPEN || _RT.readyState === WebSocket.CONNECTING)) return;
+  const url = 'wss://vnqiqxffedudfsdoadqg.supabase.co/realtime/v1/websocket?apikey=' + API._apiKey + '&vsn=1.0.0';
+  try { _RT = new WebSocket(url); } catch(e) { return; }
+  _RT.onopen = function() {
+    _rtRef = 0;
+    _rtSend({ topic: 'realtime:units', event: 'phx_join', payload: {
+      config: { broadcast: { self: false }, presence: { key: '' },
+        postgres_changes: [{ event: '*', schema: 'public', table: 'units' }] }
+    }, ref: String(++_rtRef) });
+    _rtSend({ topic: 'realtime:incidents', event: 'phx_join', payload: {
+      config: { broadcast: { self: false }, presence: { key: '' },
+        postgres_changes: [{ event: '*', schema: 'public', table: 'incidents' }] }
+    }, ref: String(++_rtRef) });
+    if (_rtHbTimer) clearInterval(_rtHbTimer);
+    _rtHbTimer = setInterval(function() {
+      _rtSend({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' });
+    }, 25000);
+    refresh(); // catch any state changes missed during disconnect gap
+  };
+  _RT.onmessage = function(e) {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.event === 'postgres_changes') {
+        refresh();
+      }
+    } catch(err) {}
+  };
+  _RT.onclose = function() {
+    if (_rtHbTimer) { clearInterval(_rtHbTimer); _rtHbTimer = null; }
+    if (!TOKEN) return; // Logged out — do not reconnect
+    if (_rtReconTimer) clearTimeout(_rtReconTimer);
+    _rtReconTimer = setTimeout(_rtConnect, 5000);
+  };
+  _RT.onerror = function() {
+    try { _RT.close(); } catch(e) {}
+  };
+}
+
+function _rtDisconnect() {
+  if (_rtHbTimer) { clearInterval(_rtHbTimer); _rtHbTimer = null; }
+  if (_rtReconTimer) { clearTimeout(_rtReconTimer); _rtReconTimer = null; }
+  if (_RT) { try { _RT.close(); } catch(e) {} _RT = null; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function start() {
   await API.init();
   loadViewState();
@@ -9200,6 +9263,7 @@ async function start() {
   AddressLookup.load(); // async, non-blocking — autocomplete works once data arrives
   if (POLL) clearInterval(POLL);
   POLL = setInterval(refresh, 10000);
+  _rtConnect();
   startLfnPolling();
   _applyDc911Btn(_isDc911Enabled());
   updateClock();

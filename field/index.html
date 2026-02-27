@@ -2444,6 +2444,10 @@
   let _cadUnitInfo = '';
   let _pollTimer = null;
   let _gpsAutoInterval = null;
+  let _fieldRT = null;            // Supabase Realtime WebSocket
+  let _fieldRtHbTimer = null;     // heartbeat interval (25s)
+  let _fieldRtReconTimer = null;  // reconnect timeout (5s)
+  let _fieldRtRef = 0;            // Phoenix message ref counter
   // Feature flags — persisted in localStorage so login screen can apply flags on next page load
   var _fieldFF = (function() { try { return JSON.parse(localStorage.getItem('hoscad_field_ff') || '{}'); } catch(e) { return {}; } })();
   let _fieldIncHistPushed = false;
@@ -3940,16 +3944,73 @@
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // REALTIME — triggered-poll via Supabase Realtime WebSocket
+  // pollOnce() is guarded by _pollInFlight so concurrent calls are dropped.
+  // ════════════════════════════════════════════════════════════════════════════
+  function _fieldRtSend(msg) {
+    if (_fieldRT && _fieldRT.readyState === WebSocket.OPEN) {
+      try { _fieldRT.send(JSON.stringify(msg)); } catch(e) {}
+    }
+  }
+
+  function _fieldRtConnect() {
+    if (_fieldRT && (_fieldRT.readyState === WebSocket.OPEN || _fieldRT.readyState === WebSocket.CONNECTING)) return;
+    var url = 'wss://vnqiqxffedudfsdoadqg.supabase.co/realtime/v1/websocket?apikey=' + API._apiKey + '&vsn=1.0.0';
+    try { _fieldRT = new WebSocket(url); } catch(e) { return; }
+    _fieldRT.onopen = function() {
+      _fieldRtRef = 0;
+      _fieldRtSend({ topic: 'realtime:units', event: 'phx_join', payload: {
+        config: { broadcast: { self: false }, presence: { key: '' },
+          postgres_changes: [{ event: '*', schema: 'public', table: 'units' }] }
+      }, ref: String(++_fieldRtRef) });
+      _fieldRtSend({ topic: 'realtime:incidents', event: 'phx_join', payload: {
+        config: { broadcast: { self: false }, presence: { key: '' },
+          postgres_changes: [{ event: '*', schema: 'public', table: 'incidents' }] }
+      }, ref: String(++_fieldRtRef) });
+      if (_fieldRtHbTimer) clearInterval(_fieldRtHbTimer);
+      _fieldRtHbTimer = setInterval(function() {
+        _fieldRtSend({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' });
+      }, 25000);
+      pollOnce(); // catch any state changes missed during disconnect gap
+    };
+    _fieldRT.onmessage = function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        if (msg.event === 'postgres_changes') {
+          pollOnce();
+        }
+      } catch(err) {}
+    };
+    _fieldRT.onclose = function() {
+      if (_fieldRtHbTimer) { clearInterval(_fieldRtHbTimer); _fieldRtHbTimer = null; }
+      if (!_cadToken) return; // Logged out — do not reconnect
+      if (_fieldRtReconTimer) clearTimeout(_fieldRtReconTimer);
+      _fieldRtReconTimer = setTimeout(_fieldRtConnect, 5000);
+    };
+    _fieldRT.onerror = function() {
+      try { _fieldRT.close(); } catch(e) {}
+    };
+  }
+
+  function _fieldRtDisconnect() {
+    if (_fieldRtHbTimer) { clearInterval(_fieldRtHbTimer); _fieldRtHbTimer = null; }
+    if (_fieldRtReconTimer) { clearTimeout(_fieldRtReconTimer); _fieldRtReconTimer = null; }
+    if (_fieldRT) { try { _fieldRT.close(); } catch(e) {} _fieldRT = null; }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // POLLING
   // ════════════════════════════════════════════════════════════════════════════
   function startPolling() {
     stopPolling();
     pollOnce();
     _pollTimer = setInterval(pollOnce, 10000);
+    _fieldRtConnect();
   }
 
   function stopPolling() {
     if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    _fieldRtDisconnect();
   }
 
   // Apply feature flags to field UI. Cached in localStorage so login screen can
