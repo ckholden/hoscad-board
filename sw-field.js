@@ -3,7 +3,7 @@
  * Caches field app shell for offline resilience, handles push notifications.
  */
 
-const CACHE_NAME = 'hoscad-field-v75';
+const CACHE_NAME = 'hoscad-field-v76';
 // Audio files intentionally excluded — browser Range requests return 206 which
 // cache.addAll() rejects atomically, breaking the entire pre-cache install.
 // Audio is served from network on demand and cached at runtime by the fetch handler.
@@ -53,11 +53,14 @@ self.addEventListener('fetch', (event) => {
   // Skip non-http(s) requests (e.g. chrome-extension://) — Cache API rejects them
   if (!url.startsWith('http')) return;
 
+  // Skip manifest files — behind Cloudflare Access; browser must fetch with session cookies directly
+  if (url.endsWith('/manifest.json') || url.endsWith('/manifest-field.json')) return;
+
   // Skip external APIs and CDNs — let the page handle these directly (avoids CORS issues)
   if (url.includes('supabase.co') || url.includes('script.google.com') || url.includes('googleapis') ||
       url.includes('nominatim.openstreetmap.org') || url.includes('tile.openstreetmap.org') ||
       url.includes('unpkg.com') || url.includes('cdn.sheetjs.com') ||
-      url.includes('api.adsb.lol')) {
+      url.includes('api.adsb.lol') || url.includes('ckholden.github.io')) {
     return;
   }
 
