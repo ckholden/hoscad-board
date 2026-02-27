@@ -1293,6 +1293,7 @@
         <div class="field-label">CALLSIGN</div>
         <input id="loginCallsign" type="text" placeholder="ENTER CALLSIGN (E.G. EMS12, CC1)" autocomplete="off" autocorrect="off" autocapitalize="characters" />
       </div>
+      <div id="crewPinLoginSection">
       <div class="field">
         <div class="field-label">CREW 1 (REQUIRED)</div>
         <div id="crew1PinRow" style="display:flex;gap:6px;align-items:center;">
@@ -1331,6 +1332,7 @@
           <span style="font-size:10px;color:var(--muted);">AUTO-FILLS FROM CAD ID</span>
         </div>
       </div>
+      </div><!-- /crewPinLoginSection -->
       <div class="field">
         <button class="btn-login" id="btnLogin">CONNECT</button>
       </div>
@@ -2047,21 +2049,29 @@
       unitsHtml = '<div class="cds-units-section"><div class="cds-units-lbl">ASSIGNED UNITS</div>' + chips + '</div>';
     }
 
-    fieldsEl.innerHTML =
-      '<div class="cds-actions">' +
-        '<button class="cds-btn cds-btn-enroute' + (isSelfAssigned ? ' cds-btn-assigned' : '') + '" onclick="handleSelfAssign(\'' + esc(incId) + '\',\'DE\')">' +
-          (isSelfAssigned ? '\u2713 ENROUTE (ASSIGNED)' : 'I\'M ENROUTE') +
-        '</button>' +
-        '<button class="cds-btn cds-btn-onscene" onclick="handleSelfAssign(\'' + esc(incId) + '\',\'OS\')">' +
-          'ON SCENE' +
-        '</button>' +
-      '</div>' +
+    // Self-assign buttons use data-attributes + JS listeners (not inline onclick)
+    // to avoid JS-in-HTML-attribute injection if incident_id ever contains quotes.
+    var selfAssignHtml = (_fieldFF.field_self_assign !== false)
+      ? '<div class="cds-actions">' +
+          '<button class="cds-btn cds-btn-enroute' + (isSelfAssigned ? ' cds-btn-assigned' : '') + '" data-sa-inc="' + esc(incId) + '" data-sa-status="DE">' +
+            (isSelfAssigned ? '\u2713 ENROUTE (ASSIGNED)' : 'I\'M ENROUTE') +
+          '</button>' +
+          '<button class="cds-btn cds-btn-onscene" data-sa-inc="' + esc(incId) + '" data-sa-status="OS">' +
+            'ON SCENE' +
+          '</button>' +
+        '</div>'
+      : '';
+    fieldsEl.innerHTML = selfAssignHtml +
       '<div class="cds-field"><span class="cds-field-lbl">PRIORITY</span><span class="cds-field-val">' + esc(pri || '\u2014') + '</span></div>' +
       '<div class="cds-field"><span class="cds-field-lbl">TYPE</span><span class="cds-field-val">' + esc(incType || '\u2014') + '</span></div>' +
       (sceneAddr ? '<div class="cds-field"><span class="cds-field-lbl">SCENE</span><span class="cds-field-val">' + esc(sceneAddr) + '</span></div>' : '') +
       (dest ? '<div class="cds-field"><span class="cds-field-lbl">DEST</span><span class="cds-field-val">' + esc(dest) + '</span></div>' : '') +
       (noteClean ? '<div class="cds-field"><span class="cds-field-lbl">NOTE</span><span class="cds-field-val">' + esc(noteClean) + '</span></div>' : '') +
       unitsHtml;
+    // Wire self-assign button listeners after innerHTML is set (data-attribute approach avoids JS-in-attribute injection)
+    fieldsEl.querySelectorAll('[data-sa-inc]').forEach(function(btn) {
+      btn.addEventListener('click', function() { handleSelfAssign(btn.dataset.saInc, btn.dataset.saStatus); });
+    });
 
     var backdrop = document.getElementById('callDetailBackdrop');
     var sheet = document.getElementById('callDetailSheet');
@@ -2434,6 +2444,8 @@
   let _cadUnitInfo = '';
   let _pollTimer = null;
   let _gpsAutoInterval = null;
+  // Feature flags — persisted in localStorage so login screen can apply flags on next page load
+  var _fieldFF = (function() { try { return JSON.parse(localStorage.getItem('hoscad_field_ff') || '{}'); } catch(e) { return {}; } })();
   let _fieldIncHistPushed = false;
   let _knownMsgIds = new Set();
   let _loginTime = null;
@@ -3940,6 +3952,16 @@
     if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
   }
 
+  // Apply feature flags to field UI. Cached in localStorage so login screen can
+  // respect flags from the previous session without requiring a pre-auth API call.
+  function applyFieldFeatureFlags(ff) {
+    // crew_pin_login — show/hide crew PIN section on login screen
+    var crewSec = document.getElementById('crewPinLoginSection');
+    if (crewSec) crewSec.style.display = (ff.crew_pin_login !== false) ? '' : 'none';
+  }
+  // Apply immediately on page load from localStorage cache
+  applyFieldFeatureFlags(_fieldFF);
+
   let _pollInFlight = false;
   async function pollOnce() {
     if (!_cadToken || _pollInFlight) return;
@@ -3968,6 +3990,12 @@
       // was not included (e.g. because updated_at didn't change), the last
       // known unit state is still available in _mergedUnits.
       _mergeState(state);
+      // Update + persist feature flags on every successful poll
+      if (state.featureFlags) {
+        _fieldFF = state.featureFlags;
+        try { localStorage.setItem('hoscad_field_ff', JSON.stringify(_fieldFF)); } catch(e) {}
+        applyFieldFeatureFlags(_fieldFF);
+      }
       updateBanners(state);
 
       // Find own unit from the MERGED cache, not just from state.units.
@@ -4899,45 +4927,55 @@
     if (!cs) { loginErr.textContent = 'ENTER A CALLSIGN.'; return; }
     if (cs.length < 2) { loginErr.textContent = 'CALLSIGN TOO SHORT.'; return; }
 
-    // ── Crew 1 (required) ─────────────────────────────────────────
-    const c1CadId = document.getElementById('loginCrew1CadId').value.trim();
-    const c1Pin   = document.getElementById('loginCrew1Pin').value.trim();
-    if (!c1CadId) { loginErr.textContent = 'CREW 1: ENTER CAD ID.'; return; }
-    if (!c1Pin)   { loginErr.textContent = 'CREW 1: ENTER PIN.'; return; }
-    loginErr.textContent = 'VERIFYING CREW 1...';
-    const c1Res = await API.crewPinLogin(c1CadId, c1Pin);
-    if (!c1Res.ok) { loginErr.textContent = 'CREW 1: ' + (c1Res.error || 'VERIFICATION FAILED.'); return; }
-    // Auto-fill cert from response (user can override)
-    const c1CertSel = document.getElementById('loginCrew1Cert');
-    if (c1Res.certLevel && !c1CertSel.value) c1CertSel.value = c1Res.certLevel;
-    const c1Cert = c1CertSel.value || c1Res.certLevel || '';
-    document.getElementById('crew1Tag').textContent = c1Res.fullName + ' [' + (c1Cert || '?') + ']';
-    const c1Data = { cadId: c1Res.cadId, name: c1Res.fullName, cert: c1Cert };
+    // ── Crew PIN (conditional on feature flag) ────────────────────
+    // crew_pin_login flag defaults true. When false, skip PIN verification and
+    // log in with callsign only (same as legacy UNIT-role auth). Flag is cached
+    // in localStorage so the login screen reflects the last-known setting.
+    // Note: flag changes take effect on next page load or within 10s of active session.
+    let unitInfo = '';
+    let crewAssignments = [];
 
-    // ── Crew 2 (optional) ─────────────────────────────────────────
-    let c2Data = null;
-    const c2CadId = document.getElementById('loginCrew2CadId').value.trim();
-    const c2Pin   = document.getElementById('loginCrew2Pin').value.trim();
-    if (c2CadId || c2Pin) {
-      if (!c2CadId || !c2Pin) { loginErr.textContent = 'CREW 2: ENTER BOTH CAD ID AND PIN, OR LEAVE BLANK.'; return; }
-      loginErr.textContent = 'VERIFYING CREW 2...';
-      const c2Res = await API.crewPinLogin(c2CadId, c2Pin);
-      if (!c2Res.ok) { loginErr.textContent = 'CREW 2: ' + (c2Res.error || 'VERIFICATION FAILED.'); return; }
-      const c2CertSel = document.getElementById('loginCrew2Cert');
-      if (c2Res.certLevel && !c2CertSel.value) c2CertSel.value = c2Res.certLevel;
-      const c2Cert = c2CertSel.value || c2Res.certLevel || '';
-      document.getElementById('crew2Tag').textContent = c2Res.fullName + ' [' + (c2Cert || '?') + ']';
-      c2Data = { cadId: c2Res.cadId, name: c2Res.fullName, cert: c2Cert };
+    if (_fieldFF.crew_pin_login !== false) {
+      // ── Crew 1 (required when PIN login is active) ───────────────
+      const c1CadId = document.getElementById('loginCrew1CadId').value.trim();
+      const c1Pin   = document.getElementById('loginCrew1Pin').value.trim();
+      if (!c1CadId) { loginErr.textContent = 'CREW 1: ENTER CAD ID.'; return; }
+      if (!c1Pin)   { loginErr.textContent = 'CREW 1: ENTER PIN.'; return; }
+      loginErr.textContent = 'VERIFYING CREW 1...';
+      const c1Res = await API.crewPinLogin(c1CadId, c1Pin);
+      if (!c1Res.ok) { loginErr.textContent = 'CREW 1: ' + (c1Res.error || 'VERIFICATION FAILED.'); return; }
+      // Auto-fill cert from response (user can override)
+      const c1CertSel = document.getElementById('loginCrew1Cert');
+      if (c1Res.certLevel && !c1CertSel.value) c1CertSel.value = c1Res.certLevel;
+      const c1Cert = c1CertSel.value || c1Res.certLevel || '';
+      document.getElementById('crew1Tag').textContent = c1Res.fullName + ' [' + (c1Cert || '?') + ']';
+      const c1Data = { cadId: c1Res.cadId, name: c1Res.fullName, cert: c1Cert };
+
+      // ── Crew 2 (optional) ───────────────────────────────────────
+      let c2Data = null;
+      const c2CadId = document.getElementById('loginCrew2CadId').value.trim();
+      const c2Pin   = document.getElementById('loginCrew2Pin').value.trim();
+      if (c2CadId || c2Pin) {
+        if (!c2CadId || !c2Pin) { loginErr.textContent = 'CREW 2: ENTER BOTH CAD ID AND PIN, OR LEAVE BLANK.'; return; }
+        loginErr.textContent = 'VERIFYING CREW 2...';
+        const c2Res = await API.crewPinLogin(c2CadId, c2Pin);
+        if (!c2Res.ok) { loginErr.textContent = 'CREW 2: ' + (c2Res.error || 'VERIFICATION FAILED.'); return; }
+        const c2CertSel = document.getElementById('loginCrew2Cert');
+        if (c2Res.certLevel && !c2CertSel.value) c2CertSel.value = c2Res.certLevel;
+        const c2Cert = c2CertSel.value || c2Res.certLevel || '';
+        document.getElementById('crew2Tag').textContent = c2Res.fullName + ' [' + (c2Cert || '?') + ']';
+        c2Data = { cadId: c2Res.cadId, name: c2Res.fullName, cert: c2Cert };
+      }
+
+      // ── Build unit_info + crewAssignments ──────────────────────
+      const parts = ['CM1:' + c1Data.name + (c1Data.cert ? ' (' + c1Data.cert + ')' : '')];
+      if (c2Data) parts.push('CM2:' + c2Data.name + (c2Data.cert ? ' (' + c2Data.cert + ')' : ''));
+      unitInfo = parts.join('|');
+      crewAssignments = [
+        { cadId: c1Data.cadId, fullName: c1Data.name, certLevel: c1Data.cert || null, crewRole: 'CM1' }
+      ];
+      if (c2Data) crewAssignments.push({ cadId: c2Data.cadId, fullName: c2Data.name, certLevel: c2Data.cert || null, crewRole: 'CM2' });
     }
-
-    // ── Build unit_info + crewAssignments ─────────────────────────
-    const parts = ['CM1:' + c1Data.name + (c1Data.cert ? ' (' + c1Data.cert + ')' : '')];
-    if (c2Data) parts.push('CM2:' + c2Data.name + (c2Data.cert ? ' (' + c2Data.cert + ')' : ''));
-    const unitInfo = parts.join('|');
-    const crewAssignments = [
-      { cadId: c1Data.cadId, fullName: c1Data.name, certLevel: c1Data.cert || null, crewRole: 'CM1' }
-    ];
-    if (c2Data) crewAssignments.push({ cadId: c2Data.cadId, fullName: c2Data.name, certLevel: c2Data.cert || null, crewRole: 'CM2' });
 
     loginErr.textContent = 'CONNECTING...';
     const cadErr = await cadLogin(cs, unitInfo, crewAssignments);
