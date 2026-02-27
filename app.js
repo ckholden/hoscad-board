@@ -3163,7 +3163,6 @@ async function qbStatus(code) {
   const r = await API.upsertUnit(TOKEN, u.unit_id, patch, u.updated_at || '');
   if (btn) btn.disabled = false;
   if (!r.ok) return showErr(r);
-  beepChange();
   pushUndo(`${_prevQb.uid}: ${_prevQb.status}→${code}`, async () => {
     const rv = await API.upsertUnit(TOKEN, _prevQb.uid, { status: _prevQb.status, note: _prevQb.note, incident: _prevQb.incident, destination: _prevQb.destination }, '');
     if (!rv.ok) throw new Error(rv.error || 'API error');
@@ -3179,7 +3178,6 @@ function quickStatus(u, c) {
     setLive(true, 'LIVE • UPDATE');
     const r = await API.upsertUnit(TOKEN, u.unit_id, { status: c, displayName: u.display_name }, u.updated_at || '');
     if (!r.ok) return showErr(r);
-    beepChange();
     pushUndo(`${u.unit_id}: ${_prevQs.status}→${c}`, async () => {
       const rv = await API.upsertUnit(TOKEN, u.unit_id, { status: _prevQs.status, note: _prevQs.note, incident: _prevQs.incident, destination: _prevQs.destination }, '');
       if (!rv.ok) throw new Error(rv.error || 'API error');
@@ -3194,7 +3192,6 @@ async function okUnit(u) {
   setLive(true, 'LIVE • OK');
   const r = await API.touchUnit(TOKEN, u.unit_id, u.updated_at || '');
   if (!r || !r.ok) return showErr(r);
-  beepChange();
   refresh();
   autoFocusCmd();
 }
@@ -3204,7 +3201,6 @@ function okAllOS() {
     setLive(true, 'LIVE • OKALL');
     const r = await API.touchAllOS(TOKEN);
     if (!r || !r.ok) return showErr(r);
-    beepChange();
     refresh();
     autoFocusCmd();
   });
@@ -3215,7 +3211,6 @@ function undoUnit(uId) {
     setLive(true, 'LIVE • UNDO');
     const r = await API.undoUnit(TOKEN, uId);
     if (!r.ok) return showErr(r);
-    beepChange();
     refresh();
     autoFocusCmd();
   });
@@ -3387,7 +3382,6 @@ async function saveModal() {
     }
     return;
   }
-  beepChange();
   closeModal();
   refresh();
 }
@@ -3415,7 +3409,6 @@ async function confirmLogoff() {
   setLive(true, 'LIVE • LOGOFF');
   const r = await API.logoffUnit(TOKEN, uId, '');
   if (!r.ok) return showErr(r);
-  beepChange();
   showToast('LOGGED OFF: ' + uId);
   closeModal();
   refresh();
@@ -3429,7 +3422,6 @@ function confirmRidoff() {
     setLive(true, 'LIVE • RIDOFF');
     const r = await API.ridoffUnit(TOKEN, uId, eUA);
     if (!r.ok) return showErr(r);
-    beepChange();
     closeModal();
     refresh();
   });
@@ -3839,7 +3831,6 @@ async function createNewIncident() {
   const r = await API.createQueuedIncident(TOKEN, '', note, priority, unitId, incType, sceneAddress, levelOfCare);
   if (!r.ok) return showErr(r);
   if (sceneAddress) { AddrHistory.push(sceneAddress); _geoVerifyAddress(sceneAddress); }
-  beepChange();
   closeNewIncident();
   refresh();
 }
@@ -4362,7 +4353,6 @@ async function reopenIncidentAction() {
     const r = await API.reopenIncident(TOKEN, incId);
     if (!r.ok) { showAlert('ERROR', r.error || 'FAILED TO REOPEN INCIDENT'); return; }
     closeIncidentPanel();
-    beepChange();
     showToast('INCIDENT ' + incId + ' REOPENED.');
     refresh();
   } catch (e) {
@@ -4406,7 +4396,6 @@ async function saveIncidentNote() {
     const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, typeChanged ? newType : '', destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
     if (!r.ok) return showErr(r);
     if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); }
-    beepChange();
     closeIncidentPanel();
     refresh();
     return;
@@ -4535,7 +4524,6 @@ async function viewMessage(mId) {
 async function deleteMessage(mId) {
   const r = await API.deleteMessage(TOKEN, mId);
   if (!r.ok) return showErr(r);
-  beepChange();
   closeMessages();
   refresh();
 }
@@ -4543,7 +4531,6 @@ async function deleteMessage(mId) {
 async function deleteAllMessages() {
   const r = await API.deleteAllMessages(TOKEN);
   if (!r.ok) return showErr(r);
-  beepChange();
   closeMessages();
   refresh();
 }
@@ -4650,7 +4637,6 @@ async function _execCmd(tx) {
     try {
       await entry.revertFn();
       setLive(true, 'LIVE • UNDO');
-      beepChange();
       refresh();
       showToast('UNDONE: ' + entry.description);
     } catch (e) {
@@ -4870,7 +4856,6 @@ async function _execCmd(tx) {
     const patch = { status: 'IQ', displayName: uO.display_name };
     const r = await API.upsertUnit(TOKEN, targetUnit, patch, uO.updated_at || '');
     if (!r.ok) return showErr(r);
-    beepChange();
     showToast(targetUnit + ': IN QUARTERS @ ' + station);
     refresh();
     return;
@@ -4887,7 +4872,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE \u2022 SUP');
     const r = await API.appendIncidentNote(TOKEN, uO.incident, '[SUP] ' + nU);
     if (!r.ok) return showErr(r);
-    beepChange();
     showToast('SUP SENT TO ' + supUnit + ' (' + uO.incident + ')');
     refresh();
     return;
@@ -5540,7 +5524,6 @@ async function _execCmd(tx) {
       const iId = re.replace(/^INC\s*/i, '');
       const r = await API.touchIncident(TOKEN, iId);
       if (!r.ok) return showErr(r);
-      beepChange();
       refresh();
       return;
     }
@@ -5835,7 +5818,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE • SET CALLBACK');
     const r = await API.updateIncident(TOKEN, cbIncId, cbNewNote, undefined, undefined, undefined, undefined);
     if (!r.ok) return showErr(r);
-    beepChange();
     showToast('CB SET ON ' + cbNorm + ': ' + cbNum);
     refresh();
     return;
@@ -5852,7 +5834,6 @@ async function _execCmd(tx) {
       setLive(true, 'LIVE • ADD NOTE');
       const r = await API.appendIncidentNote(TOKEN, iR, nU);
       if (!r.ok) return showErr(r);
-      beepChange();
       refresh();
       return;
     } else {
@@ -5863,7 +5844,6 @@ async function _execCmd(tx) {
       setLive(true, 'LIVE • ADD NOTE');
       const r = await API.appendIncidentNote(TOKEN, CURRENT_INCIDENT_ID, fullNote);
       if (!r.ok) return showErr(r);
-      beepChange();
       showToast('NOTE ADDED TO ' + CURRENT_INCIDENT_ID);
       refresh();
       return;
@@ -5897,7 +5877,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE • COPY INCIDENT');
     const r = await API.createQueuedIncident(TOKEN, srcInc.destination || '', copyNote, srcInc.priority || '', '', srcInc.incident_type || '', srcInc.scene_address || '', srcInc.level_of_care || '');
     if (!r.ok) return showErr(r);
-    beepChange();
     showToast('COPIED → ' + (r.incidentId || ''));
     refresh();
     if (r.incidentId) setTimeout(() => openIncident(r.incidentId), 400);
@@ -5926,7 +5905,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE • CREATE HOLD');
     const r = await API.createQueuedIncident(TOKEN, hDest, fullNote, hPri || '', '', hType, '');
     if (!r.ok) return showErr(r);
-    beepChange();
     showToast('HOLD CALL CREATED FOR ' + holdTime + ' → ' + hDest);
     refresh();
     autoFocusCmd();
@@ -5969,7 +5947,6 @@ async function _execCmd(tx) {
     const r = await API.createQueuedIncident(TOKEN, dest, note, priority || '', '', incType, sceneAddress);
     if (!r.ok) return showErr(r);
     if (sceneAddress) { AddrHistory.push(sceneAddress); _geoVerifyAddress(sceneAddress); }
-    beepChange();
     refresh();
     autoFocusCmd();
     return;
@@ -6124,7 +6101,6 @@ async function _execCmd(tx) {
     if (!u1 || !u2) { showConfirm('ERROR', 'USAGE: LINK UNIT1 UNIT2 INC0001', () => { }); return; }
     const r = await API.linkUnits(TOKEN, u1, u2, inc);
     if (!r.ok) return showErr(r);
-    beepChange();
     refresh();
     return;
   }
@@ -6141,7 +6117,6 @@ async function _execCmd(tx) {
     if (!u1 || !u2) { showConfirm('ERROR', 'USAGE: TRANSFER UNIT1 UNIT2 INC0001', () => { }); return; }
     const r = await API.transferIncident(TOKEN, u1, u2, inc);
     if (!r.ok) return showErr(r);
-    beepChange();
     refresh();
     return;
   }
@@ -6162,7 +6137,6 @@ async function _execCmd(tx) {
       if (note) await API.appendIncidentNote(TOKEN, inc, note);
       const r = await API.closeIncident(TOKEN, inc, 'CANCELLED-PRIOR');
       if (!r.ok) return showErr(r);
-      beepChange();
       showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' CANCELLED');
       refresh();
       return;
@@ -6195,7 +6169,6 @@ async function _execCmd(tx) {
       }
       const r = await API.closeIncident(TOKEN, inc, disposition);
       if (!r.ok) return showErr(r);
-      beepChange();
       showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' DEL — ' + disposition);
       refresh();
       return;
@@ -6217,7 +6190,6 @@ async function _execCmd(tx) {
     if (!disposition) return; // user cancelled
     const r = await API.closeIncident(TOKEN, inc, disposition);
     if (!r.ok) return showErr(r);
-    beepChange();
     showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' CLOSED — ' + disposition);
     refresh();
     return;
@@ -6255,7 +6227,6 @@ async function _execCmd(tx) {
     showConfirm('REQUEUE INCIDENT', `REQUEUE INC ${inc}?\n\nThis clears the current unit assignment and sets the incident back to QUEUED for reassignment.`, async () => {
       const r = await API.requeueIncident(TOKEN, inc);
       if (!r.ok) return showErr(r);
-      beepChange();
       refresh();
     });
     return;
@@ -6267,7 +6238,6 @@ async function _execCmd(tx) {
     if (!inc) { showConfirm('ERROR', 'USAGE: RO INC0001', () => { }); return; }
     const r = await API.reopenIncident(TOKEN, inc);
     if (!r.ok) return showErr(r);
-    beepChange();
     refresh();
     return;
   }
@@ -6288,7 +6258,6 @@ async function _execCmd(tx) {
       if (!r.ok) return showErr(r);
       const ct = (r.updated || []).length;
       showConfirm('MASS DISPATCH COMPLETE', 'MASS DISPATCH: ' + ct + ' UNITS DISPATCHED TO ' + de + '\n\n' + (r.updated || []).join(', '), () => { });
-      beepChange();
       refresh();
     });
     return;
@@ -6363,7 +6332,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE • LOGON');
     const r = await API.upsertUnit(TOKEN, u, { active: true, status: 'AV', note: nU, displayName: dN }, '');
     if (!r.ok) return showErr(r);
-    beepChange();
     refresh();
     return;
   }
@@ -6379,7 +6347,6 @@ async function _execCmd(tx) {
       setLive(true, 'LIVE • LOGOFF');
       const r = await API.logoffUnit(TOKEN, u, '');
       if (!r.ok) return showErr(r);
-      beepChange();
       showToast('LOGGED OFF: ' + u);
       refresh();
     };
@@ -6399,7 +6366,6 @@ async function _execCmd(tx) {
       setLive(true, 'LIVE • RIDOFF');
       const r = await API.ridoffUnit(TOKEN, u, '');
       if (!r.ok) return showErr(r);
-      beepChange();
       refresh();
     });
     return;
@@ -6430,7 +6396,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE • SET DEST');
     const r = await API.upsertUnit(TOKEN, u, { destination: destVal, displayName: uO.display_name }, uO.updated_at || '');
     if (!r.ok) return showErr(r);
-    beepChange();
     refresh();
     return;
   }
@@ -6496,7 +6461,6 @@ async function _execCmd(tx) {
     setLive(true, 'LIVE • SET LOC');
     const r = await API.upsertUnit(TOKEN, locUnit, patch, uO.updated_at || '');
     if (!r.ok) return showErr(r);
-    beepChange();
     if (resolvedAddr === 'CLR' || resolvedAddr === 'CLEAR') {
       showToast(locUnit + ': LOCATION CLEARED.');
     } else {
@@ -6513,7 +6477,6 @@ async function _execCmd(tx) {
     const r = await API.sendBroadcast(TOKEN, nU, false);
     if (!r.ok) return showErr(r);
     showAlert('MESSAGE SENT', `BROADCAST MESSAGE SENT TO ${r.recipients} RECIPIENTS`);
-    beepChange();
     refresh();
     return;
   }
@@ -6726,7 +6689,6 @@ async function _execCmd(tx) {
         setLive(true, 'LIVE \u2022 MSG');
         const r = await API.appendIncidentNote(TOKEN, uO.incident, nU);
         if (!r.ok) return showErr(r);
-        beepChange();
         showToast('NOTE ADDED TO ' + uO.incident);
         refresh();
         return;
@@ -6864,7 +6826,6 @@ async function _execCmd(tx) {
   const r = await API.upsertUnit(TOKEN, u, p, '');
   if (!r.ok) return showErr(r);
 
-  beepChange();
   pushUndo(`${u}: ${_prevStat.status}→${stCmd}`, async () => {
     const rv = await API.upsertUnit(TOKEN, u, { status: _prevStat.status, note: _prevStat.note, incident: _prevStat.incident, destination: _prevStat.destination }, '');
     if (!rv.ok) throw new Error(rv.error || 'API error');
