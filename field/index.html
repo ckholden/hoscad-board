@@ -2480,6 +2480,24 @@
     OOS: 'OUT OF SERVICE', F: 'FUELING', FD: 'FUELING/DEST', IQ: 'IN QUARTERS'
   };
 
+  // Valid next-status transitions for context-sensitive button highlighting.
+  // Buttons for listed statuses get full opacity; others are dimmed to 0.35.
+  // All buttons remain tappable — dimming is a hint, not a lock.
+  const VALID_TRANSITIONS = {
+    'AV':  ['DE', 'OOS'],
+    'D':   ['DE', 'OS', 'AV'],
+    'DE':  ['OS', 'AV'],
+    'OS':  ['T', 'TH', 'AV'],   // TH added: non-transport scene clearance through hospital
+    'T':   ['TH', 'AV'],
+    'TH':  ['AV', 'OOS'],
+    'OOS': ['AV'],
+    'IQ':  ['AV', 'DE'],
+    'BRK': ['AV', 'DE'],
+    'UV':  ['AV'],
+    'F':   ['AV'],               // DC911 fire status — safe fallback
+    'FD':  ['AV'],               // DC911 fire/dest status — safe fallback
+  };
+
   const URGENT_NATURES = ['CARDIAC', 'CHEST PAIN', 'RESPIRATORY', 'STROKE', 'TRAUMA', 'MVC', 'SHOOTING', 'STABBING', 'OVERDOSE', 'UNRESPONSIVE', 'CPR', 'CODE'];
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -2887,6 +2905,23 @@
     const noIncStatus = document.getElementById('noIncidentStatus');
     if (noIncStatus) noIncStatus.textContent = STATUS_LABELS[code] || code;
     _updateHandoffBtn();
+    _updateContextButtons(code);
+  }
+
+  function _updateContextButtons(code) {
+    var nextValid = VALID_TRANSITIONS[code] || [];
+    document.querySelectorAll('.field-status-btn[data-status]').forEach(function(btn) {
+      var s = btn.dataset.status;
+      if (s === code) {
+        btn.style.opacity = '1'; // current status — always full (also gets .current class)
+      } else if (nextValid.includes(s)) {
+        btn.style.opacity = '1';
+        btn.style.fontWeight = '900';
+      } else {
+        btn.style.opacity = '0.35';
+        btn.style.fontWeight = '';
+      }
+    });
   }
 
   function _updateHandoffBtn() {

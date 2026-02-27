@@ -1093,7 +1093,8 @@ function renderActiveIncidents() {
       ? '<span class="hold-badge' + (holdInfo.isDue ? ' hold-badge-due' : '') + '" style="margin-left:4px;font-size:10px;">&#9200; ' + esc(holdInfo.time) + '</span>'
       : '';
     const dispM    = rawNote.match(/\[DISP:([^\]]+)\]/i);
-    const dispBadge = dispM ? '<span class="disp-badge">' + esc(dispM[1].trim().toUpperCase()) + '</span>' : '';
+    const dispCode = dispM ? dispM[1].trim().toUpperCase() : (inc.disposition || '').toUpperCase();
+    const dispBadge = dispCode ? '<span class="disp-badge">' + esc(dispCode) + '</span>' : '';
 
     html += '<div class="viewer-active-card">';
     html += '<div class="viewer-active-header">';
@@ -1422,7 +1423,8 @@ function renderIncidentQueue() {
     const relBadge  = relIds.map(rid => '<span class="rel-badge" title="Linked Incident">REL:' + esc(String(rid).replace(/^\d{2}-/, '')) + '</span>').join('');
     const staleBadge = waitMins >= 240 ? '<span class="stale-badge" title="Queued over 4 hours">STALE</span>' : '';
     const dispMatch  = rawNote.match(/\[DISP:([^\]]+)\]/i);
-    const dispBadge  = dispMatch ? '<span class="disp-badge">' + esc(dispMatch[1].trim().toUpperCase()) + '</span>' : '';
+    const dispCode2  = dispMatch ? dispMatch[1].trim().toUpperCase() : (inc.disposition || '').toUpperCase();
+    const dispBadge  = dispCode2 ? '<span class="disp-badge">' + esc(dispCode2) + '</span>' : '';
 
     let cardCls = 'viewer-inc-card';
     if (urgent) cardCls += ' inc-urgent';

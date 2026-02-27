@@ -3951,8 +3951,9 @@ async function openIncidentFromServer(iId) {
   document.getElementById('incNote').value = rawIncNote.replace(/\[DISP:[^\]]*\]\s*/gi, '').replace(/\[CB:[^\]]*\]\s*/gi, '').trim();
   const dispBadgeEl = document.getElementById('incDispositionBadge');
   if (dispBadgeEl) {
-    if (dispTagMatch) {
-      dispBadgeEl.textContent = 'DISPOSITION: ' + dispTagMatch[1].toUpperCase();
+    const dispCode = dispTagMatch ? dispTagMatch[1].toUpperCase() : (inc.disposition || '').toUpperCase();
+    if (dispCode) {
+      dispBadgeEl.textContent = 'DISPOSITION: ' + dispCode;
       dispBadgeEl.style.display = 'block';
     } else {
       dispBadgeEl.style.display = 'none';
@@ -6925,7 +6926,7 @@ function openShiftReportWindow(rpt) {
     html += '<h3>INCIDENTS</h3><table><tr><th>ID</th><th>TYPE</th><th>PRIORITY</th><th>SCENE</th><th>UNITS</th><th>STATUS</th><th>DISPOSITION</th></tr>';
     rpt.incidents.forEach(inc => {
       const dispM = (inc.incident_note || '').match(/\[DISP:([^\]]+)\]/i);
-      const disp = dispM ? dispM[1].toUpperCase() : '—';
+      const disp = dispM ? dispM[1].toUpperCase() : ((inc.disposition || '').toUpperCase() || '—');
       html += `<tr><td>${esc(inc.incident_id)}</td><td>${esc(inc.incident_type||'—')}</td><td>${esc(inc.priority||'—')}</td><td>${esc(inc.scene_address||'—')}</td><td>${esc(inc.units||'—')}</td><td>${esc(inc.status)}</td><td>${esc(disp)}</td></tr>`;
     });
     html += '</table>';
@@ -6994,7 +6995,7 @@ function openIncidentPrintWindow(r) {
     <tr><th>SCENE ADDRESS</th><td>${esc(inc.scene_address||'—')}</td></tr>
     <tr><th>DESTINATION</th><td>${esc(inc.destination||'—')}</td></tr>
     <tr><th>UNITS ASSIGNED</th><td>${esc(inc.units||'—')}</td></tr>
-    ${(() => { const dm = (inc.incident_note||'').match(/\[DISP:([^\]]+)\]/i); return dm ? `<tr><th>DISPOSITION</th><td>${esc(dm[1].toUpperCase())}</td></tr>` : ''; })()}
+    ${(() => { const dm = (inc.incident_note||'').match(/\[DISP:([^\]]+)\]/i); const dv = dm ? dm[1].toUpperCase() : (inc.disposition||'').toUpperCase(); return dv ? `<tr><th>DISPOSITION</th><td>${esc(dv)}</td></tr>` : ''; })()}
     <tr><th>CREATED</th><td>${fmt(inc.created_at)} by ${esc(inc.created_by||'?')}</td></tr>
     <tr><th>DISPATCH TIME</th><td>${fmt(inc.dispatch_time)}</td></tr>
     <tr><th>ENROUTE TIME</th><td>${fmt(inc.enroute_time)}</td></tr>
