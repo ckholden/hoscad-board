@@ -1176,6 +1176,72 @@
     .more-row-sub { font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
     .more-row-arrow { color: var(--muted); font-size: 14px; flex-shrink: 0; margin-left: 8px; }
 
+    /* CALLS tab */
+    .call-queue-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel2);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .call-queue-row:active { filter: brightness(1.1); }
+    .call-queue-row.is-new { border-left: 3px solid var(--yellow); }
+    .call-queue-pri { font-size: 12px; font-weight: 900; min-width: 56px; }
+    .call-queue-type { font-weight: 900; font-size: 12px; color: var(--hi); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .call-queue-dest { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .call-queue-units { font-size: 10px; color: var(--blue); font-weight: 700; }
+
+    /* CALLS detail sheet */
+    #callDetailBackdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9299;
+      background: rgba(0,0,0,.5);
+    }
+    #callDetailSheet {
+      display: none;
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 9300;
+      background: var(--panel2);
+      border-top: 2px solid var(--blue);
+      max-height: 80vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    .cds-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .cds-title { font-size: 14px; font-weight: 900; color: var(--hi); letter-spacing: .04em; }
+    .cds-close { background: none; border: none; color: var(--muted); font-size: 22px; padding: 4px 8px; cursor: pointer; line-height: 1; }
+    .cds-field { padding: 8px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 8px; }
+    .cds-field-lbl { font-size: 10px; color: var(--muted); letter-spacing: .08em; min-width: 64px; flex-shrink: 0; }
+    .cds-field-val { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; word-break: break-word; }
+    .cds-actions { padding: 14px 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .cds-btn { flex: 1; min-width: 120px; padding: 14px; font-family: var(--font-mono); font-size: 13px; font-weight: 900; cursor: pointer; letter-spacing: .04em; text-transform: uppercase; }
+    .cds-btn-enroute { background: rgba(47,108,255,.15); border: 2px solid var(--blue); color: var(--blue); }
+    .cds-btn-onscene { background: rgba(255,170,91,.12); border: 2px solid var(--orange); color: var(--orange); }
+    .cds-btn-enroute:active, .cds-btn-onscene:active { filter: brightness(1.2); }
+    .cds-btn-assigned { opacity: .6; }
+    .cds-units-section { padding: 8px 16px 12px; }
+    .cds-units-lbl { font-size: 10px; color: var(--muted); letter-spacing: .08em; margin-bottom: 6px; }
+    .cds-unit-chip { display: inline-block; padding: 3px 8px; border: 1px solid var(--line); font-size: 11px; font-weight: 700; margin: 2px 3px 2px 0; }
+    .cds-unit-chip.is-self { border-color: var(--blue); color: var(--blue); }
+
     /* MAP tab */
     #fieldMapTabEl { flex: 1; min-height: 200px; width: 100%; background: #0a0f17; }
 
@@ -1358,6 +1424,7 @@
             <span class="next-call-lbl">&#9654; NEXT CALL</span>
             <span id="nextCallCount" class="next-call-count"></span>
             <button id="nextCallAck" class="next-call-ack-btn" onclick="ackNextCall()">ACK</button>
+            <button onclick="switchTab('calls')" style="font-size:9px;padding:2px 8px;background:rgba(47,108,255,.12);border:1px solid rgba(47,108,255,.35);color:#5ba3e6;cursor:pointer;font-family:inherit;font-weight:700;letter-spacing:.04em;flex-shrink:0;">QUEUE &#9654;</button>
           </div>
           <div class="next-call-body">
             <span id="nextCallPri" class="inc-priority"></span>
@@ -1412,6 +1479,17 @@
           <button id="fmapTabNavBtn" onclick="openFieldMapTabNav()" style="display:none;padding:6px 10px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#5ba3e6;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;">OPEN IN MAPS</button>
         </div>
       </div><!-- end #tabMap -->
+
+      <!-- ─── TAB: CALLS ─── -->
+      <div id="tabCalls" class="tab-content">
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--bg);">
+          <span style="font-weight:900;letter-spacing:.08em;">CALL QUEUE</span>
+          <span id="callsQueueCount" style="color:var(--text);font-weight:700;"></span>
+        </div>
+        <div id="callsContent" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+          <div style="color:var(--muted);text-align:center;padding:36px 16px;font-size:12px;line-height:1.8;">NO PENDING CALLS<br><span style="font-size:10px;opacity:.6;">QUEUED CALLS FROM DISPATCH APPEAR HERE</span></div>
+        </div>
+      </div><!-- end #tabCalls -->
 
       <!-- ─── TAB: ROSTER ─── -->
       <div id="tabRoster" class="tab-content">
@@ -1534,6 +1612,11 @@
           <span class="nav-tab-icon">&#9974;</span>
           <span>MAP</span>
         </button>
+        <button class="nav-tab" id="navCalls" onclick="switchTab('calls')">
+          <span class="nav-tab-badge" id="callsTabBadge"></span>
+          <span class="nav-tab-icon">&#128680;</span>
+          <span>CALLS</span>
+        </button>
         <button class="nav-tab" id="navRoster" onclick="switchTab('roster')">
           <span class="nav-tab-icon">&#9776;</span>
           <span>ROSTER</span>
@@ -1547,6 +1630,18 @@
 
     </div><!-- end .field-tab-shell -->
   </div><!-- end #fieldPanel -->
+</div>
+
+<!-- Call Detail Sheet backdrop -->
+<div id="callDetailBackdrop" onclick="closeCallDetail()"></div>
+
+<!-- Call Detail Sheet (slide-up panel) -->
+<div id="callDetailSheet">
+  <div class="cds-header">
+    <span class="cds-title" id="cdsTitle">INCIDENT</span>
+    <button class="cds-close" onclick="closeCallDetail()">&#x2715;</button>
+  </div>
+  <div id="cdsFields"><!-- populated by openCallDetail() --></div>
 </div>
 
 <!-- Confirm Dialog -->
@@ -1755,6 +1850,7 @@
     'mycall': { content: 'tabMyCall',  nav: 'navMyCall'  },
     'status': { content: 'tabStatus', nav: 'navStatus' },
     'map':    { content: 'tabMap',    nav: 'navMap'    },
+    'calls':  { content: 'tabCalls',  nav: 'navCalls'  },
     'roster': { content: 'tabRoster', nav: 'navRoster' },
     'more':   { content: 'tabMore',   nav: 'navMore'   }
   };
@@ -1782,6 +1878,7 @@
       }
     }
     if (tabId === 'roster') _renderRosterTab();
+    if (tabId === 'calls')  { _renderCallsTab(); _clearCallsBadge(); }
     if (tabId === 'more')   _updateMoreTab();
     if (tabId === 'status') { _unreadMessages = 0; updateMsgBadge(); }
 
@@ -1829,6 +1926,127 @@
     }).join('');
     content.innerHTML = html;
   }
+
+  // ── CALLS TAB ──────────────────────────────────────────────────────────────
+
+  function _renderCallsTab() {
+    var content = document.getElementById('callsContent');
+    var countEl = document.getElementById('callsQueueCount');
+    if (!content) return;
+    var queued = (_lastStack || []).filter(function(a) { return !a.is_primary && !a.cleared_at; });
+    var allIncs = (_lastState && _lastState.incidents) || [];
+    if (countEl) countEl.textContent = queued.length ? (queued.length + ' PENDING') : 'NO CALLS';
+    if (!queued.length) {
+      content.innerHTML = '<div style="color:var(--muted);text-align:center;padding:36px 16px;font-size:12px;line-height:1.8;">NO PENDING CALLS<br><span style="font-size:10px;opacity:.6;">QUEUED CALLS FROM DISPATCH APPEAR HERE</span></div>';
+      return;
+    }
+    var html = queued.map(function(a) {
+      var inc = allIncs.find(function(i) { return i.incident_id === a.incident_id; });
+      var pri = (a.priority || '').toUpperCase();
+      var priClass = '';
+      if (pri === 'PRI-1' || pri === 'CRITICAL') priClass = 'inc-priority-1';
+      else if (pri === 'PRI-2') priClass = 'inc-priority-2';
+      else if (pri === 'PRI-3') priClass = 'inc-priority-3';
+      else if (pri === 'PRI-4') priClass = 'inc-priority-4';
+      var units = (inc && inc.units) ? inc.units : [];
+      var shortId = String(a.incident_id).replace(/^\d{2}-0*/, '');
+      var isNew = !_ackedIncIds.has(a.incident_id);
+      var isSelf = units.indexOf(_cadCallsign) !== -1;
+      return '<div class="call-queue-row' + (isNew ? ' is-new' : '') + '" onclick="openCallDetail(\'' + esc(a.incident_id) + '\')">' +
+        '<span class="call-queue-pri ' + priClass + '">' + esc(pri || 'ROUT') + '</span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div class="call-queue-type">' + esc(a.incident_type || 'INC' + shortId) + '</div>' +
+          (a.scene_address ? '<div class="call-queue-dest">' + esc(a.scene_address) + '</div>' : '') +
+          (a.destination ? '<div class="call-queue-dest">\u2192 ' + esc(a.destination) + '</div>' : '') +
+        '</div>' +
+        '<div style="text-align:right;flex-shrink:0;min-width:48px;">' +
+          (isSelf ? '<div style="font-size:10px;color:var(--green);font-weight:900;">ASSIGNED</div>' : '') +
+          (units.length && !isSelf ? '<div class="call-queue-units">' + units.length + ' UNIT' + (units.length > 1 ? 'S' : '') + '</div>' : '') +
+          '<div style="font-size:9px;color:var(--muted);margin-top:2px;">INC ' + shortId + '</div>' +
+        '</div>' +
+        '<span style="color:var(--muted);font-size:16px;margin-left:8px;flex-shrink:0;">&#9654;</span>' +
+        '</div>';
+    }).join('');
+    content.innerHTML = html;
+  }
+
+  function openCallDetail(incId) {
+    var queued = (_lastStack || []).filter(function(a) { return !a.is_primary && !a.cleared_at; });
+    var a = queued.find(function(x) { return x.incident_id === incId; });
+    if (!a) return;
+    var allIncs = (_lastState && _lastState.incidents) || [];
+    var inc = allIncs.find(function(i) { return i.incident_id === incId; });
+    var shortId = String(incId).replace(/^\d{2}-0*/, '');
+    var pri = (a.priority || '').toUpperCase();
+    var units = (inc && inc.units) ? inc.units : [];
+    var noteRaw = a.incident_note || '';
+    var noteClean = noteRaw.replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
+    var isSelfAssigned = units.indexOf(_cadCallsign) !== -1;
+
+    var titleEl = document.getElementById('cdsTitle');
+    if (titleEl) titleEl.textContent = 'INC ' + shortId + (a.incident_type ? ' \u2014 ' + a.incident_type : '');
+
+    var fieldsEl = document.getElementById('cdsFields');
+    if (!fieldsEl) return;
+
+    var unitsHtml = '';
+    if (units.length) {
+      var chips = units.map(function(u) {
+        var s = u === _cadCallsign;
+        return '<span class="cds-unit-chip' + (s ? ' is-self' : '') + '">' + esc(u) + '</span>';
+      }).join('');
+      unitsHtml = '<div class="cds-units-section"><div class="cds-units-lbl">ASSIGNED UNITS</div>' + chips + '</div>';
+    }
+
+    fieldsEl.innerHTML =
+      '<div class="cds-actions">' +
+        '<button class="cds-btn cds-btn-enroute' + (isSelfAssigned ? ' cds-btn-assigned' : '') + '" onclick="handleSelfAssign(\'' + esc(incId) + '\',\'DE\')">' +
+          (isSelfAssigned ? '\u2713 ENROUTE (ASSIGNED)' : 'I\'M ENROUTE') +
+        '</button>' +
+        '<button class="cds-btn cds-btn-onscene" onclick="handleSelfAssign(\'' + esc(incId) + '\',\'OS\')">' +
+          'ON SCENE' +
+        '</button>' +
+      '</div>' +
+      '<div class="cds-field"><span class="cds-field-lbl">PRIORITY</span><span class="cds-field-val">' + esc(pri || '\u2014') + '</span></div>' +
+      '<div class="cds-field"><span class="cds-field-lbl">TYPE</span><span class="cds-field-val">' + esc(a.incident_type || '\u2014') + '</span></div>' +
+      (a.scene_address ? '<div class="cds-field"><span class="cds-field-lbl">SCENE</span><span class="cds-field-val">' + esc(a.scene_address) + '</span></div>' : '') +
+      (a.destination ? '<div class="cds-field"><span class="cds-field-lbl">DEST</span><span class="cds-field-val">' + esc(a.destination) + '</span></div>' : '') +
+      (noteClean ? '<div class="cds-field"><span class="cds-field-lbl">NOTE</span><span class="cds-field-val">' + esc(noteClean) + '</span></div>' : '') +
+      unitsHtml;
+
+    var backdrop = document.getElementById('callDetailBackdrop');
+    var sheet = document.getElementById('callDetailSheet');
+    if (backdrop) backdrop.style.display = 'block';
+    if (sheet) sheet.style.display = 'block';
+  }
+
+  function closeCallDetail() {
+    var backdrop = document.getElementById('callDetailBackdrop');
+    var sheet = document.getElementById('callDetailSheet');
+    if (backdrop) backdrop.style.display = 'none';
+    if (sheet) sheet.style.display = 'none';
+  }
+
+  function handleSelfAssign(incId, statusCode) {
+    var shortId = String(incId).replace(/^\d{2}-0*/, '');
+    closeCallDetail();
+    feedSys(statusCode + ' SELF-ASSIGNING TO INC' + shortId + '...');
+    API.selfAssign(_cadToken, incId, statusCode).then(function(res) {
+      if (res.ok) {
+        feedSys('ASSIGNED TO INC' + shortId + ' \xB7 STATUS: ' + statusCode);
+        switchTab('mycall');
+      } else {
+        feedErr('SELF-ASSIGN FAILED: ' + (res.error || 'UNKNOWN'));
+      }
+    }).catch(function() { setOnline(false); feedErr('SELF-ASSIGN FAILED \u2014 OFFLINE'); });
+  }
+
+  function _clearCallsBadge() {
+    var badge = document.getElementById('callsTabBadge');
+    if (badge) { badge.textContent = ''; badge.classList.remove('visible'); }
+  }
+
+  // ── END CALLS TAB ──────────────────────────────────────────────────────────
 
   function _updateMoreTab() {
     var moreCS = document.getElementById('moreCallsignLabel');
@@ -2946,6 +3164,18 @@
     }
     _prevQueuedIds = newIds;
 
+    // Update CALLS tab badge
+    var _callsBadge = document.getElementById('callsTabBadge');
+    if (_callsBadge) {
+      if (queued.length > 0 && _activeTab !== 'calls') {
+        _callsBadge.textContent = queued.length;
+        _callsBadge.classList.add('visible');
+      } else {
+        _callsBadge.textContent = '';
+        _callsBadge.classList.remove('visible');
+      }
+    }
+
     if (!queued.length) {
       panel.style.display = 'none';
       return;
@@ -3848,6 +4078,7 @@
 
       // Refresh active tab that depends on live state
       if (_activeTab === 'roster') _renderRosterTab();
+      if (_activeTab === 'calls')  _renderCallsTab();
       if (_activeTab === 'map')    _maybeRefreshMapTab();
       if (_activeTab === 'more')   _updateMoreTab();
 
@@ -5426,6 +5657,9 @@
   window.closeIncDetail = closeIncDetail;
   window.saveFieldIncNote = saveFieldIncNote;
   window.ackNextCall = ackNextCall; // Phase 2E
+  window.openCallDetail = openCallDetail;
+  window.closeCallDetail = closeCallDetail;
+  window.handleSelfAssign = handleSelfAssign;
   window.cadLogout = cadLogout;
   window.ackDispatch = ackDispatch;
 
