@@ -60,6 +60,10 @@ const API = {
     return this.call('init');
   },
 
+  getPositions() {
+    return this.call('GET_POSITIONS');
+  },
+
   login(role, cadIdOrUsername, password, loginTarget) {
     return this.call('login', role, cadIdOrUsername, password, loginTarget || 'board');
   },

@@ -418,11 +418,11 @@
   <h2 id="messaging">MESSAGING SYSTEM</h2>
   <table>
     <tr><th>Command</th><th>Description</th></tr>
-    <tr><td>MSG &lt;ROLE/UNIT&gt; &lt;TEXT&gt;</td><td>Send normal message to a specific role or unit<br>e.g. MSG STA2 NEED COVERAGE AT 1400</td></tr>
+    <tr><td>MSG &lt;ROLE/UNIT&gt; &lt;TEXT&gt;</td><td>Send normal message to a specific role or unit<br>e.g. MSG DP2 NEED COVERAGE AT 1400</td></tr>
     <tr><td>HTMSG &lt;ROLE/UNIT&gt; &lt;TEXT&gt;</td><td>Send URGENT (hot) message to specific role or unit</td></tr>
     <tr><td>MSGALL &lt;TEXT&gt;</td><td>Broadcast to all active dispatchers + field units</td></tr>
     <tr><td>HTALL &lt;TEXT&gt;</td><td>URGENT broadcast to everyone</td></tr>
-    <tr><td>MSGDP &lt;TEXT&gt;</td><td>Message all dispatchers only (STA1-6, SUPV, MGR, EMS)</td></tr>
+    <tr><td>MSGDP &lt;TEXT&gt;</td><td>Message all dispatchers only (DP1-6, SUPV, MGR, EMS)</td></tr>
     <tr><td>HTDP &lt;TEXT&gt;</td><td>URGENT message all dispatchers</td></tr>
     <tr><td>MSGU &lt;TEXT&gt;</td><td>Message all active field units</td></tr>
     <tr><td>HTU &lt;TEXT&gt;</td><td>URGENT message all active field units</td></tr>
@@ -433,7 +433,7 @@
     <tr><td>M &lt;UNIT&gt; &lt;TEXT&gt;</td><td>Silent message — appends note to unit's active incident without alerting the field unit. Use for non-urgent notes.</td></tr>
   </table>
   <div class="note">
-    <strong>Roles for MSG:</strong> STA1-6, SUPV1-2, MGR1-2, EMS, TCRN, PLRN, IT, or a unit callsign (e.g. EMS12)<br>
+    <strong>Roles for MSG:</strong> DP1-6, SUPV1-2, MGR1-2, EMS, TCRN, PLRN, IT, or a unit callsign (e.g. EMS12)<br>
     <span class="badge badge-both">BOARD + FIELD</span> MSG/HTMSG/MSGDP/HTDP/MSGU/HTU/MSGALL/HTALL available on both board and field app
   </div>
 

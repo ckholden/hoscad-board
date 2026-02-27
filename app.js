@@ -81,9 +81,40 @@ let VIEW = {
   theme: 'dark'    // 'dark' | 'night' | 'light'
 };
 
-// Admin role check - SUPV1, SUPV2, MGR1, MGR2, IT have admin access
+// Positions metadata — populated from API on startup; drives dropdown + role checks
+let POSITIONS_META = [];
+
+// Admin role check — uses POSITIONS_META when loaded, falls back to hardcoded list
 function isAdminRole() {
+  if (POSITIONS_META.length > 0) {
+    return POSITIONS_META.some(p => p.position_id === ROLE && p.is_admin);
+  }
   return ['SUPV1','SUPV2','MGR1','MGR2','IT'].includes(ROLE);
+}
+
+// Returns the display label for a role/position ID
+function getRoleLabel(roleId) {
+  const pos = POSITIONS_META.find(p => p.position_id === roleId);
+  return pos ? pos.label : roleId;
+}
+
+// Populate the login role dropdown from positions data
+function _populateLoginRoleDropdown(positions) {
+  const sel = document.getElementById('loginRole');
+  if (!sel || !positions || !positions.length) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">SELECT POSITION...</option>';
+  positions
+    .slice()
+    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.position_id;
+      opt.textContent = p.label || p.position_id;
+      sel.appendChild(opt);
+    });
+  // Restore previously selected value if it still exists
+  if (prev) sel.value = prev;
 }
 
 // Unit display name mappings
@@ -9261,7 +9292,22 @@ function _rtDisconnect() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function start() {
-  await API.init();
+  // Load positions for role dropdown and admin checks
+  try {
+    const posRes = await API.getPositions();
+    if (posRes && posRes.ok && Array.isArray(posRes.positions)) {
+      POSITIONS_META = posRes.positions;
+      _populateLoginRoleDropdown(POSITIONS_META);
+    }
+  } catch (_) {}
+  // Also load full positions including is_admin flag via init
+  try {
+    const initRes = await API.init();
+    if (initRes && initRes.ok && Array.isArray(initRes.positions)) {
+      POSITIONS_META = initRes.positions;
+      _populateLoginRoleDropdown(initRes.positions.filter(p => p.is_dispatcher));
+    }
+  } catch (_) {}
   loadViewState();
   refresh();
   AddressLookup.load(); // async, non-blocking — autocomplete works once data arrives

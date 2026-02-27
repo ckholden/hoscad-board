@@ -990,6 +990,14 @@ tr.stale30 {
 .messageDisplayTime  { color: var(--muted); font-size: 10px; margin-top: 3px; }
 
 /* ── Role Colors ───────────────────────────────────────────── */
+/* DP1-6 (current dispatcher IDs) */
+.roleColor-DP1 { color: #4080d8; }
+.roleColor-DP2 { color: #8050c0; }
+.roleColor-DP3 { color: #c04080; }
+.roleColor-DP4 { color: #c08020; }
+.roleColor-DP5 { color: #20a060; }
+.roleColor-DP6 { color: #20a0b0; }
+/* STA1-6 kept for backward compat (historical DB messages) */
 .roleColor-STA1 { color: #4080d8; }
 .roleColor-STA2 { color: #8050c0; }
 .roleColor-STA3 { color: #c04080; }

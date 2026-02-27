@@ -43,12 +43,7 @@
     <div class="muted" style="margin-bottom:10px;">ADMIN ACCESS ONLY</div>
     <div class="row">
       <select id="loginRole" style="flex:1">
-        <option value="">SELECT ROLE...</option>
-        <option value="SUPV1">SUPV1</option>
-        <option value="SUPV2">SUPV2</option>
-        <option value="MGR1">MGR1</option>
-        <option value="MGR2">MGR2</option>
-        <option value="IT">IT</option>
+        <option value="">Loading…</option>
       </select>
     </div>
     <div class="row">
@@ -89,6 +84,7 @@
     <button class="tab-btn" onclick="switchTab('dc911')">DC911</button>
     <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES</button>
     <button class="tab-btn" onclick="switchTab('flags')">FEATURE FLAGS</button>
+    <button class="tab-btn" onclick="switchTab('positions')">POSITIONS</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -556,6 +552,39 @@
 
   <!-- ISSUES TAB -->
   <!-- FEATURE FLAGS TAB -->
+  <!-- POSITIONS TAB -->
+  <section id="tabPositions" class="tab-section">
+    <h2>POSITIONS</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:16px;">All dispatcher positions/roles. Edit label, display order, or active state. Position IDs are immutable. IT role required to create new positions.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadPositions()">REFRESH</button>
+      <span id="positionsStatus" class="muted" style="font-size:11px;"></span>
+    </div>
+    <table class="admin-table" id="positionsTable">
+      <thead><tr><th>ID</th><th>LABEL</th><th>ORDER</th><th>DISPATCHER</th><th>ADMIN</th><th>CAN RESET</th><th>ACTIVE</th><th>ACTIONS</th></tr></thead>
+      <tbody id="positionsBody"></tbody>
+    </table>
+    <div id="createPositionForm" style="display:none;margin-top:16px;padding:12px;border:1px solid var(--line);background:#0b1018;">
+      <h3 style="margin:0 0 10px;font-size:13px;">CREATE POSITION (IT ONLY)</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <input id="posNewId" placeholder="POSITION ID *" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;width:120px;" />
+        <input id="posNewLabel" placeholder="LABEL *" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:180px;" />
+        <input id="posNewOrder" placeholder="ORDER" type="number" style="padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:70px;" />
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="posNewIsDisp" /> DISPATCHER</label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="posNewIsAdmin" /> ADMIN</label>
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="posNewCanReset" /> CAN RESET</label>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-good" style="font-size:11px;" onclick="submitCreatePosition()">CREATE</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="document.getElementById('createPositionForm').style.display='none'">CANCEL</button>
+        <span id="posCreateStatus" class="muted" style="font-size:11px;"></span>
+      </div>
+    </div>
+    <div style="margin-top:12px;" id="posNewBtn">
+      <button class="btn-good" style="font-size:11px;" onclick="document.getElementById('createPositionForm').style.display='block';document.getElementById('posNewBtn').style.display='none'">+ NEW POSITION</button>
+    </div>
+  </section>
+
   <section id="tabFlags" class="tab-section">
     <h2>FEATURE FLAGS</h2>
     <p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Toggle system features on or off without a code deploy. Changes take effect on next board refresh. Requires SUPV/MGR/IT role to modify.</p>
@@ -649,7 +678,8 @@
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="../api.js"></script>
 <script>
-  const ADMIN_ROLES = ['SUPV1','SUPV2','MGR1','MGR2','IT'];
+  let ADMIN_ROLES = ['SUPV1','SUPV2','MGR1','MGR2','IT']; // updated dynamically from positions API
+  let _positionsMeta = []; // full positions list loaded on startup
   let _token = '';
   let _role = '';
   let _confirmResolve = null;
@@ -985,7 +1015,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -1005,6 +1035,7 @@
     if (name === 'dc911') loadDc911Config();
     if (name === 'issues') loadIssues();
     if (name === 'flags') loadFeatureFlags();
+    if (name === 'positions') loadPositions();
   }
 
   // ── Users Tab ─────────────────────────────────────────────
@@ -2697,8 +2728,86 @@
     else showToast(r.error || 'Error saving aliases.', 'error');
   }
 
+  // ── Positions Tab ─────────────────────────────────────────
+  async function loadPositions() {
+    const stat = document.getElementById('positionsStatus');
+    stat.textContent = 'LOADING...';
+    const r = await API.call('listPositions', _token);
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    const positions = r.positions || [];
+    stat.textContent = positions.length + ' POSITION(S)';
+    const body = document.getElementById('positionsBody');
+    body.innerHTML = positions.map(p => `
+      <tr>
+        <td><strong>${p.position_id}</strong></td>
+        <td><input value="${p.label || ''}" style="width:160px;padding:2px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" onblur="savePositionField('${p.position_id}','label',this.value)" /></td>
+        <td><input type="number" value="${p.display_order || 0}" style="width:60px;padding:2px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" onblur="savePositionField('${p.position_id}','display_order',Number(this.value))" /></td>
+        <td style="text-align:center;">${p.is_dispatcher ? '✓' : '—'}</td>
+        <td style="text-align:center;">${p.is_admin ? '✓' : '—'}</td>
+        <td style="text-align:center;">${p.can_reset ? '✓' : '—'}</td>
+        <td style="text-align:center;">
+          <input type="checkbox" ${p.is_active ? 'checked' : ''} onchange="savePositionField('${p.position_id}','is_active',this.checked)" />
+        </td>
+        <td></td>
+      </tr>`).join('');
+  }
+
+  async function savePositionField(positionId, field, value) {
+    const r = await API.call('updatePosition', _token, positionId, { [field]: value });
+    if (!r.ok) showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'error');
+    else showToast('SAVED.');
+  }
+
+  async function submitCreatePosition() {
+    const stat = document.getElementById('posCreateStatus');
+    const posId = (document.getElementById('posNewId').value || '').trim().toUpperCase();
+    const label = (document.getElementById('posNewLabel').value || '').trim();
+    const order = Number(document.getElementById('posNewOrder').value || 999);
+    const isDisp  = document.getElementById('posNewIsDisp').checked;
+    const isAdmin = document.getElementById('posNewIsAdmin').checked;
+    const canReset = document.getElementById('posNewCanReset').checked;
+    if (!posId || !label) { stat.textContent = 'ID AND LABEL REQUIRED.'; return; }
+    stat.textContent = 'CREATING...';
+    const r = await API.call('createPosition', _token, { position_id: posId, label, display_order: order, is_dispatcher: isDisp, is_admin: isAdmin, can_reset: canReset });
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    stat.textContent = 'CREATED: ' + r.position_id;
+    document.getElementById('createPositionForm').style.display = 'none';
+    document.getElementById('posNewBtn').style.display = 'block';
+    loadPositions();
+  }
+
+  // Populate the admin login role dropdown from positions API
+  async function _loadAdminLoginDropdown() {
+    try {
+      const res = await API.getPositions();
+      if (res && res.ok && Array.isArray(res.positions)) {
+        // For admin login, show only admin-flagged positions
+        // We need full list — call init to get is_admin flag
+        const initRes = await API.init();
+        if (initRes && initRes.ok && Array.isArray(initRes.positions)) {
+          _positionsMeta = initRes.positions;
+          ADMIN_ROLES = initRes.positions.filter(p => p.is_admin).map(p => p.position_id);
+          const sel = document.getElementById('loginRole');
+          if (sel) {
+            sel.innerHTML = '<option value="">SELECT ROLE...</option>';
+            initRes.positions
+              .filter(p => p.is_admin && p.is_active !== false)
+              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+              .forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.position_id;
+                opt.textContent = p.label || p.position_id;
+                sel.appendChild(opt);
+              });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   // Auto-login via active CAD session if dispatcher has admin role
   window.addEventListener('DOMContentLoaded', () => {
+    _loadAdminLoginDropdown();
     const cadToken = localStorage.getItem('ems_token');
     const cadRole  = localStorage.getItem('ems_role');
     const cadActor = localStorage.getItem('ems_actor');
