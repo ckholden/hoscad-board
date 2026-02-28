@@ -1737,6 +1737,26 @@
   <div id="fieldIncHistContent" style="flex:1;overflow-y:auto;padding:12px;"></div>
 </div>
 
+<!-- Field Incident Note Modal -->
+<div id="fieldIncNoteModal" style="display:none;position:fixed;inset:0;z-index:9450;background:rgba(0,0,0,.75);align-items:flex-end;justify-content:center;">
+  <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;padding:0 0 env(safe-area-inset-bottom,8px);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid #1f2b3d;">
+      <span id="finmTitle" style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">ADD NOTE</span>
+      <button onclick="closeFieldIncNote()" style="background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;min-height:36px;">✕</button>
+    </div>
+    <div style="padding:14px 16px 0;">
+      <textarea id="finmText" placeholder="ENTER NOTE (E.G. PATIENT STABLE, ETA 10 MIN)..."
+        style="width:100%;box-sizing:border-box;min-height:90px;background:#0a0f17;border:1px solid #1f2b3d;color:#e6edf3;font-family:inherit;font-size:13px;padding:10px;resize:none;text-transform:uppercase;border-radius:2px;"
+        autocorrect="off" autocapitalize="characters"></textarea>
+      <div id="finmStatus" style="font-size:11px;color:#ff6b6b;min-height:16px;margin-top:4px;"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;margin-bottom:8px;">
+        <button onclick="submitFieldIncNote()" style="flex:1;padding:14px;background:#0f3a1a;border:1px solid #2aaa5a;color:#7fffb2;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:48px;">SUBMIT NOTE</button>
+        <button onclick="closeFieldIncNote()" style="padding:14px 18px;background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;min-height:48px;">CANCEL</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bug Report Modal (field) -->
 <div id="fieldBugModal" style="display:none;position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.82);align-items:flex-end;justify-content:center;">
   <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,8px);">
@@ -5782,10 +5802,14 @@
       var responseStr = _incElapsed(inc.dispatch_time, inc.arrival_time);
       var totalStr = _incElapsed(inc.dispatch_time, inc.handoff_time);
       var priColor = inc.priority === 'PRI-1' || inc.priority === 'CRITICAL' ? '#ff4040' : '#8b949e';
+      var safeId = esc(inc.incident_id).replace(/'/g, '&#39;');
       return '<div style="border:1px solid #1f2b3d;border-radius:4px;padding:10px;margin-bottom:8px;background:rgba(255,255,255,.02);">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
           '<span style="font-size:13px;font-weight:900;color:#e6edf3;">INC' + esc(shortId) + '</span>' +
-          '<span style="font-size:10px;font-weight:700;color:' + statusColor + ';">' + esc(status) + '</span>' +
+          '<div style="display:flex;gap:6px;align-items:center;">' +
+            '<span style="font-size:10px;font-weight:700;color:' + statusColor + ';">' + esc(status) + '</span>' +
+            '<button onclick="openFieldIncNote(\'' + safeId + '\')" style="font-size:10px;font-weight:700;padding:2px 8px;min-height:28px;background:#0f1e33;border:1px solid #2f5a8a;color:#5ba3e6;font-family:inherit;cursor:pointer;border-radius:2px;letter-spacing:.04em;">+ NOTE</button>' +
+          '</div>' +
         '</div>' +
         '<div style="font-size:11px;color:#c8d0da;margin-bottom:2px;">' + esc(incType) +
           (inc.priority ? ' <span style="color:' + priColor + ';font-weight:700;">' + esc(inc.priority) + '</span>' : '') +
@@ -5801,6 +5825,41 @@
     }).join('');
     content.innerHTML = html;
   }
+
+  var _fieldNoteTarget = null;
+
+  function openFieldIncNote(incidentId) {
+    _fieldNoteTarget = incidentId;
+    var modal = document.getElementById('fieldIncNoteModal');
+    if (!modal) return;
+    var shortId = String(incidentId).replace(/^[A-Z]*\d{2}-0*/, '');
+    document.getElementById('finmTitle').textContent = 'ADD NOTE — INC' + shortId;
+    document.getElementById('finmText').value = '';
+    document.getElementById('finmStatus').textContent = '';
+    modal.style.display = 'flex';
+    setTimeout(function() { document.getElementById('finmText').focus(); }, 80);
+  }
+
+  function closeFieldIncNote() {
+    var modal = document.getElementById('fieldIncNoteModal');
+    if (modal) modal.style.display = 'none';
+    _fieldNoteTarget = null;
+  }
+
+  async function submitFieldIncNote() {
+    var note = (document.getElementById('finmText').value || '').trim().toUpperCase();
+    var stat = document.getElementById('finmStatus');
+    if (!note) { stat.textContent = 'NOTE REQUIRED.'; return; }
+    if (!_fieldNoteTarget) { stat.textContent = 'NO INCIDENT SELECTED.'; return; }
+    stat.textContent = 'SAVING...';
+    var r = await API.appendIncidentNote(_cadToken, _fieldNoteTarget, note);
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'FAILED.'); return; }
+    closeFieldIncNote();
+    feedSys('NOTE ADDED TO INC' + String(_fieldNoteTarget).replace(/^[A-Z]*\d{2}-0*/, '') + '.');
+  }
+  window.openFieldIncNote   = openFieldIncNote;
+  window.closeFieldIncNote  = closeFieldIncNote;
+  window.submitFieldIncNote = submitFieldIncNote;
 
   function closeFieldIncHist() {
     var overlay = document.getElementById('fieldIncHistOverlay');
