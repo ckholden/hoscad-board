@@ -1845,16 +1845,91 @@ body.board-map-open #boardMapPane {
   white-space: nowrap;
 }
 
-/* ── Location History Panel ────────────────────────────────── */
+/* ── Location Profile Panel ─────────────────────────────────── */
+.lh-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border);
+  padding: 0 12px; background: var(--bg2); flex-shrink: 0;
+}
+.lh-tab {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  padding: 7px 14px; background: transparent; border: none;
+  border-bottom: 2px solid transparent; color: var(--muted);
+  cursor: pointer; white-space: nowrap;
+}
+.lh-tab:hover { color: var(--hi); }
+.lh-tab.active { color: var(--hi); border-bottom-color: var(--blue); }
+.lh-tab-content { padding: 10px 12px; }
+.lh-section-actions { margin-bottom: 10px; display: flex; gap: 8px; }
+.lh-add-btn { color: var(--blue) !important; border-color: var(--blue) !important; }
+.lh-add-btn:hover { background: rgba(88,166,255,.1) !important; }
+.lh-empty { color: var(--muted); font-size: 11px; padding: 8px 0; }
+.lh-info-group-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  color: var(--muted); padding: 6px 0 4px; border-bottom: 1px solid var(--border);
+  margin-bottom: 6px; margin-top: 10px;
+}
+.lh-info-group-label:first-child { margin-top: 0; }
+
+.lh-flag-row {
+  margin-bottom: 8px; padding: 8px 10px;
+  border-radius: 3px; font-size: 11px; line-height: 1.5;
+}
+.lh-flag-row--safety {
+  border: 1px solid rgba(212,48,48,.3);
+  background: rgba(212,48,48,.07);
+}
+.lh-flag-row--info {
+  border: 1px solid rgba(232,184,48,.25);
+  background: rgba(232,184,48,.06);
+}
+.lh-flag-top   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.lh-flag-desc  { color: var(--text); margin-bottom: 2px; }
+.lh-flag-meta  { color: var(--muted); font-size: 10px; }
+.lh-deact-btn  { font-size: 10px !important; color: var(--red) !important; border-color: rgba(212,48,48,.4) !important; }
+.lh-deact-btn:hover { border-color: var(--red) !important; }
+
+.flag-badge--safety {
+  display: inline-block; background: rgba(212,48,48,.22);
+  color: var(--red); border: 1px solid rgba(212,48,48,.35);
+  font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  padding: 1px 6px; border-radius: 2px;
+}
+.flag-badge--info {
+  display: inline-block; background: rgba(232,184,48,.18);
+  color: var(--yellow); border: 1px solid rgba(232,184,48,.3);
+  font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  padding: 1px 6px; border-radius: 2px;
+}
+
+/* Add flag inline form */
+.lh-add-form { background: rgba(255,255,255,.04); border: 1px solid var(--border); padding: 10px; margin-bottom: 10px; }
+.lh-add-form-row { margin-bottom: 8px; }
+.lh-add-form-actions { display: flex; align-items: center; gap: 8px; }
+.lh-form-sel {
+  width: 100%; background: var(--bg2); color: var(--text);
+  border: 1px solid var(--border); font-size: 11px; padding: 4px 6px;
+  font-family: inherit; letter-spacing: .04em;
+}
+.lh-form-ta {
+  width: 100%; background: var(--bg2); color: var(--text);
+  border: 1px solid var(--border); font-size: 11px; padding: 5px 7px;
+  font-family: inherit; resize: vertical; box-sizing: border-box;
+}
+.lh-form-input {
+  background: var(--bg2); color: var(--text);
+  border: 1px solid var(--border); font-size: 11px; padding: 3px 7px;
+  font-family: inherit; width: 220px;
+}
+.lh-deact-form { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+/* keep old lh-flags-section for any residual references */
 .lh-flags-section {
   margin-bottom: 10px;
   border: 1px solid rgba(212,48,48,.3);
   background: rgba(212,48,48,.07);
   padding: 8px 12px;
 }
-.lh-flag-row   { margin-bottom: 4px; font-size: 11px; line-height: 1.5; }
-.lh-flag-desc  { color: var(--text); }
-.lh-flag-meta  { color: var(--muted); font-size: 10px; }
+.lh-flag-row-legacy { margin-bottom: 4px; font-size: 11px; line-height: 1.5; }
 
 .lh-table {
   width: 100%; border-collapse: collapse;

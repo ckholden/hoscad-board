@@ -1178,54 +1178,259 @@ function _validateContext() {
 }
 
 // ---------------------------------------------------------------------------
-// Location History panel — opens lhPanel with history + flags for an address
+// Location Profile — full modal with Safety Flags, Location Info, History
 // ---------------------------------------------------------------------------
+let _lhCtx = { address: '', canonical: '', flags: [], results: [], hasMore: false, activeTab: 'safety', loading: false };
+
+const _LH_SAFETY_CATS = ['VIOLENCE-THREATS','WEAPONS-HISTORY','AGGRESSIVE-ANIMAL','HAZARDOUS-MATERIALS','KNOWN-MENTAL-HEALTH-RISK','LAW-ENFORCEMENT-SENSITIVE'];
+const _LH_INFO_CATS   = ['ACCESS-CODE-SECURE-ENTRY','CONTACT-PHONE'];
+
 async function _openLocationHistory(address) {
   const panel = document.getElementById('lhPanel');
   if (!panel) return;
 
-  const canonical = _normalizeAddress(address);
-  const lhTitle = document.getElementById('lhPanelTitle');
-  const lhBody  = document.getElementById('lhPanelBody');
-  if (lhTitle) lhTitle.textContent = 'LOCATION HISTORY: ' + (canonical || address.toUpperCase());
-  if (lhBody)  lhBody.innerHTML = '<div style="color:var(--muted);padding:12px;">LOADING...</div>';
-  panel.style.display = 'flex';
+  _lhCtx.address = address;
+  _lhCtx.canonical = _normalizeAddress(address);
+  _lhCtx.flags = [];
+  _lhCtx.results = [];
+  _lhCtx.hasMore = false;
+  _lhCtx.loading = true;
 
-  const r = await API.getLocationHistory(TOKEN, address, 25, 0);
+  const lhTitle = document.getElementById('lhPanelTitle');
+  if (lhTitle) lhTitle.textContent = 'LOCATION PROFILE: ' + (_lhCtx.canonical || address.toUpperCase());
+  panel.style.display = 'flex';
+  _lhRender();  // show loading state
+
+  const r = await API.getLocationHistory(TOKEN, address, 30, 0);
+  _lhCtx.loading = false;
   if (!r.ok) {
-    if (lhBody) lhBody.innerHTML = '<div style="color:var(--red);padding:12px;">ERROR: ' + (r.error || 'FAILED') + '</div>';
+    const lhBody = document.getElementById('lhPanelBody');
+    if (lhBody) lhBody.innerHTML = '<div style="color:var(--red);padding:12px;">ERROR: ' + esc(r.error || 'FAILED') + '</div>';
     return;
   }
 
-  let html = '';
+  _lhCtx.flags   = r.flags   || [];
+  _lhCtx.results = r.results || [];
+  _lhCtx.hasMore = r.hasMore || false;
+  _lhRender();
+}
 
-  // Danger flags section
-  if (r.flags && r.flags.length > 0) {
-    html += '<div class="lh-flags-section">';
-    r.flags.forEach(f => {
-      html += `<div class="lh-flag-row"><span class="flag-badge">⚠ ${f.category}</span> <span class="lh-flag-desc">${String(f.description)}</span><span class="lh-flag-meta"> — ${f.createdBy}, ${fmtTime24(f.createdAt)}</span></div>`;
-    });
-    html += '</div>';
+function _lhRender() {
+  const lhBody   = document.getElementById('lhPanelBody');
+  const lhTabBar = document.getElementById('lhTabBar');
+  if (!lhBody) return;
+
+  if (_lhCtx.loading) {
+    if (lhTabBar) lhTabBar.innerHTML = '';
+    lhBody.innerHTML = '<div style="color:var(--muted);padding:12px;">LOADING...</div>';
+    return;
   }
 
-  // History table
-  if (!r.results || r.results.length === 0) {
-    html += '<div style="color:var(--muted);padding:12px;">NO PRIOR INCIDENTS AT THIS ADDRESS.</div>';
-  } else {
-    html += '<table class="lh-table"><thead><tr><th>INC#</th><th>DATE</th><th>TYPE</th><th>PRI</th><th>DISPO</th><th>STATUS</th><th>NOTE</th><th></th></tr></thead><tbody>';
-    r.results.forEach(row => {
-      const ctxBtn = ROLE !== 'VIEWER' && row.status !== 'CLOSED'
-        ? `<button class="btn-xs" onclick="_execCmd('R ${row.incidentId}');document.getElementById('lhPanel').style.display='none';" title="Open and bind context">CTX</button>`
-        : '';
-      html += `<tr><td>${row.incidentId}</td><td>${fmtTime24(row.createdAt)}</td><td>${row.incidentType || '—'}</td><td>${row.priority || '—'}</td><td>${row.disposition || '—'}</td><td>${row.status}</td><td class="lh-snippet">${row.noteSnippet ? row.noteSnippet.substring(0, 80) : '—'}</td><td><button class="btn-xs" onclick="openIncidentFromServer('${row.incidentId}');document.getElementById('lhPanel').style.display='none';">OPEN</button>${ctxBtn}</td></tr>`;
+  const safetyFlags = _lhCtx.flags.filter(f => _LH_SAFETY_CATS.includes(String(f.category).toUpperCase()));
+  const infoFlags   = _lhCtx.flags.filter(f => _LH_INFO_CATS.includes(String(f.category).toUpperCase()));
+
+  const canWrite  = ROLE && ROLE !== 'VIEWER';
+  const canDeact  = isAdminRole();
+
+  // Tab bar — rendered into lhTabBar (sticky, not scrolled with content)
+  const tabs = [
+    { id: 'safety',  label: safetyFlags.length > 0 ? `⚠ SAFETY FLAGS (${safetyFlags.length})` : '⚠ SAFETY FLAGS' },
+    { id: 'info',    label: infoFlags.length > 0 ? `LOCATION INFO (${infoFlags.length})` : 'LOCATION INFO' },
+    { id: 'history', label: _lhCtx.results.length > 0 ? `HISTORY (${_lhCtx.results.length}${_lhCtx.hasMore ? '+' : ''})` : 'HISTORY' },
+  ];
+  if (lhTabBar) {
+    let tabHtml = '<div class="lh-tabs">';
+    tabs.forEach(t => {
+      tabHtml += `<button class="lh-tab${_lhCtx.activeTab === t.id ? ' active' : ''}" onclick="_lhSwitchTab('${t.id}')">${t.label}</button>`;
     });
-    html += '</tbody></table>';
-    if (r.hasMore) {
-      html += '<div style="padding:8px 12px;color:var(--muted);font-size:11px;">MORE RESULTS AVAILABLE — USE LH WITH OFFSET.</div>';
+    tabHtml += '</div>';
+    lhTabBar.innerHTML = tabHtml;
+  }
+
+  let html = '<div class="lh-tab-content">';
+
+  if (_lhCtx.activeTab === 'safety') {
+    if (canWrite) {
+      html += `<div class="lh-section-actions"><button class="btn-xs lh-add-btn" onclick="_lhOpenAddForm('safety')">+ ADD SAFETY FLAG</button></div>`;
+    }
+    html += `<div id="lhInlineForm" style="display:none;"></div>`;
+    if (safetyFlags.length === 0) {
+      html += '<div class="lh-empty">NO SAFETY FLAGS ON RECORD FOR THIS ADDRESS.</div>';
+    } else {
+      safetyFlags.forEach(f => {
+        const deactBtn = canDeact
+          ? `<button class="btn-xs lh-deact-btn" onclick="_lhOpenDeactivate(${f.id})">DEACTIVATE</button>`
+          : '';
+        html += `<div class="lh-flag-row lh-flag-row--safety">
+          <div class="lh-flag-top"><span class="flag-badge--safety">⚠ ${esc(f.category)}</span>${deactBtn}</div>
+          <div class="lh-flag-desc">${esc(f.description)}</div>
+          <div class="lh-flag-meta">${esc(f.createdBy)} · ${fmtTime24(f.createdAt)}</div>
+          <div id="lhDeactForm_${f.id}" style="display:none;"></div>
+        </div>`;
+      });
+    }
+
+  } else if (_lhCtx.activeTab === 'info') {
+    if (canWrite) {
+      html += `<div class="lh-section-actions">
+        <button class="btn-xs lh-add-btn" onclick="_lhOpenAddForm('access')">+ ACCESS NOTE</button>
+        <button class="btn-xs lh-add-btn" onclick="_lhOpenAddForm('phone')">+ CONTACT PHONE</button>
+      </div>`;
+    }
+    html += `<div id="lhInlineForm" style="display:none;"></div>`;
+    if (infoFlags.length === 0) {
+      html += '<div class="lh-empty">NO ACCESS OR CONTACT INFORMATION ON RECORD.</div>';
+    } else {
+      // Group by category
+      const accessFlags = infoFlags.filter(f => f.category === 'ACCESS-CODE-SECURE-ENTRY');
+      const phoneFlags  = infoFlags.filter(f => f.category === 'CONTACT-PHONE');
+      if (accessFlags.length > 0) {
+        html += '<div class="lh-info-group-label">ACCESS / ENTRY</div>';
+        accessFlags.forEach(f => {
+          const deactBtn = canDeact ? `<button class="btn-xs lh-deact-btn" onclick="_lhOpenDeactivate(${f.id})">REMOVE</button>` : '';
+          html += `<div class="lh-flag-row lh-flag-row--info">
+            <div class="lh-flag-top"><span class="flag-badge--info">🔑 ACCESS</span>${deactBtn}</div>
+            <div class="lh-flag-desc">${esc(f.description)}</div>
+            <div class="lh-flag-meta">${esc(f.createdBy)} · ${fmtTime24(f.createdAt)}</div>
+            <div id="lhDeactForm_${f.id}" style="display:none;"></div>
+          </div>`;
+        });
+      }
+      if (phoneFlags.length > 0) {
+        html += '<div class="lh-info-group-label">CONTACTS / PHONES</div>';
+        phoneFlags.forEach(f => {
+          const deactBtn = canDeact ? `<button class="btn-xs lh-deact-btn" onclick="_lhOpenDeactivate(${f.id})">REMOVE</button>` : '';
+          html += `<div class="lh-flag-row lh-flag-row--info">
+            <div class="lh-flag-top"><span class="flag-badge--info">📞 PHONE</span>${deactBtn}</div>
+            <div class="lh-flag-desc">${esc(f.description)}</div>
+            <div class="lh-flag-meta">${esc(f.createdBy)} · ${fmtTime24(f.createdAt)}</div>
+            <div id="lhDeactForm_${f.id}" style="display:none;"></div>
+          </div>`;
+        });
+      }
+    }
+
+  } else { // history
+    if (_lhCtx.results.length === 0) {
+      html += '<div class="lh-empty">NO PRIOR INCIDENTS AT THIS ADDRESS.</div>';
+    } else {
+      html += '<table class="lh-table"><thead><tr><th>INC#</th><th>DATE</th><th>TYPE</th><th>PRI</th><th>DISPO</th><th>STATUS</th><th>NOTE</th><th></th></tr></thead><tbody>';
+      _lhCtx.results.forEach(row => {
+        const incIdE = esc(row.incidentId);
+        const ctxBtn = ROLE !== 'VIEWER' && row.status !== 'CLOSED'
+          ? `<button class="btn-xs" onclick="_execCmd('R ${incIdE}');document.getElementById('lhPanel').style.display='none';" title="Open and bind context">CTX</button>`
+          : '';
+        html += `<tr><td>${incIdE}</td><td>${fmtTime24(row.createdAt)}</td><td>${esc(row.incidentType || '—')}</td><td>${esc(row.priority || '—')}</td><td>${esc(row.disposition || '—')}</td><td>${esc(row.status)}</td><td class="lh-snippet">${row.noteSnippet ? esc(row.noteSnippet.substring(0, 80)) : '—'}</td><td><button class="btn-xs" onclick="openIncidentFromServer('${incIdE}');document.getElementById('lhPanel').style.display='none';">OPEN</button>${ctxBtn}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      if (_lhCtx.hasMore) {
+        html += '<div style="padding:8px 12px;color:var(--muted);font-size:11px;">SHOWING 30 MOST RECENT INCIDENTS.</div>';
+      }
     }
   }
 
-  if (lhBody) lhBody.innerHTML = html;
+  html += '</div>';
+  lhBody.innerHTML = html;
+}
+
+function _lhSwitchTab(tab) {
+  _lhCtx.activeTab = tab;
+  _lhRender();
+}
+
+function _lhOpenAddForm(section) {
+  const formEl = document.getElementById('lhInlineForm');
+  if (!formEl) return;
+  formEl.style.display = 'block';
+
+  const catsBySection = {
+    safety: _LH_SAFETY_CATS,
+    access: ['ACCESS-CODE-SECURE-ENTRY'],
+    phone:  ['CONTACT-PHONE'],
+  };
+  const cats = catsBySection[section] || _LH_SAFETY_CATS;
+  const catOpts = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  const minLen  = section === 'safety' ? 20 : 5;
+  const placeholder = section === 'phone'
+    ? 'e.g. FRONT DESK: (541) 555-1234 — ASK FOR MIKE'
+    : section === 'access'
+    ? 'e.g. GATE CODE: 1234, RING UNIT 302 FOR ENTRY'
+    : 'Describe the safety concern (min 20 characters)...';
+
+  formEl.innerHTML = `
+    <div class="lh-add-form">
+      <div class="lh-add-form-row">
+        <select id="lhFormCat" class="lh-form-sel">${catOpts}</select>
+      </div>
+      <div class="lh-add-form-row">
+        <textarea id="lhFormDesc" class="lh-form-ta" rows="3" placeholder="${esc(placeholder)}" maxlength="500"></textarea>
+      </div>
+      <div class="lh-add-form-actions">
+        <button class="btn-primary" style="font-size:11px;padding:4px 14px;" onclick="_lhSaveFlag()">SAVE</button>
+        <button class="btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="document.getElementById('lhInlineForm').style.display='none'">CANCEL</button>
+        <span id="lhFormErr" style="color:var(--red);font-size:11px;"></span>
+      </div>
+    </div>`;
+  document.getElementById('lhFormDesc')?.focus();
+}
+
+async function _lhSaveFlag() {
+  const catEl  = document.getElementById('lhFormCat');
+  const descEl = document.getElementById('lhFormDesc');
+  const errEl  = document.getElementById('lhFormErr');
+  if (!catEl || !descEl) return;
+
+  const category    = catEl.value.trim().toUpperCase();
+  const description = descEl.value.trim();
+  if (!description) { if (errEl) errEl.textContent = 'DESCRIPTION REQUIRED.'; return; }
+
+  const minLen = category === 'OTHER' ? 40 : (category === 'CONTACT-PHONE' || category === 'ACCESS-CODE-SECURE-ENTRY' ? 5 : 20);
+  if (description.length < minLen) {
+    if (errEl) errEl.textContent = `MIN ${minLen} CHARACTERS FOR ${category}.`;
+    return;
+  }
+
+  if (errEl) errEl.textContent = 'SAVING...';
+  const sourceInc = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID || '';
+  const r = await API.createAddressFlag(TOKEN, _lhCtx.address, category, description, sourceInc);
+  if (!r.ok) {
+    if (errEl) errEl.textContent = r.error || 'SAVE FAILED.';
+    return;
+  }
+
+  // Refresh the panel
+  await _openLocationHistory(_lhCtx.address);
+}
+
+function _lhOpenDeactivate(flagId) {
+  const formEl = document.getElementById('lhDeactForm_' + flagId);
+  if (!formEl) return;
+  formEl.style.display = 'block';
+  formEl.innerHTML = `
+    <div class="lh-deact-form">
+      <input id="lhDeactReason_${flagId}" class="lh-form-input" type="text" placeholder="Reason for removal (min 10 chars)..." maxlength="200" />
+      <button class="btn-secondary" style="font-size:10px;padding:3px 8px;color:var(--red);border-color:var(--red);" onclick="_lhSaveDeactivate(${flagId})">CONFIRM REMOVE</button>
+      <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="document.getElementById('lhDeactForm_${flagId}').style.display='none'">CANCEL</button>
+      <span id="lhDeactErr_${flagId}" style="color:var(--red);font-size:10px;"></span>
+    </div>`;
+  document.getElementById('lhDeactReason_' + flagId)?.focus();
+}
+
+async function _lhSaveDeactivate(flagId) {
+  const reasonEl = document.getElementById('lhDeactReason_' + flagId);
+  const errEl    = document.getElementById('lhDeactErr_'   + flagId);
+  const reason   = reasonEl ? reasonEl.value.trim() : '';
+  if (reason.length < 10) {
+    if (errEl) errEl.textContent = 'REASON MIN 10 CHARACTERS.';
+    return;
+  }
+  if (errEl) errEl.textContent = 'REMOVING...';
+  const r = await API.deactivateAddressFlag(TOKEN, flagId, reason);
+  if (!r.ok) {
+    if (errEl) errEl.textContent = r.error || 'FAILED.';
+    return;
+  }
+  await _openLocationHistory(_lhCtx.address);
 }
 
 function minutesSince(i) {
@@ -6963,19 +7168,26 @@ async function _execCmd(tx) {
   // HT - Hot call broadcast (broadcasts context incident to all dispatchers)
   // HT             — uses CLI context
   // HT <INC#>      — explicit incident
+  // HT <text>      — context incident + urgent note
+  // HT <INC#> <text> — explicit incident + urgent note
+  // Note: HT is in _ONE_TOKEN_CMDS so ma='HT' always; all args are in nU
   if (mU === 'HT' || mU.startsWith('HT ')) {
     if (ROLE === 'VIEWER') { showAlert('ERROR', 'VIEWER ROLE CANNOT BROADCAST.'); return; }
     let htIncId = '';
     let htExtraText = '';
-    if (mU !== 'HT') {
-      const htFirstArg = ma.substring(3).trim().toUpperCase();
-      // If first arg looks like an INC# (SC26-0042, 0042, 26-0042), treat as explicit incident
-      if (/^(SC\d{2}-\d{4}|\d{2}-\d{4}|\d{3,4})$/.test(htFirstArg)) {
-        htIncId = htFirstArg;
-        htExtraText = nU.trim();
+    // Build the raw args string regardless of ONE_TOKEN_CMDS path
+    const htRawArgs = (mU === 'HT' ? nU : (ma.substring(3).trim() + (nU ? ' ' + nU : ''))).trim().toUpperCase();
+    if (htRawArgs) {
+      const htArgToks = htRawArgs.split(/\s+/);
+      const htFirst   = htArgToks[0];
+      const htRest    = htArgToks.slice(1).join(' ').trim();
+      // If first token looks like an INC# (SC26-0042, 0042, 26-0042), treat as explicit incident
+      if (/^(SC\d{2}-\d{4}|\d{2}-\d{4}|\d{3,4})$/.test(htFirst)) {
+        htIncId = htFirst;
+        htExtraText = htRest;
       } else {
-        // No INC# provided — treat entire remainder as urgent message text, use context incident
-        htExtraText = (htFirstArg + (nU ? ' ' + nU : '')).trim();
+        // No INC# — entire args are urgent note text, use context incident
+        htExtraText = htRawArgs;
       }
     }
     if (!htIncId) {
