@@ -55,7 +55,10 @@
     <div class="row">
       <button class="btn-good" onclick="adminLogin()">LOGIN</button>
       <a href="../" class="btn-secondary" style="text-decoration:none;padding:8px 14px;">BACK</a>
-      <div id="loginErr" class="muted"></div>
+    </div>
+    <div id="loginErr" class="muted" style="margin-top:6px;"></div>
+    <div id="forceLoginRow" style="display:none;margin-top:6px;">
+      <button class="btn-warn" onclick="adminLogin(true)" style="font-size:11px;padding:4px 10px;">FORCE LOGIN (CLEAR STALE SESSION)</button>
     </div>
   </div>
 </div>
@@ -844,12 +847,14 @@
   }
 
   // ── Login / Logout ────────────────────────────────────────
-  async function adminLogin() {
+  async function adminLogin(force) {
     const r = (document.getElementById('loginRole').value || '').trim().toUpperCase();
     const cadId = (document.getElementById('loginCadId').value || '').trim();
     const p = (document.getElementById('loginPassword').value || '').trim();
     const err = document.getElementById('loginErr');
+    const forceRow = document.getElementById('forceLoginRow');
     err.textContent = '';
+    if (forceRow) forceRow.style.display = 'none';
 
     if (!r) { err.textContent = 'SELECT ROLE.'; return; }
     if (!cadId) { err.textContent = 'ENTER CAD ID.'; return; }
@@ -857,7 +862,7 @@
     if (!ADMIN_ROLES.includes(r)) { err.textContent = 'ADMIN ROLES ONLY.'; return; }
 
     err.textContent = 'CONNECTING...';
-    const res = await API.login(r, cadId, p, 'admin');
+    const res = await API.login(r, cadId, p, 'admin', force || false);
     if (!res || !res.ok) {
       if (res && res.mustChangePassword) {
         const newPw = window.prompt('YOUR PASSWORD MUST BE CHANGED.\n\nENTER NEW PASSWORD (MIN 5 CHARACTERS):');
@@ -877,7 +882,9 @@
         } else { err.textContent = 'ERROR: ' + ((chg && chg.error) || 'COULD NOT CHANGE PASSWORD'); }
         return;
       }
-      err.textContent = res?.error || 'LOGIN FAILED.'; return;
+      err.textContent = res?.error || 'LOGIN FAILED.';
+      if (res && res.positionOccupied && forceRow) forceRow.style.display = 'block';
+      return;
     }
 
     _token = res.token;

@@ -1514,9 +1514,109 @@ function _drawFlagBanner(el, flags, address) {
   el.innerHTML = html;
 }
 
+// ── GIS Address Typeahead ────────────────────────────────────────────────────
+let _addrTypeaheadTimer = null;
+let _addrTypeaheadActive = false;
+
+function _onNcSceneKeydown(e) {
+  const dd = document.getElementById('addrTypeaheadDrop');
+  if (!dd) return;
+  const rows = dd.querySelectorAll('.addr-ta-row');
+  const cur  = dd.querySelector('.addr-ta-row.active');
+  const idx  = cur ? [...rows].indexOf(cur) : -1;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = rows[idx + 1] || rows[0];
+    rows.forEach(r => r.classList.remove('active'));
+    if (next) next.classList.add('active');
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = rows[idx - 1] || rows[rows.length - 1];
+    rows.forEach(r => r.classList.remove('active'));
+    if (prev) prev.classList.add('active');
+  } else if (e.key === 'Enter') {
+    const active = dd.querySelector('.addr-ta-row.active');
+    if (active) { e.preventDefault(); active.click(); }
+  } else if (e.key === 'Escape') {
+    _closeAddrTypeahead();
+  }
+}
+
+function _closeAddrTypeahead() {
+  const dd = document.getElementById('addrTypeaheadDrop');
+  if (dd) dd.style.display = 'none';
+  _addrTypeaheadActive = false;
+}
+// Close typeahead when clicking outside of it
+document.addEventListener('mousedown', (e) => {
+  const dd = document.getElementById('addrTypeaheadDrop');
+  const inp = document.getElementById('newIncScene');
+  if (dd && !dd.contains(e.target) && e.target !== inp) {
+    _closeAddrTypeahead();
+  }
+});
+
+function _selectAddrPoint(fullAddr, canonical, lat, lon, city) {
+  const inp = document.getElementById('newIncScene');
+  if (inp) { inp.value = fullAddr; }
+  _closeAddrTypeahead();
+  // Pre-pin the map if lat/lon available
+  if (lat && lon) {
+    _mapTargetFieldId = 'newIncScene';
+    _mapPinAt(lat, lon, fullAddr);
+    _mapTargetFieldId = null; // don't leave map open
+  }
+  // Trigger flag check with the selected address
+  _onNcSceneInput(fullAddr);
+}
+
+async function _runAddrTypeahead(val) {
+  if (!TOKEN || val.length < 3) { _closeAddrTypeahead(); return; }
+  const capturedVal = val;
+  const r = await API.searchAddressPoints(TOKEN, val, 8).catch(() => null);
+  // Stale check
+  const current = (document.getElementById('newIncScene')?.value || '').trim().toUpperCase();
+  if (current !== capturedVal || !r?.ok || !r.results?.length) {
+    _closeAddrTypeahead();
+    return;
+  }
+  const inp = document.getElementById('newIncScene');
+  if (!inp) return;
+  const rect = inp.getBoundingClientRect();
+  let dd = document.getElementById('addrTypeaheadDrop');
+  if (!dd) {
+    dd = document.createElement('div');
+    dd.id = 'addrTypeaheadDrop';
+    dd.className = 'addr-ta-drop';
+    document.body.appendChild(dd);
+  }
+  dd.style.display = 'block';
+  dd.style.left    = rect.left + 'px';
+  dd.style.top     = (rect.bottom + window.scrollY + 2) + 'px';
+  dd.style.width   = rect.width + 'px';
+  dd.innerHTML = r.results.map((res, i) => {
+    const city = res.city ? ' <span class="addr-ta-city">' + esc(res.city) + '</span>' : '';
+    return '<div class="addr-ta-row' + (i === 0 ? ' active' : '') + '" ' +
+      'onclick="_selectAddrPoint(' + JSON.stringify(res.full_address) + ',' +
+        JSON.stringify(res.canonical || '') + ',' +
+        (res.lat || 'null') + ',' + (res.lon || 'null') + ',' +
+        JSON.stringify(res.city || '') + ')">' +
+      esc(res.full_address) + city +
+      '</div>';
+  }).join('');
+  _addrTypeaheadActive = true;
+}
+
 // Called when NC mask scene address changes — debounced
 let _ncFlagTimer = null;
 function _onNcSceneInput(val) {
+  // Address typeahead
+  clearTimeout(_addrTypeaheadTimer);
+  if (val.length >= 3) {
+    _addrTypeaheadTimer = setTimeout(() => _runAddrTypeahead(val), 220);
+  } else {
+    _closeAddrTypeahead();
+  }
   clearTimeout(_ncFlagTimer);
   if (!val || val.length < 5) {
     const el = document.getElementById('ncFlagsBanner');
@@ -1907,24 +2007,27 @@ function showErr(r) {
 // ============================================================
 // Authentication
 // ============================================================
-async function login() {
+async function login(force) {
   const r = (document.getElementById('loginRole').value || '').trim().toUpperCase();
   const cadId = (document.getElementById('loginCadId').value || '').trim();
   const p = (document.getElementById('loginPassword').value || '').trim();
   const e = document.getElementById('loginErr');
+  const forceRow = document.getElementById('forceLoginRow');
   e.textContent = '';
+  if (forceRow) forceRow.style.display = 'none';
 
   if (!r) { e.textContent = 'SELECT ROLE.'; return; }
   if (!cadId || cadId.length < 2) { e.textContent = 'ENTER CAD ID.'; return; }
   if (!p) { e.textContent = 'ENTER PASSWORD.'; return; }
 
-  const res = await API.login(r, cadId, p, 'board');
+  const res = await API.login(r, cadId, p, 'board', force || false);
   if (!res || !res.ok) {
     if (res && res.mustChangePassword) {
       showMustChangePassword(res.username || cadId, p);
       return;
     }
     e.textContent = (res && res.error) ? res.error : 'LOGIN FAILED.';
+    if (res && res.positionOccupied && forceRow) forceRow.style.display = 'block';
     return;
   }
 

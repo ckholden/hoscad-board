@@ -64,8 +64,8 @@ const API = {
     return this.call('GET_POSITIONS');
   },
 
-  login(role, cadIdOrUsername, password, loginTarget) {
-    return this.call('login', role, cadIdOrUsername, password, loginTarget || 'board');
+  login(role, cadIdOrUsername, password, loginTarget, force) {
+    return this.call('login', role, cadIdOrUsername, password, loginTarget || 'board', force || false);
   },
 
   logout(token) {
@@ -557,6 +557,9 @@ const API = {
   },
   searchIncidents(token, query, limit) {
     return this.call('searchIncidents', token, query, limit || 5);
+  },
+  searchAddressPoints(token, query, limit) {
+    return this.call('searchAddressPoints', token, query, limit || 8);
   },
 
   // ============================================================

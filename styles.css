@@ -2041,3 +2041,20 @@ a.inc-link {
   background: none; border: none; padding: 0;
 }
 a.inc-link:hover { color: var(--hi); }
+
+/* GIS address typeahead dropdown */
+.addr-ta-drop {
+  position: absolute; z-index: 5000;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 3px; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  max-height: 220px; overflow-y: auto; min-width: 260px;
+}
+.addr-ta-row {
+  padding: 6px 10px; cursor: pointer;
+  font-size: 12px; font-weight: 700; color: var(--text);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  letter-spacing: .04em;
+}
+.addr-ta-row:last-child { border-bottom: none; }
+.addr-ta-row:hover, .addr-ta-row.active { background: rgba(255,255,255,.1); }
+.addr-ta-city { font-size: 10px; font-weight: 400; color: var(--muted); margin-left: 6px; }

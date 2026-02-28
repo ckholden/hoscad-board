@@ -242,7 +242,10 @@
     </div>
     <div class="row">
       <button class="btn-good" onclick="login()">ENTER</button>
-      <div id="loginErr" class="muted"></div>
+    </div>
+    <div id="loginErr" class="muted" style="margin-top:6px;"></div>
+    <div id="forceLoginRow" style="display:none;margin-top:6px;">
+      <button onclick="login(true)" style="font-size:11px;padding:4px 10px;background:rgba(212,48,48,.15);border:1px solid rgba(212,48,48,.4);color:var(--red);cursor:pointer;font-family:inherit;font-weight:700;border-radius:2px;">FORCE LOGIN — CLEAR STALE SESSION</button>
     </div>
     <div class="muted" style="font-size:10px;text-align:center;margin-top:8px;line-height:1.5;">
       YOUR CAD ID AND INITIAL PASSWORD ARE PROVIDED BY YOUR SUPERVISOR OR MANAGER.<br>CONTACT SUPV/MGR IF YOU NEED CREDENTIALS.
@@ -421,7 +424,7 @@
   <div class="modal">
     <h2>CREATE NEW INCIDENT</h2>
     <div class="muted" style="font-size:10px;letter-spacing:.06em;margin-bottom:4px;">SCENE ADDRESS <span style="color:#cc2222;">*</span></div>
-    <input id="newIncScene" placeholder="E.G. 1234 MAIN ST OR SCMC-BEND" style="width:100%;box-sizing:border-box;font-size:13px;padding:7px 8px;" autocomplete="off" list="addrHistList1" oninput="_onNcSceneInput(this.value.trim().toUpperCase())" onchange="_onNcSceneInput(this.value.trim().toUpperCase())" />
+    <input id="newIncScene" placeholder="E.G. 1234 MAIN ST OR SCMC-BEND" style="width:100%;box-sizing:border-box;font-size:13px;padding:7px 8px;" autocomplete="off" list="addrHistList1" oninput="_onNcSceneInput(this.value.trim().toUpperCase())" onchange="_onNcSceneInput(this.value.trim().toUpperCase())" onkeydown="_onNcSceneKeydown(event)" />
     <datalist id="addrHistList1"></datalist>
     <div class="row" style="margin-top:4px;">
       <button type="button" onclick="ncUseLast()" title="Fill with last used address" style="font-size:10px;padding:3px 7px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">LAST ADDR</button>
