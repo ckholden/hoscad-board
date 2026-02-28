@@ -446,6 +446,8 @@ const CMD_HINTS = [
   { cmd: 'SHIFT END <UNIT>', desc: 'End shift: set AV, clear assignments, deactivate' },
   { cmd: 'LINK <U1> <U2> <INC>', desc: 'Assign both units to incident' },
   { cmd: 'TRANSFER <FROM> <TO> <INC>', desc: 'Transfer incident between units' },
+  { cmd: 'AVALL <INC#>', desc: 'Set all units on an incident to AV (e.g. AVALL 0071)' },
+  { cmd: 'OSALL <INC#>', desc: 'Set all units on an incident to OS (e.g. OSALL 0071)' },
   { cmd: 'MASS D <DEST> CONFIRM', desc: 'Dispatch all AV units (requires CONFIRM)' },
   { cmd: 'LUI [UNIT]', desc: 'Create temp one-off unit (SUPV/MGR/IT only)' },
   { cmd: 'REL <INC1> <INC2>', desc: 'Link two HOSCAD incidents together (REL 26-0006 26-0007)' },
@@ -6393,6 +6395,48 @@ async function _execCmd(tx) {
     return;
   }
 
+  // AVALL / OSALL — bulk status update for all units on a specific incident
+  if (mU.startsWith('AVALL ') || mU.startsWith('OSALL ') || mU === 'AVALL' || mU === 'OSALL') {
+    const isAv = mU.startsWith('AVALL') || mU === 'AVALL';
+    const newStatus = isAv ? 'AV' : 'OS';
+    const cmdLen = isAv ? 6 : 6; // 'AVALL ' or 'OSALL ' both 6 chars
+    const rawInc = (mU.length > 6 ? mU.substring(cmdLen).trim() : '') || nU.trim();
+    if (!rawInc) { showAlert('ERROR', 'USAGE: ' + (isAv ? 'AVALL' : 'OSALL') + ' <INC#>  (e.g. ' + (isAv ? 'AVALL' : 'OSALL') + ' 0071)'); return; }
+    // Resolve 4-digit shorthand or full incident ID
+    const _stripped = rawInc.replace(/^INC[-\s]*/i, '').trim().toUpperCase();
+    let _resolvedInc = _stripped;
+    if (/^\d{4}$/.test(_stripped)) {
+      const _found = (STATE.incidents || []).find(i => i.incident_id.endsWith('-' + _stripped));
+      if (_found) _resolvedInc = _found.incident_id;
+      else { const yy = String(new Date().getFullYear()).slice(-2); _resolvedInc = 'SC' + yy + '-' + _stripped; }
+    }
+    const incObj = (STATE.incidents || []).find(i => i.incident_id === _resolvedInc);
+    if (!incObj) { showAlert('ERROR', 'INCIDENT NOT FOUND: ' + _resolvedInc); return; }
+    const assigned = (STATE.units || []).filter(u => u.active && u.incident === _resolvedInc);
+    if (!assigned.length) { showAlert('ERROR', 'NO UNITS ASSIGNED TO ' + _resolvedInc); return; }
+    const unitNames = assigned.map(u => u.unit_id).join(', ');
+    const ok = await showConfirmAsync(
+      (isAv ? 'AVALL' : 'OSALL') + ': INC ' + _resolvedInc.replace(/^[A-Z]*\d{2}-0*/, ''),
+      'Set ' + assigned.length + ' unit(s) → ' + newStatus + ':\n\n' + unitNames
+    );
+    if (!ok) return;
+    setLive(true, 'LIVE \u2022 ' + newStatus + ' ALL');
+    const results = await Promise.all(assigned.map(u => {
+      const patch = { status: newStatus, displayName: u.display_name };
+      if (!isAv) patch.incident = _resolvedInc; // OS keeps incident assignment
+      return API.upsertUnit(TOKEN, u.unit_id, patch, '');
+    }));
+    setLive(false);
+    const failed = results.filter(r => !r.ok);
+    if (failed.length) {
+      showToast((assigned.length - failed.length) + '/' + assigned.length + ' UPDATED — ' + failed.length + ' FAILED', 'error', 6000);
+    } else {
+      showToast(assigned.length + ' UNIT' + (assigned.length > 1 ? 'S' : '') + ' → ' + newStatus + '  INC ' + _resolvedInc.replace(/^[A-Z]*\d{2}-0*/, ''), 'success');
+    }
+    refresh();
+    return;
+  }
+
   // UH / HIST - Unit history
   if (mU.startsWith('UH ') || mU.startsWith('HIST ')) {
     const ps = (ma + ' ' + no).trim().split(/\s+/);
@@ -7508,6 +7552,10 @@ NC <DEST>; <NOTE>; <TYPE>; <PRIORITY>; @<SCENE ADDR>
 ═══════════════════════════════════════════════════
 MASS OPERATIONS
 ═══════════════════════════════════════════════════
+AVALL <INC#>            Set ALL units on incident → AV (clears assignment)
+  AVALL 0071
+OSALL <INC#>            Set ALL units on incident → OS (keeps assignment)
+  OSALL 0071
 MASS D <DEST>           Dispatch all AV units
   MASS D MADRAS ED
 
