@@ -4821,6 +4821,10 @@ function closeIncidentPanel() {
   _unsubscribeIncidentRT();
   document.getElementById('incBack').style.display = 'none';
   CURRENT_INCIDENT_ID = '';
+  if (CLI_CONTEXT.incidentId) {
+    CLI_CONTEXT = { incidentId: null, activatedAt: null, activatedBy: null, lastUpdate: null };
+    _updateContextBanner();
+  }
 }
 
 // Keep old name as alias for ESC key handler etc.
@@ -5400,7 +5404,18 @@ async function _execCmd(tx) {
     const supUnit = canonicalUnit(mU.substring(4).trim());
     if (!supUnit) { showAlert('ERROR', 'USAGE: SUP <UNIT> <MESSAGE>'); return; }
     const uO = (STATE && STATE.units) ? STATE.units.find(x => String(x.unit_id || '').toUpperCase() === supUnit) : null;
-    if (!uO) { showAlert('ERROR', 'UNIT NOT FOUND: ' + supUnit); return; }
+    if (!uO) {
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'UNIT NOT FOUND: ' + supUnit); return; }
+      const noteText = ('[SUP] ' + mU.substring(4).trim() + (nU ? ' ' + nU : '')).trim();
+      if (!noteText.replace(/^\[SUP\]\s*/, '').trim()) { showAlert('ERROR', 'NOTE TEXT REQUIRED'); return; }
+      setLive(true, 'LIVE \u2022 SUP');
+      const r = await API.appendIncidentNote(TOKEN, _ctxId, noteText);
+      if (!r.ok) return showErr(r);
+      showToast('SUP ADDED TO ' + _ctxId);
+      refresh();
+      return;
+    }
     if (!uO.incident) { showAlert('ERROR', supUnit + ' IS NOT ASSIGNED TO AN INCIDENT.'); return; }
     if (!nU) { showAlert('ERROR', 'USAGE: SUP <UNIT> <MESSAGE>'); return; }
     setLive(true, 'LIVE \u2022 SUP');
@@ -7480,7 +7495,18 @@ async function _execCmd(tx) {
         return;
       }
       if (uO && !uO.incident) { showAlert('ERROR', mTarget + ' IS NOT ASSIGNED TO AN INCIDENT.'); return; }
-      if (!uO) { showAlert('ERROR', 'UNIT NOT FOUND: ' + mTarget); return; }
+      if (!uO) {
+        const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+        if (!_ctxId) { showAlert('ERROR', 'UNIT NOT FOUND: ' + mTarget); return; }
+        const noteText = (mU.substring(2).trim() + (nU ? ' ' + nU : '')).trim();
+        if (!noteText) { showAlert('ERROR', 'NOTE TEXT REQUIRED'); return; }
+        setLive(true, 'LIVE \u2022 MSG');
+        const r = await API.appendIncidentNote(TOKEN, _ctxId, noteText);
+        if (!r.ok) return showErr(r);
+        showToast('NOTE ADDED TO ' + _ctxId);
+        refresh();
+        return;
+      }
     }
   }
 
@@ -7573,6 +7599,12 @@ async function _execCmd(tx) {
       incidentId = resolveIncidentId(nuIncMatch[1]);
       nuUsedAsIncident = true;
     }
+  }
+
+  // If dispatch-like status with no incident specified, use context/modal incident
+  if (!incidentId && dispatchLikeStatuses.has(stCmd)) {
+    const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    if (_ctxId) incidentId = _ctxId;
   }
 
   // AV FORCE / dispo check
@@ -10251,8 +10283,8 @@ function _rtConnect() {
     try {
       const msg = JSON.parse(e.data);
       if (msg.event === 'postgres_changes') {
-        // If this event is for the currently open incident modal, refresh it in-place
-        if (_incModalRTTopic && msg.topic === _incModalRTTopic && CURRENT_INCIDENT_ID) {
+        // Refresh open incident modal in-place on any incident change (global channel)
+        if (CURRENT_INCIDENT_ID && msg.topic === 'realtime:incidents') {
           _refreshIncidentModal(CURRENT_INCIDENT_ID);
         }
         refresh();
