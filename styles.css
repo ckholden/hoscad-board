@@ -966,9 +966,7 @@ tr.stale30 {
   #incBack .modal { max-height: calc(100dvh - 56px); }
   .modal .row { gap: 4px; }
   .pill { font-size: 10px; padding: 3px 5px; }
-  /* NC scene address row: input takes full width, buttons wrap below */
-  #newIncBack .row:has(#newIncScene) { flex-wrap: wrap; }
-  #newIncScene { width: 100% !important; flex: 1 1 100% !important; font-size: 14px !important; padding: 8px !important; }
+  #newIncScene { font-size: 14px !important; padding: 8px !important; }
 }
 
 /* ── Location Flags Banner (inc modal + NC mask) ─────────────── */
