@@ -637,10 +637,23 @@ const AddressLookup = {
       const staName = String(unit.station).trim().toUpperCase();
       return '<span class="destBig" title="IN QUARTERS">' + esc(staName) + '</span>';
     }
-    // Fallback: destination if set, or [LOC:] tag, or dash
+    // Fallback: destination if set, or incident address (when assigned), or [LOC:] GPS (only without incident), or dash
     if (unit.destination) return this.formatBoard(unit.destination);
+    // When assigned to an incident, always prefer incident scene/destination over GPS tag
+    if (unit.incident && STATE) {
+      const inc = (STATE.incidents || []).find(i => i.incident_id === unit.incident);
+      if (inc) {
+        if (inc.scene_address) {
+          const raw = String(inc.scene_address).trim().toUpperCase();
+          const { base, note } = this._parseBracketNote(raw);
+          return '<span class="destBig" title="' + esc(raw) + '">' + esc(base) + '</span>' + this._noteBadge(note);
+        }
+        if (inc.destination) return this.formatBoard(inc.destination);
+      }
+    }
+    // [LOC:] GPS tag — only shown when unit is NOT assigned to an active incident
     const locTag = (unit.note || '').match(/\[LOC:([^\]]+)\]/);
-    if (locTag) {
+    if (locTag && !unit.incident) {
       const raw = locTag[1].trim().toUpperCase();
       const { base, note } = this._parseBracketNote(raw);
       return '<span class="destBig" title="' + esc(raw) + '">' + esc(base) + '</span>' + this._noteBadge(note);
@@ -826,6 +839,10 @@ function applyViewState() {
   if (wrap) {
     wrap.classList.remove('density-compact', 'density-normal', 'density-expanded');
     wrap.classList.add('density-' + VIEW.density);
+  }
+  // Relay density to viewer popout so board rows scale accordingly
+  if (_popoutBoardWindow && !_popoutBoardWindow.closed) {
+    try { _popoutBoardWindow.postMessage({ type: 'HOSCAD_DENSITY', density: VIEW.density }, window.location.origin); } catch(e) {}
   }
 
   // Theme: apply data-theme attribute and legacy night-mode class

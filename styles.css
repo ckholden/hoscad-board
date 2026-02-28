@@ -1135,6 +1135,14 @@ tr.stale30 {
 .density-expanded .noteBig  { font-size: 13px; }
 .density-expanded .status-badge { font-size: 12px; min-width: 32px; }
 
+/* ── DENSITY: Incident Queue (visible on main page) ────────── */
+.density-compact .inc-queue-table { font-size: 10px; }
+.density-compact .inc-queue-table th,
+.density-compact .inc-queue-table td { padding: 1px 4px; line-height: 1.3; }
+.density-expanded .inc-queue-table { font-size: 13px; }
+.density-expanded .inc-queue-table th,
+.density-expanded .inc-queue-table td { padding: 6px 10px; }
+
 /* ============================================================
    NIGHT MODE — additional brightness reduction for low-light
    ============================================================ */
