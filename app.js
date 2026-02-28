@@ -8871,7 +8871,7 @@ function _searchPanelKeydown(e) {
   if (e.key === 'Escape') { e.preventDefault(); closeSearchPanel(); }
 }
 
-function _doSearchPanel() {
+async function _doSearchPanel() {
   const inp = document.getElementById('searchPanelInput');
   if (!inp) return;
   const q = inp.value.trim().toUpperCase();
@@ -8881,6 +8881,14 @@ function _doSearchPanel() {
     results.innerHTML = '<div class="muted" style="padding:20px 16px;text-align:center;font-size:12px;">TYPE TO SEARCH ADDRESSES AND CALLS</div>';
     return;
   }
+
+  // Kick off server-side history fetch early (parallel with client-side work)
+  const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
+  const historyPromise = (TOKEN && q.length >= 3)
+    ? (incPat.test(q)
+        ? API.searchIncidents(TOKEN, q, 6).catch(() => null)
+        : API.getLocationHistory(TOKEN, q, 6).catch(() => null))
+    : Promise.resolve(null);
 
   let html = '';
 
@@ -8937,6 +8945,45 @@ function _doSearchPanel() {
         '</div>' +
       '</div>';
     });
+  }
+
+  // ── Server-side history (INC prefix or location history) ──
+  const capturedQ = q;
+  const histRes = await historyPromise;
+  if (histRes && (document.getElementById('searchPanelInput')?.value||'').trim().toUpperCase() === capturedQ) {
+    const alreadyShown = new Set(((STATE && STATE.incidents) ? STATE.incidents : []).map(i => i.incident_id));
+    let histItems = [];
+    if (histRes.ok && histRes.incidents && histRes.incidents.length) {
+      // searchIncidents response
+      histItems = histRes.incidents.filter(r => !alreadyShown.has(r.incident_id));
+    } else if (histRes.ok && histRes.results && histRes.results.length) {
+      // getLocationHistory response
+      histItems = histRes.results.filter(r => !alreadyShown.has(r.incidentId)).map(r => ({
+        incident_id: r.incidentId, incident_type: r.incidentType,
+        status: r.status, scene_address: r.sceneAddress, created_at: r.createdAt
+      }));
+    }
+    if (histItems.length) {
+      html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">HISTORY (' + histItems.length + ')</div>';
+      histItems.slice(0, 8).forEach(inc => {
+        const addrText = inc.scene_address || '—';
+        const type = inc.incident_type || '';
+        const status = inc.status || '';
+        const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
+        const incIdQ = "'" + inc.incident_id + "'";
+        html += '<div class="search-result-row">' +
+          '<div class="search-result-label">' +
+            '<span style="font-weight:900;color:var(--yellow);">' + esc(inc.incident_id) + '</span>' +
+            (type ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;">' + esc(type) + '</span>' : '') +
+            ' <span style="font-size:10px;font-weight:900;color:' + statusColor + ';">' + esc(status) + '</span>' +
+            '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
+          '</div>' +
+          '<div class="search-result-actions">' +
+            '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+          '</div>' +
+        '</div>';
+      });
+    }
   }
 
   if (!html) {
@@ -9024,20 +9071,34 @@ async function _doUniversalQuery() {
     type: 'typecode', id: t.code||'', label: t.code||'', sub: t.name||''
   }))});
 
-  // Historical incidents — server-side, only for INC ID patterns
+  // Historical incidents — server-side
   const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
-  if (incPat.test(q) && TOKEN && q.length >= 4) {
+  if (TOKEN && q.length >= 3) {
     try {
       const capturedQ = q;
-      const hr = await API.searchIncidents(TOKEN, q, 5);
-      if (hr?.ok && hr.incidents?.length && inp.value.trim().toUpperCase() === capturedQ) {
-        const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
-        const hist = hr.incidents.filter(i => !already.has(i.incident_id));
-        if (hist.length) categories.push({ label: 'HISTORICAL INCIDENTS', items: hist.map(i => ({
-          type: 'incident', id: i.incident_id, label: i.incident_id,
-          sub: (i.incident_type||'') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
-          status: i.status
-        }))});
+      const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
+      if (incPat.test(q) && q.length >= 4) {
+        // INC ID prefix search
+        const hr = await API.searchIncidents(TOKEN, q, 5);
+        if (hr?.ok && hr.incidents?.length && inp.value.trim().toUpperCase() === capturedQ) {
+          const hist = hr.incidents.filter(i => !already.has(i.incident_id));
+          if (hist.length) categories.push({ label: 'HISTORICAL INCIDENTS', items: hist.map(i => ({
+            type: 'incident', id: i.incident_id, label: i.incident_id,
+            sub: (i.incident_type||'') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
+            status: i.status
+          }))});
+        }
+      } else {
+        // Address / name — location history search
+        const lr = await API.getLocationHistory(TOKEN, q, 6);
+        if (lr?.ok && lr.results?.length && inp.value.trim().toUpperCase() === capturedQ) {
+          const hist = lr.results.filter(r => !already.has(r.incidentId));
+          if (hist.length) categories.push({ label: 'LOCATION HISTORY', items: hist.map(r => ({
+            type: 'incident', id: r.incidentId, label: r.incidentId,
+            sub: (r.incidentType||'') + ' · ' + (r.status||'') + (r.sceneAddress ? ' · ' + r.sceneAddress : ''),
+            status: r.status
+          }))});
+        }
       }
     } catch (_) {}
   }
