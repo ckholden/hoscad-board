@@ -2523,6 +2523,9 @@ function renderIncidentQueue() {
     }
     const shortId = inc.incident_id.replace(/^\d{2}-/, '');
     let note = rawNote.replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
+    // Show only the most recent segment (after last '|') in the queue row
+    const noteSegs = note.split('|').map(s => s.trim()).filter(Boolean);
+    if (noteSegs.length > 1) note = noteSegs[noteSegs.length - 1];
     const incType = inc.incident_type || '';
     const typeCl = getIncidentTypeClass(incType);
     const priBadge = pri ? `<span class="priority-${esc(pri)}" style="font-size:10px;font-weight:900;margin-left:4px;">${esc(pri)}</span>` : '';
@@ -6962,10 +6965,22 @@ async function _execCmd(tx) {
   // HT <INC#>      — explicit incident
   if (mU === 'HT' || mU.startsWith('HT ')) {
     if (ROLE === 'VIEWER') { showAlert('ERROR', 'VIEWER ROLE CANNOT BROADCAST.'); return; }
-    let htIncId = mU === 'HT' ? '' : ma.substring(3).trim().toUpperCase();
+    let htIncId = '';
+    let htExtraText = '';
+    if (mU !== 'HT') {
+      const htFirstArg = ma.substring(3).trim().toUpperCase();
+      // If first arg looks like an INC# (SC26-0042, 0042, 26-0042), treat as explicit incident
+      if (/^(SC\d{2}-\d{4}|\d{2}-\d{4}|\d{3,4})$/.test(htFirstArg)) {
+        htIncId = htFirstArg;
+        htExtraText = nU.trim();
+      } else {
+        // No INC# provided — treat entire remainder as urgent message text, use context incident
+        htExtraText = (htFirstArg + (nU ? ' ' + nU : '')).trim();
+      }
+    }
     if (!htIncId) {
       const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
-      if (!_ctxId) { showAlert('ERROR', 'USAGE: HT <INC#> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+      if (!_ctxId) { showAlert('ERROR', 'USAGE: HT [<INC#>] [<TEXT>] — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
       htIncId = _ctxId;
     } else if (/^\d{3,4}$/.test(htIncId)) {
       const yy = String(new Date().getFullYear()).slice(-2);
@@ -6974,12 +6989,17 @@ async function _execCmd(tx) {
     const htInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === htIncId) : null;
     if (!htInc) { showAlert('ERROR', 'INCIDENT NOT FOUND: ' + htIncId); return; }
     const shortId = htIncId.replace(/^[A-Z]*\d{2}-0*/, '');
-    const htMsg = '[HOT:' + htIncId + '] ' + (htInc.incident_type || 'CALL') + (htInc.priority ? ' ' + htInc.priority : '') + (htInc.scene_address ? ' @ ' + htInc.scene_address : '');
+    let htMsg = '[HOT:' + htIncId + '] ' + (htInc.incident_type || 'CALL') + (htInc.priority ? ' ' + htInc.priority : '') + (htInc.scene_address ? ' @ ' + htInc.scene_address : '');
+    if (htExtraText) htMsg += ' | ' + htExtraText.toUpperCase();
     const ok = await showConfirmAsync('HOT CALL BROADCAST?', htMsg + '\n\nBroadcast to all dispatchers?');
     if (!ok) return;
     setLive(true, 'LIVE • HOT CALL');
     const r = await API.sendBroadcast(TOKEN, htMsg, 'ALL');
     if (!r.ok) return showErr(r);
+    // Also log extra text as incident note if provided
+    if (htExtraText) {
+      API.appendIncidentNote(TOKEN, htIncId, '[HOT] ' + htExtraText.toUpperCase()).catch(() => {});
+    }
     showToast('HOT CALL BROADCAST: INC' + shortId, 'warn');
     return;
   }
@@ -7574,6 +7594,26 @@ async function _execCmd(tx) {
         return;
       }
     }
+    // <UNIT> <note text> — add note to unit's incident (or context incident)
+    // e.g. "EMS1 patient has a weapon" → "[EMS1] PATIENT HAS A WEAPON" on that unit's incident
+    if (tk.length >= 2 && tk[1] !== 'SUP' && tk[1] !== 'M') {
+      const ufUnit2 = canonicalUnit(tk[0]);
+      if (ufUnit2) {
+        const ufObj2 = STATE?.units?.find(x => String(x.unit_id || '').toUpperCase() === ufUnit2);
+        const noteWords2 = (tk.slice(1).join(' ') + (nU ? ' ' + nU : '')).trim();
+        const targetInc2 = (ufObj2 && ufObj2.incident) ? ufObj2.incident : (CLI_CONTEXT.incidentId || null);
+        if (noteWords2 && targetInc2) {
+          const noteText2 = '[' + ufUnit2 + '] ' + noteWords2;
+          setLive(true, 'LIVE \u2022 MSG');
+          const r2 = await API.appendIncidentNote(TOKEN, targetInc2, noteText2);
+          if (!r2.ok) return showErr(r2);
+          showToast('[' + ufUnit2 + '] \u2192 ' + targetInc2);
+          refresh();
+          return;
+        }
+      }
+    }
+
     // <UNIT> SUP <note> or <UNIT> M <note> — add note to unit's incident without opening mask
     if (tk.length === 2 && (tk[1] === 'SUP' || tk[1] === 'M')) {
       const ufUnit = canonicalUnit(tk[0]);
@@ -8576,15 +8616,15 @@ function _doSearchPanel() {
   if (addrs.length) {
     html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);">ADDRESS DIRECTORY (' + addrs.length + ')</div>';
     addrs.slice(0, 8).forEach(a => {
-      const addrJ = JSON.stringify(a.addr || a.address || a.name || '');
+      const addrVal = (a.addr || a.address || a.name || '').replace(/'/g, "\\'");
       html += '<div class="search-result-row">' +
         '<div class="search-result-label">' +
           '<span style="font-weight:900;">' + esc(a.code || '') + '</span>' +
           '<span style="color:var(--muted);font-size:11px;margin-left:6px;">' + esc(a.addr || a.address || a.name || '') + '</span>' +
         '</div>' +
         '<div class="search-result-actions">' +
-          '<button class="btn-sm" onclick="searchPanelUse(' + addrJ + ')">USE</button>' +
-          '<button class="btn-sm" onclick="searchPanelNc(' + addrJ + ')">NC→</button>' +
+          '<button class="btn-sm" onclick="searchPanelUse(\'' + addrVal + '\')">USE</button>' +
+          '<button class="btn-sm" onclick="searchPanelNc(\'' + addrVal + '\')">NC→</button>' +
         '</div>' +
       '</div>';
     });
@@ -8609,8 +8649,8 @@ function _doSearchPanel() {
       const type = inc.incident_type || '';
       const status = inc.status || '';
       const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
-      const incIdJ = JSON.stringify(inc.incident_id);
-      const addrJ = JSON.stringify(inc.scene_address || '');
+      const incIdQ = "'" + inc.incident_id + "'";
+      const addrQ = "'" + (inc.scene_address || '').replace(/'/g, "\\'") + "'";
       html += '<div class="search-result-row">' +
         '<div class="search-result-label">' +
           '<span style="font-weight:900;color:var(--yellow);">' + esc(inc.incident_id) + '</span>' +
@@ -8619,8 +8659,8 @@ function _doSearchPanel() {
           '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
         '</div>' +
         '<div class="search-result-actions">' +
-          '<button class="btn-sm" onclick="openIncident(' + incIdJ + ');closeSearchPanel()">OPEN</button>' +
-          (status !== 'ACTIVE' && inc.scene_address ? '<button class="btn-sm" onclick="searchPanelNc(' + addrJ + ')">NC→</button>' : '') +
+          '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+          (status !== 'ACTIVE' && inc.scene_address ? '<button class="btn-sm" onclick="searchPanelNc(' + addrQ + ')">NC→</button>' : '') +
         '</div>' +
       '</div>';
     });

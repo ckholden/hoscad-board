@@ -950,6 +950,7 @@ tr.stale30 {
 
 /* Unit History Modal */
 #uhBack .modal { width: min(960px, 100%); }
+#incBack .modal { max-height: calc(100vh - 80px); }
 .uhTable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .uhTable th, .uhTable td {
   border-bottom: 1px solid var(--border);
