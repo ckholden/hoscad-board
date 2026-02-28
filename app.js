@@ -4088,6 +4088,29 @@ async function createNewIncident() {
   if (!r.ok) return showErr(r);
   if (sceneAddress) { AddrHistory.push(sceneAddress); _geoVerifyAddress(sceneAddress); }
   closeNewIncident();
+
+  // Auto-bind CLI context to the new incident (non-VIEWER only)
+  if (r.incidentId && ROLE !== 'VIEWER') {
+    CLI_CONTEXT = { incidentId: r.incidentId, activatedAt: new Date(), activatedBy: ACTOR, lastUpdate: null };
+    _updateContextBanner();
+    setTimeout(() => openIncidentFromServer(r.incidentId), 300);
+
+    // Show danger banner immediately if flags were returned
+    if (r.dangerFlags && r.dangerFlags.length > 0) {
+      const canonical = _normalizeAddress(sceneAddress || '');
+      if (canonical) FlagCache.set(canonical, r.dangerFlags);
+    }
+
+    // Non-blocking: pre-fetch location history for this address
+    if (sceneAddress) {
+      API.getLocationHistory(TOKEN, sceneAddress, 10, 0).then(lhR => {
+        if (lhR.ok && lhR.results && lhR.results.length > 0) {
+          showToast('LH: ' + lhR.results.length + ' PRIOR INCIDENT' + (lhR.results.length > 1 ? 'S' : '') + ' AT THIS ADDRESS' + (lhR.flags && lhR.flags.length ? ' — ⚠ ' + lhR.flags.length + ' FLAG(S)' : ''), 'warn', 7000);
+        }
+      }).catch(() => {});
+    }
+  }
+
   refresh();
 }
 
@@ -4193,6 +4216,19 @@ function assignIncidentToUnit(incidentId) {
 
 // ============================================================
 // Incident Review Modal
+function _renderDangerBanner(flags) {
+  const el = document.getElementById('incDangerBanner');
+  if (!el) return;
+  const active = (flags || []).filter(f => f.is_active !== false);
+  if (!active.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const rows = active.map(f =>
+    '<div style="margin-bottom:4px;"><span style="font-weight:900;">' + esc(f.category) + '</span>' +
+    (f.description ? ' — ' + esc(f.description) : '') + '</div>'
+  ).join('');
+  el.innerHTML = '<div style="font-weight:900;letter-spacing:.08em;margin-bottom:6px;">⚠ HAZARD FLAGS FOR THIS ADDRESS</div>' + rows;
+  el.style.display = '';
+}
+
 // ============================================================
 async function openIncidentFromServer(iId) {
   setLive(true, 'LIVE • INCIDENT REVIEW');
@@ -4369,6 +4405,26 @@ async function openIncidentFromServer(iId) {
   }
 
   renderIncidentAudit(r.audit || []);
+
+  // Danger flag banner — async, non-blocking
+  const _dfAddr = inc.scene_address || '';
+  const _dfBanner = document.getElementById('incDangerBanner');
+  if (_dfBanner) { _dfBanner.style.display = 'none'; _dfBanner.innerHTML = ''; }
+  if (_dfAddr && TOKEN) {
+    const _dfCanon = _normalizeAddress(_dfAddr);
+    const _dfCached = _dfCanon ? FlagCache.get(_dfCanon) : null;
+    if (_dfCached !== null) {
+      _renderDangerBanner(_dfCached);
+    } else {
+      API.getAddressFlags(TOKEN, _dfAddr).then(fr => {
+        if (fr && fr.ok && fr.flags) {
+          if (_dfCanon) FlagCache.set(_dfCanon, fr.flags);
+          _renderDangerBanner(fr.flags);
+        }
+      }).catch(() => {});
+    }
+  }
+
   document.getElementById('incBack').style.display = 'flex';
   setTimeout(() => document.getElementById('incNote').focus(), 50);
 }
@@ -4691,9 +4747,13 @@ function renderIncidentAudit(aR) {
   e.innerHTML = rs.map(r => {
     const ts = r.ts ? fmtTime24(r.ts) : '—';
     const aC = getRoleColor(r.actor);
+    const isSys = String(r.message || '').startsWith('[SYS]');
+    const msgStyle = isSys
+      ? 'font-weight:400; color:var(--muted); font-style:italic; margin-top:2px;'
+      : 'font-weight:900; color:var(--yellow); margin-top:2px;';
     return `<div style="border-bottom:1px solid var(--line); padding:8px 6px;">
       <div class="muted ${aC}">${esc(ts)} • ${esc((r.actor || '').toUpperCase())}</div>
-      <div style="font-weight:900; color:var(--yellow); margin-top:2px;">${esc(String(r.message || ''))}</div>
+      <div style="${msgStyle}">${esc(String(r.message || ''))}</div>
     </div>`;
   }).join('');
   // Auto-scroll to bottom — most recent entry is last
@@ -4876,6 +4936,7 @@ const _ONE_TOKEN_CMDS = new Set([
   'REPORTOOS', 'REPORT', 'REPORTUTIL', 'REPORTSHIFT',
   'MAP', 'LOC',
   'LH', 'HISTORY', 'EXIT',
+  'HT', 'FLAG',
 ]);
 
 async function _execCmd(tx) {
@@ -6141,8 +6202,9 @@ async function _execCmd(tx) {
       cbIncId = cbArg;
       cbNum = cbPhone;
     } else if (!isIncId && cbArg) {
-      if (!CURRENT_INCIDENT_ID) { showAlert('ERROR', 'USAGE: CB <INC> <PHONE> — OR OPEN AN INCIDENT FIRST'); return; }
-      cbIncId = CURRENT_INCIDENT_ID;
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'USAGE: CB <INC> <PHONE> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+      cbIncId = _ctxId;
       cbNum = (cbArg + (cbPhone ? ' ' + cbPhone : '')).trim();
     } else {
       showAlert('ERROR', 'USAGE: CB <INC> <PHONE> — e.g. CB 0023 5415551234'); return;
@@ -6185,14 +6247,15 @@ async function _execCmd(tx) {
       refresh();
       return;
     } else {
-      // No INC ID — use currently-open incident
-      if (!CURRENT_INCIDENT_ID) { showAlert('ERROR', 'USAGE: U <INC> <NOTE> — OR OPEN AN INCIDENT FIRST'); return; }
+      // No INC ID — use context or currently-open incident
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'USAGE: U <INC> <NOTE> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
       const fullNote = (iR + (nU ? ' ' + nU : '')).trim();
       if (!fullNote) { showAlert('ERROR', 'NOTE TEXT REQUIRED'); return; }
       setLive(true, 'LIVE • ADD NOTE');
-      const r = await API.appendIncidentNote(TOKEN, CURRENT_INCIDENT_ID, fullNote);
+      const r = await API.appendIncidentNote(TOKEN, _ctxId, fullNote);
       if (!r.ok) return showErr(r);
-      showToast('NOTE ADDED TO ' + CURRENT_INCIDENT_ID);
+      showToast('NOTE ADDED TO ' + _ctxId);
       refresh();
       return;
     }
@@ -6203,8 +6266,9 @@ async function _execCmd(tx) {
   if (mU.startsWith('COPY ') || (mU === 'COPY' && !nU.trim())) {
     let copyId;
     if (mU === 'COPY' && !nU.trim()) {
-      if (!CURRENT_INCIDENT_ID) { showAlert('ERROR', 'USAGE: COPY <INC> — OR OPEN AN INCIDENT FIRST'); return; }
-      copyId = CURRENT_INCIDENT_ID;
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'USAGE: COPY <INC> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+      copyId = _ctxId;
     } else {
       copyId = (mU.startsWith('COPY ') ? ma.substring(5) : nU).trim().toUpperCase();
       if (!copyId) { showAlert('ERROR', 'USAGE: COPY <INC>'); return; }
@@ -6363,6 +6427,22 @@ async function _execCmd(tx) {
     return;
   }
 
+  // PRIORITY <PRI-N>  — bare form uses CLI context
+  {
+    const priBareFull = (mU + ' ' + nU).trim();
+    const priBareMath = priBareFull.match(/^PRIORITY\s+(PRI-[1-4])$/);
+    if (priBareMath) {
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'USAGE: PRIORITY PRI-1 — BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+      setLive(true, 'LIVE • SET PRIORITY');
+      const r = await API.setIncidentPriority(TOKEN, _ctxId, priBareMath[1]);
+      if (!r.ok) return showErr(r);
+      showToast('PRIORITY UPDATED: ' + _ctxId + ' → ' + priBareMath[1]);
+      refresh();
+      return;
+    }
+  }
+
   // PRIORITY <INC> <PRI-N>
   const priMatch = (mU + ' ' + nU).trim().match(/^PRIORITY\s+(\S+)\s+(PRI-[1-4])$/);
   if (priMatch) {
@@ -6465,6 +6545,23 @@ async function _execCmd(tx) {
     if (!u1 || !u2) { showConfirm('ERROR', 'USAGE: TRANSFER UNIT1 UNIT2 INC0001', () => { }); return; }
     const r = await API.transferIncident(TOKEN, u1, u2, inc);
     if (!r.ok) return showErr(r);
+    refresh();
+    return;
+  }
+
+  // CAN (bare) — cancel context incident
+  if (mU === 'CAN' && !nU.trim()) {
+    const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    if (!_ctxId) { showAlert('ERROR', 'USAGE: CAN <INC> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+    const ok = await showConfirmAsync('CANCEL ' + _ctxId + '?', 'CLOSE ' + _ctxId + ' AS CANCELLED-PRIOR?');
+    if (!ok) return;
+    const r = await API.closeIncident(TOKEN, _ctxId, 'CANCELLED-PRIOR');
+    if (!r.ok) return showErr(r);
+    showToast('INC ' + _ctxId.replace(/^[A-Z]*\d{2}-0*/, '') + ' CANCELLED');
+    if (CLI_CONTEXT.incidentId === _ctxId) {
+      CLI_CONTEXT = { incidentId: null, activatedAt: null, activatedBy: null, lastUpdate: null };
+      _updateContextBanner();
+    }
     refresh();
     return;
   }
@@ -6596,6 +6693,94 @@ async function _execCmd(tx) {
     if (!inc) { showConfirm('ERROR', 'USAGE: RO INC0001', () => { }); return; }
     const r = await API.reopenIncident(TOKEN, inc);
     if (!r.ok) return showErr(r);
+    refresh();
+    return;
+  }
+
+  // FLAG - Create an address danger flag for the context incident's scene address
+  // FLAG <CATEGORY> <DESCRIPTION>
+  // FLAG <INC#> <CATEGORY> <DESCRIPTION>
+  if (mU === 'FLAG' || mU.startsWith('FLAG ')) {
+    if (ROLE === 'VIEWER') { showAlert('ERROR', 'VIEWER ROLE CANNOT CREATE FLAGS.'); return; }
+    const flagArgs = (mU === 'FLAG' ? nU : ma.substring(5) + (nU ? ' ' + nU : '')).trim();
+    if (!flagArgs) {
+      showAlert('INFO', 'FLAG COMMAND\nUsage: FLAG <CATEGORY> <DESCRIPTION>\nCategories: VIOLENCE-THREATS, WEAPONS-HISTORY, AGGRESSIVE-ANIMAL, HAZARDOUS-MATERIALS, ACCESS-CODE-SECURE-ENTRY, KNOWN-MENTAL-HEALTH-RISK, LAW-ENFORCEMENT-SENSITIVE, OTHER\nExample: FLAG WEAPONS-HISTORY SUBJECT PREVIOUSLY BRANDISHED FIREARM AT THIS ADDRESS');
+      return;
+    }
+    const VALID_CATS = ['VIOLENCE-THREATS','WEAPONS-HISTORY','AGGRESSIVE-ANIMAL','HAZARDOUS-MATERIALS','ACCESS-CODE-SECURE-ENTRY','KNOWN-MENTAL-HEALTH-RISK','LAW-ENFORCEMENT-SENSITIVE','OTHER'];
+    const flagParts = flagArgs.split(/\s+/);
+    const catIdx = flagParts.findIndex(p => VALID_CATS.includes(p.toUpperCase()));
+    if (catIdx < 0) { showAlert('ERROR', 'VALID CATEGORIES: ' + VALID_CATS.join(', ')); return; }
+    const flagCat = flagParts[catIdx].toUpperCase();
+    const flagDesc = flagParts.slice(catIdx + 1).join(' ').trim();
+    if (!flagDesc) { showAlert('ERROR', 'DESCRIPTION REQUIRED AFTER CATEGORY.'); return; }
+
+    // Resolve address from context incident
+    const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    const ctxInc = _ctxId && STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === _ctxId) : null;
+    const flagAddr = ctxInc ? (ctxInc.scene_address || '') : '';
+    if (!flagAddr) { showAlert('ERROR', 'FLAG REQUIRES A SCENE ADDRESS. BIND A CONTEXT INCIDENT WITH A SCENE ADDRESS FIRST.'); return; }
+
+    const ok = await showConfirmAsync('CREATE DANGER FLAG?', 'ADDRESS: ' + flagAddr + '\nCATEGORY: ' + flagCat + '\nDESCRIPTION: ' + flagDesc);
+    if (!ok) return;
+    setLive(true, 'LIVE • CREATE FLAG');
+    const r = await API.createAddressFlag(TOKEN, flagAddr, flagCat, flagDesc, _ctxId || '');
+    if (!r.ok) return showErr(r);
+    if (r.canonical) FlagCache.clear(); // invalidate cache for this address
+    showToast('DANGER FLAG CREATED: ' + flagCat, 'warn');
+    return;
+  }
+
+  // HT - Hot call broadcast (broadcasts context incident to all dispatchers)
+  // HT             — uses CLI context
+  // HT <INC#>      — explicit incident
+  if (mU === 'HT' || mU.startsWith('HT ')) {
+    if (ROLE === 'VIEWER') { showAlert('ERROR', 'VIEWER ROLE CANNOT BROADCAST.'); return; }
+    let htIncId = mU === 'HT' ? '' : ma.substring(3).trim().toUpperCase();
+    if (!htIncId) {
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'USAGE: HT <INC#> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+      htIncId = _ctxId;
+    } else if (/^\d{3,4}$/.test(htIncId)) {
+      const yy = String(new Date().getFullYear()).slice(-2);
+      htIncId = 'SC' + yy + '-' + htIncId.padStart(4, '0');
+    }
+    const htInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === htIncId) : null;
+    if (!htInc) { showAlert('ERROR', 'INCIDENT NOT FOUND: ' + htIncId); return; }
+    const shortId = htIncId.replace(/^[A-Z]*\d{2}-0*/, '');
+    const htMsg = '[HOT:' + htIncId + '] ' + (htInc.incident_type || 'CALL') + (htInc.priority ? ' ' + htInc.priority : '') + (htInc.scene_address ? ' @ ' + htInc.scene_address : '');
+    const ok = await showConfirmAsync('HOT CALL BROADCAST?', htMsg + '\n\nBroadcast to all dispatchers?');
+    if (!ok) return;
+    setLive(true, 'LIVE • HOT CALL');
+    const r = await API.sendBroadcast(TOKEN, htMsg, 'ALL');
+    if (!r.ok) return showErr(r);
+    showToast('HOT CALL BROADCAST: INC' + shortId, 'warn');
+    return;
+  }
+
+  // ILINK / IUNLINK - Link/unlink two incidents (incident-to-incident relationship)
+  // ILINK <INC#>           — links context incident to target
+  // ILINK <INC#> <INC#>    — links two explicit incidents
+  // IUNLINK <INC#>         — unlinks context incident from target
+  if (mU.startsWith('ILINK ') || mU.startsWith('IUNLINK ')) {
+    const isUnlink = mU.startsWith('IUNLINK ');
+    const ilArgs = isUnlink ? ma.substring(8).trim().toUpperCase() : ma.substring(6).trim().toUpperCase();
+    const ilParts = ilArgs.split(/\s+/).filter(Boolean);
+    let ilA, ilB;
+    if (ilParts.length === 1) {
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'PROVIDE TWO INCIDENT IDs OR BIND A CONTEXT INCIDENT FIRST.'); return; }
+      ilA = _ctxId;
+      ilB = ilParts[0];
+    } else if (ilParts.length === 2) {
+      ilA = ilParts[0];
+      ilB = ilParts[1];
+    } else {
+      showAlert('ERROR', 'USAGE: ILINK <INC#> [<INC#>] — IUNLINK <INC#> [<INC#>]'); return;
+    }
+    const r = await API.linkIncidents(TOKEN, ilA, ilB, isUnlink ? 'UNLINK' : '');
+    if (!r.ok) return showErr(r);
+    showToast(isUnlink ? 'UNLINKED: ' + ilA + ' ↔ ' + ilB : 'LINKED: ' + ilA + ' ↔ ' + ilB, 'success');
     refresh();
     return;
   }
