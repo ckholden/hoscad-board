@@ -55,6 +55,7 @@ const SOURCE_CONFIG = {
     source:   'DESCHUTES_E911',
     outFields: 'cad_address,add_number,st_predir,st_name,st_postyp,st_posdir,postal_community,zipcode,latitude,longitude',
     where:    '1=1',
+    returnGeometry: false,  // lat/lon already in attribute fields
     mapRecord: (a) => ({
       full_address: (a.cad_address || '').trim().toUpperCase(),
       house_num:    String(a.add_number || ''),
@@ -78,7 +79,7 @@ const SOURCE_CONFIG = {
     county:   'CROOK',
     source:   'OR_STATEWIDE',
     outFields: 'ADDRESS_FULL,Add_Number,St_PreDir,St_Name,St_PosTyp,St_PosDir,Post_Comm,Post_Code,Latitude,Longitude',
-    where:    "County='Crook'",
+    where:    "County='Crook County'",
     mapRecord: (a) => ({
       full_address: (a.ADDRESS_FULL || '').trim().toUpperCase(),
       house_num:    String(a.Add_Number || ''),
@@ -102,7 +103,7 @@ const SOURCE_CONFIG = {
     county:   'JEFFERSON',
     source:   'OR_STATEWIDE',
     outFields: 'ADDRESS_FULL,Add_Number,St_PreDir,St_Name,St_PosTyp,St_PosDir,Post_Comm,Post_Code,Latitude,Longitude',
-    where:    "County='Jefferson'",
+    where:    "County='Jefferson County'",
     mapRecord: (a) => ({
       full_address: (a.ADDRESS_FULL || '').trim().toUpperCase(),
       house_num:    String(a.Add_Number || ''),
@@ -126,7 +127,7 @@ const SOURCE_CONFIG = {
     county:   'LAKE',
     source:   'OR_STATEWIDE',
     outFields: 'ADDRESS_FULL,Add_Number,St_PreDir,St_Name,St_PosTyp,St_PosDir,Post_Comm,Post_Code,Latitude,Longitude',
-    where:    "County='Lake'",
+    where:    "County='Lake County'",
     mapRecord: (a) => ({
       full_address: (a.ADDRESS_FULL || '').trim().toUpperCase(),
       house_num:    String(a.Add_Number || ''),
@@ -238,7 +239,8 @@ async function fetchAllRecords(config) {
     const params = new URLSearchParams({
       where:             config.where,
       outFields:         config.outFields,
-      returnGeometry:    'false',
+      returnGeometry:    config.returnGeometry !== false ? 'true' : 'false',
+      outSR:             '4326',  // WGS84 lat/lon
       resultOffset:      String(offset),
       resultRecordCount: String(PAGE_SIZE),
       f:                 'json',
@@ -259,7 +261,12 @@ async function fetchAllRecords(config) {
     for (const feature of data.features) {
       const attrs = feature.attributes || feature;
       const rec   = config.mapRecord(attrs);
-      if (!rec.full_address || rec.lat == null || rec.lon == null) continue;
+      if (!rec.full_address) continue;
+      // Try to get lat/lon from geometry if not in attributes
+      if ((rec.lat == null || rec.lon == null) && feature.geometry) {
+        rec.lon = feature.geometry.x ?? null;
+        rec.lat = feature.geometry.y ?? null;
+      }
       rec.canonical   = normalizeAddress(rec.full_address);
       rec.updated_at  = new Date().toISOString();
       records.push(rec);
@@ -286,8 +293,18 @@ async function importSource(key, dryRun) {
   console.log(`\n[${key.toUpperCase()}] ${config.label}`);
   console.log('  Fetching from ArcGIS...');
 
-  const records = await fetchAllRecords(config);
-  console.log(`  ${records.length} valid records fetched.`);
+  const rawRecords = await fetchAllRecords(config);
+  console.log(`  ${rawRecords.length} valid records fetched.`);
+
+  // Deduplicate by (full_address, county) — keep last occurrence (most recent data wins)
+  const seen = new Map();
+  for (const r of rawRecords) {
+    seen.set(r.full_address + '|' + r.county, r);
+  }
+  const records = Array.from(seen.values());
+  if (records.length < rawRecords.length) {
+    console.log(`  ${rawRecords.length - records.length} duplicates removed → ${records.length} unique records.`);
+  }
 
   if (dryRun) {
     console.log('  DRY RUN — sample (first 3):');
