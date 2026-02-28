@@ -7032,7 +7032,9 @@ function openShiftReportWindow(rpt) {
     rpt.incidents.forEach(inc => {
       const dispM = (inc.incident_note || '').match(/\[DISP:([^\]]+)\]/i);
       const disp = dispM ? dispM[1].toUpperCase() : ((inc.disposition || '').toUpperCase() || '—');
-      html += `<tr><td>${esc(inc.incident_id)}</td><td>${esc(inc.incident_type||'—')}</td><td>${esc(inc.priority||'—')}</td><td>${esc(inc.scene_address||'—')}</td><td>${esc(inc.units||'—')}</td><td>${esc(inc.status)}</td><td>${esc(disp)}</td></tr>`;
+      const incIdEsc = esc(inc.incident_id);
+      const incLink = `<a href="#" title="Open incident report" onclick="window.opener&&window.opener.runQuickCmd('REPORT INC ${incIdEsc}');return false;" style="color:#58a6ff;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${incIdEsc}</a>`;
+      html += `<tr><td>${incLink}</td><td>${esc(inc.incident_type||'—')}</td><td>${esc(inc.priority||'—')}</td><td>${esc(inc.scene_address||'—')}</td><td>${esc(inc.units||'—')}</td><td>${esc(inc.status)}</td><td>${esc(disp)}</td></tr>`;
     });
     html += '</table>';
   }
@@ -7197,7 +7199,9 @@ function openUnitReportWindow(rpt) {
     html += '<table><tr><th>ID</th><th>TYPE</th><th>PRI</th><th>SCENE</th><th>DEST</th><th>DISPATCH</th><th>ARRIVAL</th><th>TRANSPORT</th><th>HANDOFF</th></tr>';
     rpt.incidents.forEach(inc => {
       const fmt = (v) => v ? (() => { try { return new Date(v).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false}); } catch(e) { return v; } })() : '—';
-      html += `<tr><td>${esc(inc.incident_id)}</td><td>${esc(inc.incident_type||'—')}</td><td>${esc(inc.priority||'—')}</td>` +
+      const incIdEsc = esc(inc.incident_id);
+      const incLink = `<a href="#" title="Open incident report" onclick="window.opener&&window.opener.runQuickCmd('REPORT INC ${incIdEsc}');return false;" style="color:#58a6ff;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${incIdEsc}</a>`;
+      html += `<tr><td>${incLink}</td><td>${esc(inc.incident_type||'—')}</td><td>${esc(inc.priority||'—')}</td>` +
               `<td>${esc(inc.scene_address||'—')}</td><td>${esc(inc.destination||'—')}</td>` +
               `<td>${fmt(inc.dispatch_time)}</td><td>${fmt(inc.arrival_time)}</td>` +
               `<td>${fmt(inc.transport_time)}</td><td>${fmt(inc.handoff_time)}</td></tr>`;
