@@ -911,6 +911,12 @@
     const list = document.getElementById('flagsList');
     const flags = (list && list._flags) ? { ...list._flags } : {};
     const newVal = !flags[key];
+    // Require explicit confirmation before disabling security-critical flags
+    if (key === 'crew_pin_login' && newVal === false) {
+      const ok = await showConfirm('DISABLE CREW PIN LOGIN?',
+        'Turning this OFF removes crew ID, PIN, and capability verification from field unit logins.\n\nField units will be able to log in with a callsign only.\n\nContinue?');
+      if (!ok) return;
+    }
     flags[key] = newVal;
     btn.textContent = 'SAVING...';
     btn.disabled = true;

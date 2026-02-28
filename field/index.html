@@ -3783,6 +3783,9 @@
     cmdFeed.innerHTML = '<div class="cmd-feed-line"><span class="cmd-sys">HOSCAD FIELD READY. TYPE HELP FOR COMMANDS.</span></div>';
     const _ab = document.getElementById('alertBanner'); if (_ab) _ab.style.display = 'none';
     const _nb = document.getElementById('noteBanner'); if (_nb) _nb.style.display = 'none';
+    // Always show crew PIN section on login screen — stale cache must not hide it
+    var crewSec = document.getElementById('crewPinLoginSection');
+    if (crewSec) crewSec.style.display = '';
     // Reset incident panel
     const panel = document.getElementById('incidentPanel');
     panel.classList.add('no-incident');
@@ -4004,14 +4007,20 @@
     _fieldRtDisconnect();
   }
 
-  // Apply feature flags to field UI. Cached in localStorage so login screen can
-  // respect flags from the previous session without requiring a pre-auth API call.
-  function applyFieldFeatureFlags(ff) {
-    // crew_pin_login — show/hide crew PIN section on login screen
+  // Apply feature flags to field UI.
+  // fromServer=true means the value came from a live server poll (reliable).
+  // fromServer=false (default) means it's from the localStorage cache (startup only).
+  // crew_pin_login is security-sensitive: NEVER hide the crew section from a stale
+  // cache — only hide it when the server explicitly confirms the flag is off.
+  function applyFieldFeatureFlags(ff, fromServer) {
     var crewSec = document.getElementById('crewPinLoginSection');
-    if (crewSec) crewSec.style.display = (ff.crew_pin_login !== false) ? '' : 'none';
+    if (crewSec) {
+      var hideCrewSection = fromServer && ff.crew_pin_login === false;
+      crewSec.style.display = hideCrewSection ? 'none' : '';
+    }
   }
-  // Apply immediately on page load from localStorage cache
+  // Apply on page load from cache — crew_pin_login is intentionally NOT applied
+  // here (fromServer omitted/false), so the crew section is always visible at startup.
   applyFieldFeatureFlags(_fieldFF);
 
   let _pollInFlight = false;
@@ -4046,7 +4055,7 @@
       if (state.featureFlags) {
         _fieldFF = state.featureFlags;
         try { localStorage.setItem('hoscad_field_ff', JSON.stringify(_fieldFF)); } catch(e) {}
-        applyFieldFeatureFlags(_fieldFF);
+        applyFieldFeatureFlags(_fieldFF, true); // fromServer=true: safe to apply crew_pin_login
       }
       updateBanners(state);
 
