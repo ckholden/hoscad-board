@@ -4928,8 +4928,9 @@ async function saveIncidentNote() {
     const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, typeChanged ? newType : '', destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
     if (!r.ok) return showErr(r);
     if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); }
-    closeIncidentPanel();
+    showToast('UPDATED');
     refresh();
+    _refreshIncidentModal(CURRENT_INCIDENT_ID);
     return;
   }
 
