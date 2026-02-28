@@ -380,6 +380,13 @@ header {
   vertical-align: middle; line-height: 1.4;
 }
 .stale-welf-btn:hover { background: rgba(212,48,48,.2); border-color: #ff9090; }
+.stale-ok-btn {
+  background: transparent; border: 1px solid rgba(63,185,80,.4); color: #3fb950;
+  cursor: pointer; font-family: inherit; font-size: 9px; font-weight: 900;
+  padding: 1px 5px; margin-left: 2px; letter-spacing: .04em;
+  vertical-align: middle; line-height: 1.4;
+}
+.stale-ok-btn:hover { background: rgba(63,185,80,.2); border-color: #3fb950; }
 
 /* Banner acknowledgment */
 .banner-ack-btn {
@@ -950,7 +957,60 @@ tr.stale30 {
 
 /* Unit History Modal */
 #uhBack .modal { width: min(960px, 100%); }
-#incBack .modal { max-height: calc(100vh - 80px); }
+#incBack .modal { max-height: calc(100vh - 80px); overflow-y: auto; }
+
+/* Responsive modal sizing for small screens */
+@media (max-width: 600px) {
+  .modalBack { padding: 4px; align-items: flex-start; padding-top: 8px; }
+  .modal { width: 100% !important; max-height: calc(100dvh - 60px); padding: 8px; border-radius: 0; }
+  #incBack .modal { max-height: calc(100dvh - 56px); }
+  .modal .row { gap: 4px; }
+  .pill { font-size: 10px; padding: 3px 5px; }
+}
+
+/* ── Location Flags Banner (inc modal + NC mask) ─────────────── */
+.inc-flags-banner { font-size: 11px; }
+.ifb-loading { color: var(--muted); font-size: 10px; padding: 3px 0; letter-spacing: .04em; }
+.ifb-none {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; color: var(--muted); padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,.06); border-radius: 2px;
+  cursor: pointer;
+}
+.ifb-none:hover { border-color: var(--border); color: var(--hi); }
+.ifb-link { color: var(--blue); font-weight: 700; }
+.ifb-wrap { display: flex; flex-direction: column; gap: 4px; }
+.ifb-flag {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 5px 10px; border-radius: 2px; cursor: pointer;
+  font-size: 11px; line-height: 1.4;
+}
+.ifb-flag--safety { background: rgba(212,48,48,.12); border: 1px solid rgba(212,48,48,.3); }
+.ifb-flag--safety:hover { background: rgba(212,48,48,.2); }
+.ifb-flag--info   { background: rgba(232,184,48,.08); border: 1px solid rgba(232,184,48,.2); }
+.ifb-flag--info:hover   { background: rgba(232,184,48,.15); }
+.ifb-cat  { font-weight: 900; letter-spacing: .05em; white-space: nowrap; flex-shrink: 0; }
+.ifb-flag--safety .ifb-cat { color: var(--red); }
+.ifb-flag--info   .ifb-cat { color: var(--yellow); }
+.ifb-desc { color: var(--text); opacity: .85; }
+.ifb-more {
+  font-size: 10px; color: var(--blue); cursor: pointer; padding: 3px 10px;
+  border: 1px solid rgba(88,166,255,.2); border-radius: 2px;
+  text-align: center; letter-spacing: .04em;
+}
+.ifb-more:hover { background: rgba(88,166,255,.08); }
+
+/* ── Universal Query ADD TO CALL button ────────────────────── */
+.uq-add-btn {
+  margin-left: auto; flex-shrink: 0;
+  font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  padding: 2px 8px; background: rgba(88,166,255,.1);
+  border: 1px solid rgba(88,166,255,.3); color: var(--blue);
+  cursor: pointer; white-space: nowrap;
+}
+.uq-add-btn:hover { background: rgba(88,166,255,.2); border-color: var(--blue); }
+.uq-row-header { display: flex; align-items: center; gap: 8px; }
+.uq-row-header .uq-label { flex: 1; }
 .uhTable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .uhTable th, .uhTable td {
   border-bottom: 1px solid var(--border);

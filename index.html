@@ -335,7 +335,6 @@
     <h2 id="incTitle" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">INCIDENT <span id="incStatusBadge" style="display:none;font-size:12px;font-weight:900;padding:3px 10px;border-radius:3px;letter-spacing:.08em;vertical-align:middle;"></span></h2>
     <div class="row">
       <div class="pill">UNITS: <span id="incUnits">-</span></div>
-      <div class="pill">DEST: <input id="incDestEdit" style="width:140px;padding:2px 6px;font-size:12px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:var(--green);font-family:inherit;text-transform:uppercase;" placeholder="DESTINATION" autocomplete="off" /></div>
       <div class="pill" style="align-items:center;gap:3px;">TYPE:&nbsp;<select id="incTypeSelect" onchange="onIncTypeSelect(this.value)" style="padding:2px 4px;font-size:11px;font-weight:700;background:#0b1018;border:1px solid var(--line);color:var(--yellow);font-family:inherit;"><option value="">—</option></select><input id="incEditCat" type="hidden" value="" /><input id="incEditNature" type="hidden" value="" /><input id="incTypeEdit" type="hidden" value="" /></div>
       <div class="pill" style="align-items:center;gap:3px;">PRI:&nbsp;<select id="incPriorityEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#ff7b72;font-family:inherit;"><option value="">—</option><option value="PRI-1">PRI-1</option><option value="PRI-2">PRI-2</option><option value="PRI-3">PRI-3</option><option value="PRI-4">PRI-4</option><option value="NONE">NONE</option></select></div>
       <div class="pill" style="align-items:center;gap:3px;">LOC:&nbsp;<select id="incLocEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#79c0ff;font-family:inherit;"><option value="">—</option><option value="BLS">BLS</option><option value="ALS">ALS</option><option value="CCT">CCT</option><option value="W/C">W/C</option><option value="STRETCHER">STRETCHER</option></select></div>
@@ -348,8 +347,10 @@
     <div id="incDispositionBadge" style="display:none;margin:4px 0 2px;font-size:11px;font-weight:900;letter-spacing:.06em;color:#79c0ff;font-family:monospace;"></div>
     <div id="incPresence" style="display:none;font-size:10px;color:var(--muted);margin:2px 0;font-family:monospace;letter-spacing:.04em;"></div>
     <div class="row" style="margin-top:6px;">
-      <div class="pill" style="flex:1;display:flex;align-items:center;gap:6px;">SCENE: <input id="incSceneAddress" list="addrHistList2" style="background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--text);font-family:inherit;font-size:11px;flex:1;padding:2px 0;text-transform:uppercase;" placeholder="SCENE ADDRESS" /><datalist id="addrHistList2"></datalist><button type="button" onclick="openMapModal('incSceneAddress')" style="font-size:10px;padding:1px 6px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#4fa3e0;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">MAP</button><button type="button" id="btnCopyScene" onclick="(function(){const v=document.getElementById('incSceneAddress').value.trim();if(!v)return;navigator.clipboard.writeText(v).then(()=>{const b=document.getElementById('btnCopyScene');b.textContent='✓';setTimeout(()=>b.textContent='COPY',1200);});})()" style="font-size:10px;padding:1px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#8b949e;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">COPY</button></div>
+      <div class="pill" style="flex:1;display:flex;align-items:center;gap:6px;">LOCATION: <input id="incSceneAddress" list="addrHistList2" style="background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--text);font-family:inherit;font-size:11px;flex:1;padding:2px 0;text-transform:uppercase;" placeholder="SCENE ADDRESS" /><datalist id="addrHistList2"></datalist><button type="button" onclick="openMapModal('incSceneAddress')" style="font-size:10px;padding:1px 6px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#4fa3e0;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">MAP</button><button type="button" id="btnCopyScene" onclick="(function(){const v=document.getElementById('incSceneAddress').value.trim();if(!v)return;navigator.clipboard.writeText(v).then(()=>{const b=document.getElementById('btnCopyScene');b.textContent='✓';setTimeout(()=>b.textContent='COPY',1200);});})()" style="font-size:10px;padding:1px 6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#8b949e;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">COPY</button></div>
     </div>
+    <!-- Location flags banner — populated by _renderIncLocationFlags() -->
+    <div id="incFlagsBanner" class="inc-flags-banner" style="margin-top:6px;"></div>
     <div id="incRelated" style="display:none;margin:6px 0 2px;font-size:11px;font-family:monospace;"></div>
     <div id="incSuggestResult" style="display:none;margin:6px 0 2px;"></div>
     <div id="incUpdateNotice" style="display:none;font-size:10px;font-weight:700;color:#3fb950;margin:4px 0;font-family:monospace;letter-spacing:.04em;"></div>
@@ -421,11 +422,13 @@
     <h2>CREATE NEW INCIDENT</h2>
     <div class="muted" style="font-size:10px;letter-spacing:.06em;margin-bottom:4px;">SCENE ADDRESS <span style="color:#cc2222;">*</span></div>
     <div class="row">
-      <input id="newIncScene" placeholder="E.G. 1234 MAIN ST OR SCMC-BEND" style="flex:1" autocomplete="off" list="addrHistList1" />
+      <input id="newIncScene" placeholder="E.G. 1234 MAIN ST OR SCMC-BEND" style="flex:1" autocomplete="off" list="addrHistList1" oninput="_onNcSceneInput(this.value.trim().toUpperCase())" onchange="_onNcSceneInput(this.value.trim().toUpperCase())" />
       <datalist id="addrHistList1"></datalist>
       <button type="button" onclick="ncUseLast()" title="Fill with last used address" style="font-size:10px;padding:4px 7px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">LAST</button>
       <button type="button" onclick="openMapModal('newIncScene')" style="font-size:10px;padding:4px 8px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#4fa3e0;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;">MAP</button>
     </div>
+    <!-- Location flags banner for NC form — populated when scene address typed -->
+    <div id="ncFlagsBanner" class="inc-flags-banner" style="margin-bottom:6px;"></div>
     <div class="row">
       <select id="newIncTypeSelect" style="flex:1" onchange="onNewIncTypeSelect(this.value)">
         <option value="">CALL TYPE...</option>

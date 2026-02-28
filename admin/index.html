@@ -85,7 +85,7 @@
     <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES</button>
     <button class="tab-btn" onclick="switchTab('flags')">FEATURE FLAGS</button>
     <button class="tab-btn" onclick="switchTab('positions')">POSITIONS</button>
-    <button class="tab-btn" onclick="switchTab('hazardFlags');loadHazardFlags();" style="color:#f85149;">HAZARD FLAGS</button>
+    <button class="tab-btn" onclick="switchTab('hazardFlags')" style="color:#f85149;">HAZARD FLAGS</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -626,45 +626,22 @@
     <h2 style="color:#f85149;">HAZARD FLAGS</h2>
     <p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Address-based danger and safety flags. Deactivation requires SUPV/MGR/IT role and a reason. Flags are never deleted — only deactivated.</p>
 
-    <!-- Create Form -->
-    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-bottom:16px;">
-      <div class="section-title" style="margin-top:0;">CREATE NEW FLAG</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-        <input id="hfNewAddr" placeholder="ADDRESS *" style="flex:2;min-width:200px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="200" autocomplete="off" />
-        <select id="hfNewCat" style="flex:1;min-width:180px;padding:4px 8px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:uppercase;">
-          <option value="">SELECT CATEGORY *</option>
-          <option value="VIOLENCE-THREATS">VIOLENCE-THREATS</option>
-          <option value="WEAPONS-HISTORY">WEAPONS-HISTORY</option>
-          <option value="AGGRESSIVE-ANIMAL">AGGRESSIVE-ANIMAL</option>
-          <option value="HAZARDOUS-MATERIALS">HAZARDOUS-MATERIALS</option>
-          <option value="ACCESS-CODE-SECURE-ENTRY">ACCESS-CODE-SECURE-ENTRY</option>
-          <option value="KNOWN-MENTAL-HEALTH-RISK">KNOWN-MENTAL-HEALTH-RISK</option>
-          <option value="LAW-ENFORCEMENT-SENSITIVE">LAW-ENFORCEMENT-SENSITIVE</option>
-          <option value="OTHER">OTHER</option>
+    <!-- Address Search -->
+    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-bottom:12px;">
+      <div class="section-title" style="margin-top:0;">SEARCH BY ADDRESS</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input id="hfSearchAddr" placeholder="ENTER ADDRESS TO SEARCH FLAGS..." style="flex:1;min-width:240px;padding:5px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="200" autocomplete="off"
+          onkeydown="if(event.key==='Enter')loadHazardFlags()" />
+        <select id="hfFilterStatus" style="padding:5px 8px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+          <option value="active">ACTIVE ONLY</option>
+          <option value="all">ALL (INC. DEACTIVATED)</option>
         </select>
-      </div>
-      <div style="margin-bottom:8px;">
-        <textarea id="hfNewDesc" placeholder="DESCRIPTION * (min 20 chars; 40 for OTHER)" maxlength="500" style="width:100%;box-sizing:border-box;height:60px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;resize:vertical;text-transform:uppercase;"></textarea>
-      </div>
-      <div style="margin-bottom:8px;">
-        <input id="hfNewSrcInc" placeholder="SOURCE INCIDENT ID (OPTIONAL)" style="width:200px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="20" autocomplete="off" />
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn-danger" style="font-size:11px;" onclick="submitCreateHazardFlag()">CREATE FLAG</button>
-        <span id="hfCreateStatus" class="muted" style="font-size:11px;"></span>
+        <button class="btn-secondary" style="font-size:11px;" onclick="loadHazardFlags()">SEARCH</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="document.getElementById('hfSearchAddr').value='';loadHazardFlags()">LOAD ALL</button>
       </div>
     </div>
 
-    <!-- Search / Filter -->
-    <div class="admin-actions">
-      <input id="hfSearchAddr" placeholder="FILTER BY ADDRESS..." style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:220px;" oninput="filterHazardFlags()" />
-      <select id="hfFilterStatus" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" onchange="loadHazardFlags()">
-        <option value="active">ACTIVE ONLY</option>
-        <option value="all">ALL (INC. DEACTIVATED)</option>
-      </select>
-      <button class="btn-secondary" style="font-size:11px;" onclick="loadHazardFlags()">REFRESH</button>
-    </div>
-    <div id="hfStatus" class="admin-status">LOAD TAB TO REFRESH.</div>
+    <div id="hfStatus" class="admin-status">Enter an address above and click SEARCH, or click LOAD ALL to view all flags.</div>
     <table class="admin-table" id="hfTable" style="display:none;">
       <thead><tr><th>ID</th><th>ADDRESS</th><th>CATEGORY</th><th>DESCRIPTION</th><th>SRC INC</th><th>CREATED BY</th><th>CREATED</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
       <tbody id="hfBody"></tbody>
@@ -680,6 +657,39 @@
         <button class="btn-danger" style="font-size:11px;" onclick="confirmDeactivateFlag()">DEACTIVATE</button>
         <button class="btn-secondary" style="font-size:11px;" onclick="cancelDeactivateFlag()">CANCEL</button>
         <span id="hfDeactivateStatus" class="muted" style="font-size:11px;"></span>
+      </div>
+    </div>
+
+    <!-- Create Form -->
+    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-top:16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div class="section-title" style="margin-top:0;margin-bottom:0;">CREATE NEW FLAG</div>
+        <button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="prefillFlagAddr()" title="Copy search address into form">USE SEARCH ADDR</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <input id="hfNewAddr" placeholder="ADDRESS *" style="flex:2;min-width:200px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="200" autocomplete="off" />
+        <select id="hfNewCat" style="flex:1;min-width:180px;padding:4px 8px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:uppercase;">
+          <option value="">SELECT CATEGORY *</option>
+          <option value="VIOLENCE-THREATS">VIOLENCE-THREATS</option>
+          <option value="WEAPONS-HISTORY">WEAPONS-HISTORY</option>
+          <option value="AGGRESSIVE-ANIMAL">AGGRESSIVE-ANIMAL</option>
+          <option value="HAZARDOUS-MATERIALS">HAZARDOUS-MATERIALS</option>
+          <option value="ACCESS-CODE-SECURE-ENTRY">ACCESS-CODE-SECURE-ENTRY</option>
+          <option value="KNOWN-MENTAL-HEALTH-RISK">KNOWN-MENTAL-HEALTH-RISK</option>
+          <option value="LAW-ENFORCEMENT-SENSITIVE">LAW-ENFORCEMENT-SENSITIVE</option>
+          <option value="CONTACT-PHONE">CONTACT-PHONE</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+      </div>
+      <div style="margin-bottom:8px;">
+        <textarea id="hfNewDesc" placeholder="DESCRIPTION * (min 20 chars for safety flags; 3 for CONTACT-PHONE/ACCESS-CODE; 40 for OTHER)" maxlength="500" style="width:100%;box-sizing:border-box;height:60px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;resize:vertical;text-transform:uppercase;"></textarea>
+      </div>
+      <div style="margin-bottom:8px;">
+        <input id="hfNewSrcInc" placeholder="SOURCE INCIDENT ID (OPTIONAL)" style="width:200px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="20" autocomplete="off" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-danger" style="font-size:11px;" onclick="submitCreateHazardFlag()">CREATE FLAG</button>
+        <span id="hfCreateStatus" class="muted" style="font-size:11px;"></span>
       </div>
     </div>
   </section>
@@ -2807,20 +2817,16 @@
     const tbl = document.getElementById('hfTable');
     stat.textContent = 'LOADING...';
     tbl.style.display = 'none';
-    // getAddressFlags requires a specific address; for admin list view, use listAddressFlags action
     const showAll = document.getElementById('hfFilterStatus').value === 'all';
-    const r = await API.call('listAddressFlags', _token, showAll ? 'all' : 'active');
+    const addrFilter = (document.getElementById('hfSearchAddr').value || '').trim();
+    const r = await API.call('listAddressFlags', _token, showAll ? 'all' : 'active', addrFilter);
     if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
     _hfAllRows = r.flags || [];
-    stat.textContent = _hfAllRows.length + ' FLAG(S)';
+    const addrLabel = addrFilter ? (' FOR: ' + addrFilter.toUpperCase()) : '';
+    stat.textContent = _hfAllRows.length + ' FLAG(S)' + addrLabel;
     tbl.style.display = _hfAllRows.length ? '' : 'none';
+    if (!_hfAllRows.length) stat.textContent = 'NO FLAGS FOUND' + addrLabel + '.';
     renderHazardFlagsTable(_hfAllRows);
-  }
-
-  function filterHazardFlags() {
-    const q = (document.getElementById('hfSearchAddr').value || '').trim().toUpperCase();
-    const rows = q ? _hfAllRows.filter(f => (f.canonical_address || '').includes(q)) : _hfAllRows;
-    renderHazardFlagsTable(rows);
   }
 
   function renderHazardFlagsTable(rows) {
@@ -2850,6 +2856,13 @@
     }).join('');
   }
 
+  function prefillFlagAddr() {
+    const search = (document.getElementById('hfSearchAddr').value || '').trim();
+    const newAddr = document.getElementById('hfNewAddr');
+    if (search && newAddr && !newAddr.value.trim()) newAddr.value = search.toUpperCase();
+    newAddr.focus();
+  }
+
   async function submitCreateHazardFlag() {
     const stat = document.getElementById('hfCreateStatus');
     const addr = (document.getElementById('hfNewAddr').value || '').trim();
@@ -2858,8 +2871,8 @@
     const src  = (document.getElementById('hfNewSrcInc').value || '').trim().toUpperCase() || null;
     if (!addr) { stat.textContent = 'ADDRESS REQUIRED.'; return; }
     if (!cat)  { stat.textContent = 'CATEGORY REQUIRED.'; return; }
-    const minLen = cat === 'OTHER' ? 40 : 20;
-    if (desc.length < minLen) { stat.textContent = 'DESCRIPTION MIN ' + minLen + ' CHARS.'; return; }
+    const minLen = cat === 'OTHER' ? 40 : (cat === 'CONTACT-PHONE' || cat === 'ACCESS-CODE-SECURE-ENTRY') ? 3 : 20;
+    if (desc.length < minLen) { stat.textContent = 'DESCRIPTION TOO SHORT (MIN ' + minLen + ' CHARS FOR ' + cat + ').'; return; }
     stat.textContent = 'CREATING...';
     const r = await API.createAddressFlag(_token, addr, cat, desc, src);
     if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }

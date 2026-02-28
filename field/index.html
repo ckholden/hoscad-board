@@ -1475,6 +1475,7 @@
         </div>
         <div class="cmd-quick-row">
           <button class="cmd-quick-btn" data-cmd="10-4">10-4</button>
+          <button class="cmd-quick-btn" data-cmd="OK" style="border-color:rgba(63,185,80,.5);color:#3fb950;">OK</button>
           <button class="cmd-quick-btn" data-cmd="WHO">WHO</button>
           <button class="cmd-quick-btn" data-cmd="UR">UR</button>
           <button class="cmd-quick-btn" data-cmd="HOLDING">HOLDING</button>
@@ -5015,13 +5016,22 @@
       feedSys('  DEL SC26-0045 ERR  (DATA ERROR)');
       feedSys('  DEL SC26-0045      (OPENS PICKER)');
       feedSys('REFRESH                 FORCE POLL');
+      feedSys('OK                      WELFARE CHECK ACK / RESET STATUS TIMER');
       feedSys('LO                      LOG OUT');
       feedSys('CLS                     CLEAR SCREEN');
       return;
     }
 
-    // 10-4
-    if (text === '10-4') { feedSys('10-4.'); return; }
+    // OK - self-touch / welfare check acknowledgment
+    if (text === 'OK' || text === '10-4') {
+      if (!_cadToken || !_cadCallsign) { feedErr('NOT LOGGED IN.'); return; }
+      if (text === '10-4') { feedSys('10-4.'); }
+      API.touchUnit(_cadToken, _cadCallsign, '').then(function(res) {
+        if (res.ok) feedSys('OK \u2014 STATUS TIMER RESET.');
+        else feedErr('OK FAILED: ' + (res.error || 'UNKNOWN'));
+      }).catch(function() { feedErr('OK FAILED \u2014 OFFLINE.'); });
+      return;
+    }
 
     feedErr('UNKNOWN COMMAND. TYPE HELP.');
   }
@@ -5149,7 +5159,7 @@
     btn.addEventListener('click', function() {
       const cmd = btn.dataset.cmd;
       if (!cmd) return;  // buttons with onclick handlers (MAP, GPS, GPSUL) — skip
-      if (cmd === '10-4' || cmd === 'WHO' || cmd === 'UR' || cmd === 'STATUS' || cmd === 'REFRESH' || cmd === 'HOLDING') {
+      if (cmd === '10-4' || cmd === 'OK' || cmd === 'WHO' || cmd === 'UR' || cmd === 'STATUS' || cmd === 'REFRESH' || cmd === 'HOLDING') {
         processCommand(cmd);
       } else {
         cmdInput.value = cmd;

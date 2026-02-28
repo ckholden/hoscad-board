@@ -1384,7 +1384,7 @@ async function _lhSaveFlag() {
   const description = descEl.value.trim();
   if (!description) { if (errEl) errEl.textContent = 'DESCRIPTION REQUIRED.'; return; }
 
-  const minLen = category === 'OTHER' ? 40 : (category === 'CONTACT-PHONE' || category === 'ACCESS-CODE-SECURE-ENTRY' ? 5 : 20);
+  const minLen = category === 'OTHER' ? 40 : (category === 'CONTACT-PHONE' || category === 'ACCESS-CODE-SECURE-ENTRY' ? 3 : 20);
   if (description.length < minLen) {
     if (errEl) errEl.textContent = `MIN ${minLen} CHARACTERS FOR ${category}.`;
     return;
@@ -1431,6 +1431,80 @@ async function _lhSaveDeactivate(flagId) {
     return;
   }
   await _openLocationHistory(_lhCtx.address);
+}
+
+// ---------------------------------------------------------------------------
+// Location flags banner — shown in incident modal and NC mask
+// Shows up to 3 active flags (safety first), "NO FLAGS" if none.
+// Clicking opens the Location Profile panel for the address.
+// ---------------------------------------------------------------------------
+const _flagBannerCache = new Map(); // canonical → { flags, ts }
+const _FLAG_BANNER_TTL = 90_000;
+
+async function _renderIncLocationFlags(incidentId, address) {
+  const bannerId = incidentId ? 'incFlagsBanner' : 'ncFlagsBanner';
+  const bannerEl = document.getElementById(bannerId);
+  if (!bannerEl || !address || !TOKEN) return;
+
+  const canonical = _normalizeAddress(address);
+  if (!canonical) return;
+
+  // Check cache
+  const cached = _flagBannerCache.get(canonical);
+  if (cached && Date.now() - cached.ts < _FLAG_BANNER_TTL) {
+    _drawFlagBanner(bannerEl, cached.flags, address);
+    return;
+  }
+
+  // Fetch non-blocking — show brief loading indicator
+  bannerEl.innerHTML = '<div class="ifb-loading">CHECKING FLAGS...</div>';
+  const r = await API.getAddressFlags(TOKEN, address);
+  if (!r.ok) { bannerEl.innerHTML = ''; return; }
+
+  _flagBannerCache.set(canonical, { flags: r.flags || [], ts: Date.now() });
+  _drawFlagBanner(bannerEl, r.flags || [], address);
+}
+
+function _drawFlagBanner(el, flags, address) {
+  const SAFETY_CATS = new Set(_LH_SAFETY_CATS);
+  const safety = flags.filter(f => SAFETY_CATS.has(String(f.category).toUpperCase()));
+  const info   = flags.filter(f => !SAFETY_CATS.has(String(f.category).toUpperCase()));
+
+  // Safety first, then info; limit to 3 shown
+  const sorted  = [...safety, ...info].slice(0, 3);
+  const addrJ   = JSON.stringify(address);
+
+  if (flags.length === 0) {
+    el.innerHTML = `<div class="ifb-none" onclick="_openLocationHistory(${addrJ})">NO FLAGS AT THIS LOCATION &nbsp;<span class="ifb-link">VIEW PROFILE →</span></div>`;
+    return;
+  }
+
+  let html = '<div class="ifb-wrap">';
+  sorted.forEach(f => {
+    const isSafety = SAFETY_CATS.has(String(f.category).toUpperCase());
+    const desc = f.description.length > 60 ? f.description.substring(0, 57) + '...' : f.description;
+    html += `<div class="ifb-flag ${isSafety ? 'ifb-flag--safety' : 'ifb-flag--info'}" onclick="_openLocationHistory(${addrJ})">
+      <span class="ifb-cat">${isSafety ? '⚠' : '📋'} ${esc(f.category)}</span>
+      <span class="ifb-desc">${esc(desc)}</span>
+    </div>`;
+  });
+  if (flags.length > 3) {
+    html += `<div class="ifb-more" onclick="_openLocationHistory(${addrJ})">${flags.length - 3} MORE FLAG${flags.length - 3 > 1 ? 'S' : ''} — VIEW ALL →</div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// Called when NC mask scene address changes — debounced
+let _ncFlagTimer = null;
+function _onNcSceneInput(val) {
+  clearTimeout(_ncFlagTimer);
+  if (!val || val.length < 5) {
+    const el = document.getElementById('ncFlagsBanner');
+    if (el) el.innerHTML = '';
+    return;
+  }
+  _ncFlagTimer = setTimeout(() => _renderIncLocationFlags(null, val), 600);
 }
 
 function minutesSince(i) {
@@ -2979,7 +3053,8 @@ function renderBoard() {
     'STALE ' + s + ' (&ge;' + STATE.staleThresholds.CRITICAL + 'M): ' +
     staleGroups[s].map(uid =>
       '<span class="stale-unit-link" onclick="scrollToUnit(\'' + esc(uid) + '\')">' + esc(uid) + '</span>' +
-      '<button class="stale-welf-btn" onclick="event.stopPropagation();_execCmd(\'WELF ' + esc(uid) + '\')" title="Welfare check ' + esc(uid) + '">WELF</button>'
+      '<button class="stale-welf-btn" onclick="event.stopPropagation();_execCmd(\'WELF ' + esc(uid) + '\')" title="Welfare check ' + esc(uid) + '">WELF</button>' +
+      '<button class="stale-ok-btn" onclick="event.stopPropagation();_execCmd(\'OK ' + esc(uid) + '\')" title="OK ' + esc(uid) + '">OK</button>'
     ).join('&nbsp; '));
   if (staleEntries.length) {
     ba.style.display = 'block';
@@ -3243,7 +3318,8 @@ function renderBoardDiff() {
     'STALE ' + s + ' (&ge;' + STATE.staleThresholds.CRITICAL + 'M): ' +
     staleGroups[s].map(uid =>
       '<span class="stale-unit-link" onclick="scrollToUnit(\'' + esc(uid) + '\')">' + esc(uid) + '</span>' +
-      '<button class="stale-welf-btn" onclick="event.stopPropagation();_execCmd(\'WELF ' + esc(uid) + '\')" title="Welfare check ' + esc(uid) + '">WELF</button>'
+      '<button class="stale-welf-btn" onclick="event.stopPropagation();_execCmd(\'WELF ' + esc(uid) + '\')" title="Welfare check ' + esc(uid) + '">WELF</button>' +
+      '<button class="stale-ok-btn" onclick="event.stopPropagation();_execCmd(\'OK ' + esc(uid) + '\')" title="OK ' + esc(uid) + '">OK</button>'
     ).join('&nbsp; '));
   if (staleEntries.length) {
     ba.style.display = 'block';
@@ -4588,10 +4664,6 @@ async function _refreshIncidentModal(incId) {
     // Scene address intentionally NOT updated here — only set on modal open.
     // RT events and background refreshes must not silently overwrite user-visible location.
 
-    // Destination (skip if focused)
-    const destEl = document.getElementById('incDestEdit');
-    if (destEl && destEl !== active) destEl.value = inc.destination || '';
-
     // Updated by/at
     const updEl = document.getElementById('incUpdated');
     if (updEl) updEl.textContent = inc.updated_at ? fmtTime24(inc.updated_at) : '—';
@@ -4678,11 +4750,6 @@ async function openIncidentFromServer(iId) {
     incUnitsDetailEl.style.display = 'none';
   }
 
-  const incDestR = AddressLookup.resolve(inc.destination);
-  const incDestEl = document.getElementById('incDestEdit');
-  incDestEl.value = (incDestR.recognized ? incDestR.addr.name : (inc.destination || '')).toUpperCase();
-  if (incDestR.recognized) incDestEl.dataset.addrId = incDestR.addr.id;
-  else delete incDestEl.dataset.addrId;
   // Populate flat type code picker for edit modal
   const incTypeRaw = (inc.incident_type || '').toUpperCase();
   const incTypeSelectEl = document.getElementById('incTypeSelect');
@@ -4762,6 +4829,8 @@ async function openIncidentFromServer(iId) {
   const incSceneEl = document.getElementById('incSceneAddress');
   if (incSceneEl) incSceneEl.value = (inc.scene_address || '').toUpperCase();
   AddrHistory.attach('incSceneAddress', 'addrHistList2');
+  // Load location flags banner non-blocking — does NOT affect scene_address
+  if (inc.scene_address) _renderIncLocationFlags(CURRENT_INCIDENT_ID, inc.scene_address);
 
   // Timing row — show all 6 EMS timestamps with KPI-colored elapsed deltas
   const tr2 = document.getElementById('incTimingRow');
@@ -5102,8 +5171,6 @@ async function reopenIncidentAction() {
 async function saveIncidentNote() {
   const m = (document.getElementById('incNote').value || '').trim().toUpperCase();
   const newType = (document.getElementById('incTypeEdit').value || '').trim().toUpperCase();
-  const destEl = document.getElementById('incDestEdit');
-  const newDest = destEl.dataset.addrId || (destEl.value || '').trim().toUpperCase();
   const newScene = (document.getElementById('incSceneAddress')?.value || '').trim().toUpperCase() || undefined;
   const newPriority = (document.getElementById('incPriorityEdit')?.value || '').trim().toUpperCase();
   const newLoc = (document.getElementById('incLocEdit')?.value || '').trim().toUpperCase();
@@ -5111,12 +5178,10 @@ async function saveIncidentNote() {
 
   // Get current incident to compare all fields
   const curInc = (STATE.incidents || []).find(i => i.incident_id === CURRENT_INCIDENT_ID);
-  const curDest = curInc ? (curInc.destination || '') : '';
   const curScene = curInc ? (curInc.scene_address || '') : '';
   const curPriority = curInc ? (curInc.priority || '') : '';
   const curLoc = curInc ? (curInc.level_of_care || '') : '';
   const curType = curInc ? (curInc.incident_type || '') : '';
-  const destChanged = newDest !== curDest.toUpperCase();
   const sceneChanged = newScene !== undefined && newScene !== curScene.toUpperCase();
   const priorityChanged = newPriority !== curPriority.toUpperCase();
   const locChanged = newLoc !== curLoc.toUpperCase();
@@ -5132,18 +5197,18 @@ async function saveIncidentNote() {
     if (curCbMatch) mWithDisp = (mWithDisp + ' [CB:' + curCbMatch[1].toUpperCase() + ']').trim();
   }
 
-  // Gate scene address changes behind explicit confirmation
+  // Gate location (scene address) changes behind explicit confirmation
   if (sceneChanged) {
-    const ok = await showConfirmAsync('CHANGE SCENE ADDRESS?', 'UPDATE SCENE TO:\n' + newScene);
+    const ok = await showConfirmAsync('CHANGE LOCATION?', 'UPDATE SCENE ADDRESS TO:\n' + newScene);
     if (!ok) return;
   }
 
-  // If anything changed, use updateIncident
-  if (typeChanged || m || destChanged || sceneChanged || priorityChanged || locChanged) {
+  // If anything changed, use updateIncident (destination NOT sent — unit-level only)
+  if (typeChanged || m || sceneChanged || priorityChanged || locChanged) {
     setLive(true, 'LIVE • UPDATE INCIDENT');
-    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp || undefined, typeChanged ? newType : '', destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
+    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp || undefined, typeChanged ? newType : '', undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
     if (!r.ok) return showErr(r);
-    if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); }
+    if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); _renderIncLocationFlags(CURRENT_INCIDENT_ID, newScene); }
     document.getElementById('incNote').value = '';
     showToast('UPDATED');
     refresh();
@@ -5151,7 +5216,7 @@ async function saveIncidentNote() {
     return;
   }
 
-  showConfirm('ERROR', 'NO CHANGES DETECTED. UPDATE TYPE, NOTE, DESTINATION, SCENE, PRIORITY, OR LEVEL OF CARE.', () => { });
+  showConfirm('ERROR', 'NO CHANGES DETECTED. UPDATE TYPE, NOTE, LOCATION, PRIORITY, OR LEVEL OF CARE.', () => { });
 }
 
 function renderIncidentAudit(aR) {
@@ -7946,10 +8011,6 @@ async function _execCmd(tx) {
       return;
     }
     p.incident = incidentId;
-    // Auto-copy incident destination to unit
-    if (incObj.destination) {
-      p.destination = incObj.destination;
-    }
   }
 
   const _prevStat = { status: boardUnit.status, note: boardUnit.note || '', incident: boardUnit.incident || '', destination: boardUnit.destination || '' };
@@ -8991,14 +9052,23 @@ function _renderUniversalResults(categories) {
     results.innerHTML = '<div class="muted" style="padding:16px;text-align:center;font-size:12px;">NO RESULTS</div>';
     return;
   }
+  const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+  const canAddToCall = !!ctxId && ROLE !== 'VIEWER';
+
   let idx = 0;
   let html = '';
   categories.forEach(cat => {
     html += '<div style="padding:5px 14px 3px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);">' + esc(cat.label) + '</div>';
     cat.items.forEach(item => {
       const statusColor = item.status === 'ACTIVE' ? 'color:var(--green)' : item.status === 'QUEUED' ? 'color:var(--yellow)' : item.status === 'CLOSED' ? 'color:var(--muted)' : '';
+      const addBtn = canAddToCall
+        ? ' <button class="uq-add-btn" onclick="event.stopPropagation();_uqAddToCall(' +
+            JSON.stringify(item.type) + ',' + JSON.stringify(item.id) + ',' +
+            JSON.stringify(item.label) + ',' + JSON.stringify(item.sub || '') +
+          ')" title="Add intel to ' + esc(ctxId) + '">ADD TO CALL</button>'
+        : '';
       html += '<div class="uq-row" data-idx="' + idx + '" data-type="' + esc(item.type) + '" data-id="' + esc(item.id) + '" onclick="_uqSelect(this)">' +
-        '<span class="uq-label" style="' + statusColor + '">' + esc(item.label) + '</span>' +
+        '<div class="uq-row-header"><span class="uq-label" style="' + statusColor + '">' + esc(item.label) + '</span>' + addBtn + '</div>' +
         (item.sub ? '<span class="uq-sub">' + esc(item.sub) + '</span>' : '') +
         '</div>';
       idx++;
@@ -9006,6 +9076,37 @@ function _renderUniversalResults(categories) {
   });
   results.innerHTML = html;
   _uqActiveIdx = -1;
+}
+
+async function _uqAddToCall(type, id, label, sub) {
+  const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+  if (!ctxId) { showToast('NO CONTEXT INCIDENT — BIND ONE FIRST.', 'warn'); return; }
+
+  let intelLine = '';
+  if (type === 'incident') {
+    // Historical or active incident
+    intelLine = '[INTEL] RELATED INCIDENT: ' + id + (sub ? ' — ' + sub.substring(0, 80) : '');
+  } else if (type === 'address') {
+    // Address — query flags async
+    const addr = id || label;
+    const r = await API.getAddressFlags(TOKEN, addr);
+    if (r.ok && r.flags && r.flags.length > 0) {
+      const flagSummary = r.flags.slice(0, 3).map(f => f.category + ': ' + f.description.substring(0, 40)).join(' | ');
+      intelLine = '[INTEL] FLAGGED ADDRESS: ' + esc(addr) + ' — ' + flagSummary;
+    } else {
+      intelLine = '[INTEL] QUERY LOCATION: ' + (addr) + ' — NO ACTIVE FLAGS';
+    }
+  } else if (type === 'destination') {
+    intelLine = '[INTEL] DESTINATION: ' + id + (sub ? ' — ' + sub.substring(0, 60) : '');
+  } else {
+    intelLine = '[INTEL] ' + label + (sub ? ' — ' + sub.substring(0, 80) : '');
+  }
+
+  intelLine = intelLine.toUpperCase().substring(0, 300);
+  const r = await API.appendIncidentNote(TOKEN, ctxId, intelLine);
+  if (!r.ok) { showToast('FAILED: ' + (r.error || 'ERROR'), 'warn'); return; }
+
+  showToast('INTEL ADDED TO ' + ctxId, 'good', 3000);
 }
 
 function _uqKeydown(e) {
@@ -10777,7 +10878,11 @@ window.addEventListener('load', () => {
 
       const brb = document.getElementById('bugReportBack');
       const srb = document.getElementById('searchBack');
+      const uqb = document.getElementById('universalSearchBack');
+      const lhp = document.getElementById('lhPanel');
       if (nib && nib.style.display === 'flex') { closeNewIncident(); return; }
+      if (uqb && uqb.style.display === 'flex') { closeUniversalQuery(); return; }
+      if (lhp && lhp.style.display === 'flex') { lhp.style.display = 'none'; autoFocusCmd(); return; }
       if (brb && brb.style.display === 'flex') { closeBugReport(); return; }
       if (srb && srb.style.display === 'flex') { closeSearchPanel(); return; }
       if (uhb && uhb.style.display === 'flex') { uhb.style.display = 'none'; autoFocusCmd(); return; }
