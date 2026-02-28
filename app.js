@@ -74,6 +74,8 @@ let CLI_CONTEXT = {
   lastUpdate:  null,  // string|null — inc.last_update at bind time
 };
 
+let _presenceHBTimer = null;  // setInterval handle for presence heartbeat
+
 // Address danger flag cache — keyed by canonical_address, 2-minute TTL.
 const FlagCache = {
   _store: new Map(),
@@ -4229,6 +4231,43 @@ function _renderDangerBanner(flags) {
   el.style.display = '';
 }
 
+function _renderPresenceBar(others) {
+  const el = document.getElementById('incPresence');
+  if (!el) return;
+  if (!others || !others.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const parts = others.map(o => {
+    const secs = Math.round((Date.now() - new Date(o.last_seen).getTime()) / 1000);
+    const ago = secs < 10 ? 'just now' : (secs + 's ago');
+    const hint = o.action_hint === 'editing-notes' ? ' editing notes' : o.action_hint === 'updating' ? ' updating' : '';
+    return esc((o.username || '').toUpperCase()) + hint + ' (' + ago + ')';
+  });
+  el.innerHTML = 'VIEWING: ' + parts.join(' · ');
+  el.style.display = '';
+}
+
+async function _presenceHBTick(incId) {
+  if (!TOKEN || !incId) return;
+  const hint = document.getElementById('incNote') === document.activeElement ? 'editing-notes' : 'viewing';
+  API.upsertPresence(TOKEN, incId, hint).catch(() => {});
+  try {
+    const pr = await API.getPresence(TOKEN, incId);
+    if (pr && pr.ok) _renderPresenceBar(pr.others || []);
+  } catch (_) {}
+}
+
+function _startPresenceHB(incId) {
+  _stopPresenceHB();
+  if (!TOKEN || !incId) return;
+  _presenceHBTick(incId);
+  _presenceHBTimer = setInterval(() => _presenceHBTick(incId), 30_000);
+}
+
+function _stopPresenceHB() {
+  if (_presenceHBTimer) { clearInterval(_presenceHBTimer); _presenceHBTimer = null; }
+  const el = document.getElementById('incPresence');
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
 // ============================================================
 async function openIncidentFromServer(iId) {
   setLive(true, 'LIVE • INCIDENT REVIEW');
@@ -4427,6 +4466,7 @@ async function openIncidentFromServer(iId) {
 
   document.getElementById('incBack').style.display = 'flex';
   setTimeout(() => document.getElementById('incNote').focus(), 50);
+  _startPresenceHB(CURRENT_INCIDENT_ID);
 }
 
 function openIncident(iId) {
@@ -4624,6 +4664,7 @@ function fillAssignCmd(unitId, incId) {
 }
 
 function closeIncidentPanel() {
+  _stopPresenceHB();
   document.getElementById('incBack').style.display = 'none';
   CURRENT_INCIDENT_ID = '';
 }
