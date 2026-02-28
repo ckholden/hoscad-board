@@ -129,9 +129,13 @@
       padding: 3px 8px;
       font-weight: 900;
       font-size: 11px;
-      background: rgba(255,214,107,0.15);
-      color: var(--yellow);
-      border: 2px solid #6a5220;
+      background: rgba(232,67,48,.2);
+      color: #ff7b6b;
+      border: 2px solid rgba(232,67,48,.55);
+      animation: pendingPulse 2s ease-in-out infinite;
+    }
+    @keyframes pendingPulse {
+      0%,100% { opacity:1; } 50% { opacity:.6; }
     }
 
     .btn-logout {
@@ -412,6 +416,21 @@
       color: #ff9900;
       letter-spacing: .07em;
       vertical-align: middle;
+    }
+    .inc-danger-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 3px 7px;
+      background: rgba(212,48,48,.25);
+      border: 1px solid rgba(212,48,48,.6);
+      color: #ff6b6b;
+      letter-spacing: .06em;
+      vertical-align: middle;
+      white-space: nowrap;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .inc-nature {
@@ -818,6 +837,36 @@
       min-height: 48px;
     }
     .cmd-phrase-btn:active { filter: brightness(1.3); }
+    .cmd-phrases-label {
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: .1em;
+      color: #8b949e;
+      padding: 4px 16px 0;
+      background: var(--bg);
+      text-transform: uppercase;
+    }
+    .cmd-msgdp-row {
+      display: flex;
+      gap: 4px;
+      padding: 2px 16px 4px;
+      background: var(--bg);
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--line);
+    }
+    .cmd-msgdp-btn {
+      padding: 8px 10px;
+      font-size: 11px;
+      font-weight: 900;
+      font-family: var(--font-mono, monospace);
+      text-transform: uppercase;
+      background: rgba(232,184,48,.08);
+      border: 1px solid #5a4218;
+      color: #d4a82a;
+      cursor: pointer;
+      min-height: 48px;
+    }
+    .cmd-msgdp-btn:active { filter: brightness(1.3); }
 
     /* Hospital Quick Reference */
     .btn-info {
@@ -1377,6 +1426,7 @@
               <span class="inc-priority inc-priority-3" id="incPriority">ROUTINE</span>
               <span class="inc-ma-badge" id="incMaBadge" style="display:none;">MUTUAL AID</span>
               <span class="inc-nature" id="incNature"></span>
+              <span id="incDangerBadge" class="inc-danger-badge" style="display:none;"></span>
               <span style="margin-left:auto;font-size:10px;color:#5ba3e6;font-weight:700;letter-spacing:.04em;white-space:nowrap;">+ NOTE &#8250;</span>
             </div>
             <div id="fieldSceneRow" style="display:none;margin-bottom:8px;">
@@ -1467,11 +1517,21 @@
           <button id="btnCmdSend">SEND</button>
         </div>
         <div class="cmd-phrases-row">
-          <button class="cmd-phrase-btn" data-phrase="ON SCENE">ON SCENE</button>
-          <button class="cmd-phrase-btn" data-phrase="PATIENT STABLE">PT STABLE</button>
-          <button class="cmd-phrase-btn" data-phrase="REQUESTING ADDITIONAL">REQ ADD</button>
-          <button class="cmd-phrase-btn" data-phrase="ETA 5 MIN">ETA 5</button>
           <button class="cmd-phrase-btn" data-phrase="ENROUTE">ENROUTE</button>
+          <button class="cmd-phrase-btn" data-phrase="ON SCENE">ON SCENE</button>
+          <button class="cmd-phrase-btn" data-phrase="PATIENT CONTACT">PT CONTACT</button>
+          <button class="cmd-phrase-btn" data-phrase="PATIENT STABLE">PT STABLE</button>
+          <button class="cmd-phrase-btn" data-phrase="TRANSPORTING">TRANSPORTING</button>
+          <button class="cmd-phrase-btn" data-phrase="CLEARED">CLEARED</button>
+        </div>
+        <div class="cmd-phrases-label">MSG DISPATCH:</div>
+        <div class="cmd-msgdp-row">
+          <button class="cmd-msgdp-btn" data-phrase="REQUESTING ADDITIONAL UNIT">REQ ADDL</button>
+          <button class="cmd-msgdp-btn" data-phrase="ETA 5 MINUTES">ETA 5</button>
+          <button class="cmd-msgdp-btn" data-phrase="STAGING - SCENE NOT SAFE">STAGING</button>
+          <button class="cmd-msgdp-btn" data-phrase="NO PATIENT FOUND">NO PATIENT</button>
+          <button class="cmd-msgdp-btn" data-phrase="REQUESTING SUPERVISOR">REQ SUPV</button>
+          <button class="cmd-msgdp-btn" data-phrase="STAND BY">STAND BY</button>
         </div>
         <div class="cmd-quick-row">
           <button class="cmd-quick-btn" data-cmd="10-4">10-4</button>
@@ -2502,6 +2562,7 @@
   let _previousStatus = '';
   let _previousIncident = '';
   let _previousNature = '';
+  let _fieldFlagIncId = null;  // tracks which incident we last fetched flags for
   let _previousDestination = '';
   let _previousNote = '';
   let _addrCache = {};
@@ -2866,7 +2927,7 @@
     const n = _offlineQueue.length;
     if (!n) { el.style.display = 'none'; return; }
     el.style.display = 'inline-block';
-    el.textContent = '[' + n + ' PENDING]';
+    el.textContent = '\u2B06' + n + ' QUEUED';  // ⬆N QUEUED
   }
 
   function queueStatusUpdate(statusCode, note) {
@@ -3064,6 +3125,8 @@
           btnNavSceneEl.disabled = !sceneAddr;
           btnNavSceneEl.style.opacity = sceneAddr ? '1' : '0.35';
         }
+        // Fetch and display danger flags for scene address (async, non-blocking)
+        _fetchAndRenderFieldFlags(unit.incident, sceneAddr);
 
         // Destination address (THE MOST IMPORTANT)
         const destAddr = resolveAddr(_currentDestination);
@@ -3217,6 +3280,7 @@
       _currentDestination = '';
       _currentNote = '';
       _incidentTimes = {};
+      _clearFieldFlagBadge();
 
       panel.classList.add('no-incident');
       panel.classList.remove('has-incident');
@@ -3707,19 +3771,28 @@
   // ════════════════════════════════════════════════════════════════════════════
   // NAVIGATION DEEP-LINKS (Change 1)
   // ════════════════════════════════════════════════════════════════════════════
+  // iOS-aware navigation: Apple Maps deep-link on iOS, Google Maps elsewhere.
+  function _openNavAddr(addr) {
+    if (!addr || addr === '—' || addr === '--') return;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const url = isIOS
+      ? 'maps://?q=' + encodeURIComponent(addr)
+      : 'https://maps.google.com/?q=' + encodeURIComponent(addr);
+    window.open(url, '_blank');
+  }
+
   function openNavScene() {
-    const addr = document.getElementById('fieldSceneAddr').textContent.trim();
-    if (addr && addr !== '—') window.open('https://maps.google.com/?q=' + encodeURIComponent(addr), '_blank');
+    _openNavAddr(document.getElementById('fieldSceneAddr').textContent.trim());
   }
 
   function openNavNextCall() {
     const el = document.getElementById('nextCallSceneText');
     const addr = el ? el.textContent.replace(/^SCENE:\s*/i, '').trim() : '';
-    if (addr) window.open('https://maps.google.com/?q=' + encodeURIComponent(addr), '_blank');
+    _openNavAddr(addr);
   }
 
   function openNavDest() {
-    // Resolve the destination code to a full address string for navigation
     if (!_currentDestination) return;
     const addrObj = getAddrDetails(_currentDestination);
     let navStr = '';
@@ -3727,7 +3800,44 @@
       navStr = [addrObj.address, addrObj.city, addrObj.state, addrObj.zip].filter(Boolean).join(', ');
     }
     if (!navStr) navStr = resolveAddr(_currentDestination);
-    if (navStr && navStr !== '--') window.open('https://maps.google.com/?q=' + encodeURIComponent(navStr), '_blank');
+    _openNavAddr(navStr);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // DANGER FLAG BADGE — fetch flags for current incident's scene address
+  // Fetches once per incident; clears when incident clears.
+  // ════════════════════════════════════════════════════════════════════════════
+  const _FLAG_PRIORITY = [
+    'VIOLENCE-THREATS', 'WEAPONS-HISTORY', 'HAZARDOUS-MATERIALS',
+    'AGGRESSIVE-ANIMAL', 'KNOWN-MENTAL-HEALTH-RISK', 'LAW-ENFORCEMENT-SENSITIVE'
+  ];
+
+  async function _fetchAndRenderFieldFlags(incidentId, sceneAddress) {
+    const badge = document.getElementById('incDangerBadge');
+    if (!badge) return;
+    // Already fetched for this incident — skip
+    if (incidentId === _fieldFlagIncId) return;
+    _fieldFlagIncId = incidentId;
+    badge.style.display = 'none';
+    if (!sceneAddress || !_cadToken) return;
+    try {
+      const res = await API.getAddressFlags(_cadToken, sceneAddress);
+      if (res && res.flags && res.flags.length > 0) {
+        const top = res.flags.find(function(f) { return _FLAG_PRIORITY.includes(f.category); })
+                    || res.flags[0];
+        badge.textContent = '\u26A0 ' + top.category.replace(/-/g, ' ');
+        badge.title = res.flags.map(function(f) {
+          return f.category + ': ' + f.description;
+        }).join('\n');
+        badge.style.display = '';
+      }
+    } catch(e) { /* non-critical — badge stays hidden */ }
+  }
+
+  function _clearFieldFlagBadge() {
+    _fieldFlagIncId = null;
+    const badge = document.getElementById('incDangerBadge');
+    if (badge) badge.style.display = 'none';
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -5168,13 +5278,26 @@
     });
   });
 
-  // Quick phrase buttons — auto-submit when incident is active, pre-fill otherwise (Change 2)
+  // Quick phrase buttons — auto-submit note to incident when active, pre-fill otherwise
   document.querySelectorAll('.cmd-phrase-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       if (_currentIncident) {
         processCommand('NOTE; ' + btn.dataset.phrase);
       } else {
         cmdInput.value = btn.dataset.phrase;
+        cmdInput.focus();
+      }
+    });
+  });
+
+  // MSG DISPATCH phrase buttons — send directly to dispatchers (one-tap, no typing)
+  document.querySelectorAll('.cmd-msgdp-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const phrase = btn.dataset.phrase;
+      if (_cadToken) {
+        processCommand('MSGDP ' + phrase);
+      } else {
+        cmdInput.value = 'MSGDP ' + phrase;
         cmdInput.focus();
       }
     });

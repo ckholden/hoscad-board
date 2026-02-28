@@ -2933,9 +2933,14 @@ function renderIncidentQueue() {
     const locVal = (inc.level_of_care || '').toUpperCase();
     const locBadge = locVal ? `<span style="font-size:9px;font-weight:900;margin-left:3px;padding:1px 4px;background:rgba(121,192,255,.15);border:1px solid rgba(121,192,255,.35);color:#79c0ff;border-radius:2px;">${esc(locVal)}</span>` : '';
     const sceneDisplay = (inc.scene_address || '').substring(0, 20) || '—';
+    // Danger flag badge — synchronous FlagCache check (no extra fetches at render time)
+    const _qCanon = inc.scene_address ? _normalizeAddress(inc.scene_address) : '';
+    const _qFlags = _qCanon ? FlagCache.get(_qCanon) : null;
+    const _qSafetyFlags = _qFlags ? _qFlags.filter(f => f.is_active !== false && !['CONTACT-PHONE','ACCESS-CODE-SECURE-ENTRY'].includes(f.category)) : [];
+    const flagQBadge = _qSafetyFlags.length > 0 ? `<span class="queue-flag-badge" title="${esc(_qSafetyFlags.map(f => f.category).join(', '))}">⚠</span>` : '';
 
     html += `<tr class="${rowCl}" data-inc-id="${esc(inc.incident_id)}" onclick="openIncident('${esc(inc.incident_id)}')">`;
-    html += `<td class="inc-id">${urgent ? 'HOT ' : ''}${esc(inc.incident_id)}${priBadge}${locBadge}${maBadge}${cbBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
+    html += `<td class="inc-id">${urgent ? 'HOT ' : ''}${esc(inc.incident_id)}${priBadge}${locBadge}${flagQBadge}${maBadge}${cbBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
     const incDestResolved = AddressLookup.resolve(inc.destination);
     const incDestDisplay = incDestResolved.recognized ? incDestResolved.addr.name : (inc.destination || 'NO DEST');
     html += `<td class="inc-dest${incDestResolved.recognized ? ' dest-recognized' : ''}">${esc(incDestDisplay)}</td>`;
@@ -4377,32 +4382,64 @@ function _mapSelectResult(idx) {
   }
 }
 
-function _mapPinAt(lat, lon, addr) {
+async function _mapPinAt(lat, lon, addr) {
   if (!_mapInstance || !window.L) return;
   if (_mapMarker) _mapInstance.removeLayer(_mapMarker);
   _mapMarker = L.marker([lat, lon]).addTo(_mapInstance);
   _mapInstance.setView([lat, lon], 16);
-  // Clean address: Nominatim sometimes separates house# with a comma ("7945, South Ridge Lane, ...")
-  // Join house number + street name with a space so the result has no commas.
-  let short;
-  if (addr) {
-    const parts = addr.split(',').map(p => p.trim()).filter(p => p);
-    if (/^\d+$/.test(parts[0]) && parts.length > 1) {
-      short = parts[0] + ' ' + parts[1]; // e.g. "7945 South Ridge Lane"
-    } else {
-      short = parts[0]; // e.g. "1234 Northeast Main Street"
-    }
-  } else {
-    short = lat.toFixed(5) + ', ' + lon.toFixed(5);
+
+  // Show resolving state while we reverse-lookup the E911 address
+  _mapSelectedAddr = null;
+  const selectedEl = document.getElementById('mapSelectedAddr');
+  const useBtn = document.getElementById('mapUseBtn');
+  selectedEl.textContent = 'RESOLVING ADDRESS...';
+  useBtn.disabled = true;
+  useBtn.style.opacity = '0.5';
+
+  // Try GIS reverse lookup first — this gives the authoritative E911 format
+  // regardless of what Nominatim returned or whether addr is null (map click).
+  let gisAddr = null;
+  if (TOKEN) {
+    try {
+      const r = await Promise.race([
+        API.nearestAddressPoint(TOKEN, lat, lon),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000))
+      ]);
+      if (r && r.ok && r.address) gisAddr = r.address;
+    } catch (_e) { /* timeout or network error — fall back */ }
   }
-  _mapSelectedAddr = short;
-  document.getElementById('mapSelectedAddr').textContent = short;
-  document.getElementById('mapUseBtn').disabled = false;
-  document.getElementById('mapUseBtn').style.opacity = '1';
+
+  if (gisAddr) {
+    // E911 authoritative address — use as-is (already in CAD format)
+    _mapSelectedAddr = gisAddr;
+  } else if (addr) {
+    // Nominatim display_name: extract house# + street, normalize to CAD format
+    // e.g. "7945, South Ridge Lane, Bend, Oregon..." → "7945 S RIDGE LN"
+    const parts = addr.split(',').map(p => p.trim()).filter(p => p);
+    let short;
+    if (/^\d+$/.test(parts[0]) && parts.length > 1) {
+      short = parts[0] + ' ' + parts[1]; // "7945 South Ridge Lane"
+    } else {
+      short = parts[0];
+    }
+    _mapSelectedAddr = _normalizeAddress(short) || short.toUpperCase();
+  } else {
+    // No address available (map click, no GIS match nearby)
+    _mapSelectedAddr = lat.toFixed(5) + ', ' + lon.toFixed(5);
+  }
+
+  selectedEl.textContent = _mapSelectedAddr;
+  useBtn.disabled = false;
+  useBtn.style.opacity = '1';
 }
 
 function _mapUseSelected() {
   if (!_mapSelectedAddr || !_mapTargetFieldId) return;
+  // Guard: if reverse-lookup returned coordinates (no E911 address within 500m),
+  // warn the dispatcher before putting "44.09876, -121.34567" into the address field.
+  if (/^-?\d{1,3}\.\d+,\s*-?\d{1,3}\.\d+$/.test(_mapSelectedAddr.trim())) {
+    if (!confirm('No street address found near this location.\n\nCoordinates will be entered instead:\n' + _mapSelectedAddr + '\n\nContinue?')) return;
+  }
   const el = document.getElementById(_mapTargetFieldId);
   if (el) {
     el.value = _mapSelectedAddr.toUpperCase();
@@ -4578,6 +4615,22 @@ async function createNewIncident() {
     if (r.dangerFlags && r.dangerFlags.length > 0) {
       const canonical = _normalizeAddress(sceneAddress || '');
       if (canonical) FlagCache.set(canonical, r.dangerFlags);
+    }
+
+    // Address confidence badge — warn dispatcher if E911 match was low confidence or not found
+    if (r.addressEntity) {
+      const conf = r.addressEntity.confidence;
+      const src  = r.addressEntity.source;
+      if (conf < 35) {
+        // No GIS match at all
+        showToast('⚠ ADDRESS NOT IN E911 DATABASE — VERIFY WITH CALLER [' + src + ']', 'warn', 10000);
+      } else if (conf < 70) {
+        // Fuzzy or Nominatim match — needs confirmation
+        showToast('⚠ ADDRESS UNVERIFIED — E911 MATCH UNCERTAIN [conf:' + conf + '] CHECK ADDRESS', 'warn', 8000);
+      } else if (conf < 90 && src !== 'E911_EXACT') {
+        // Soft warn — amber for direction-fuzzy or reverse matches
+        showToast('ADDRESS RESOLVED: ' + (r.addressEntity.displayLabel || sceneAddress) + ' [' + src + ']', 'info', 5000);
+      }
     }
 
     // Non-blocking: pre-fetch location history for this address
@@ -9075,13 +9128,13 @@ async function _doSearchPanel() {
     return;
   }
 
-  // Kick off server-side history fetch early (parallel with client-side work)
+  // Kick off all server-side history fetches early (parallel with client-side work)
   const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
-  const historyPromise = (TOKEN && q.length >= 3)
-    ? (incPat.test(q)
-        ? API.searchIncidents(TOKEN, q, 6).catch(() => null)
-        : API.getLocationHistory(TOKEN, q, 6).catch(() => null))
-    : Promise.resolve(null);
+  const [incIdPromise, locHistPromise, fullSearchPromise] = (TOKEN && q.length >= 3) ? [
+    (incPat.test(q) && q.length >= 4) ? API.searchIncidents(TOKEN, q, 6).catch(() => null) : Promise.resolve(null),
+    API.getLocationHistory(TOKEN, q, 6).catch(() => null),
+    API.searchIncidentsFull(TOKEN, q, 8).catch(() => null),
+  ] : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
 
   let html = '';
 
@@ -9140,42 +9193,122 @@ async function _doSearchPanel() {
     });
   }
 
-  // ── Server-side history (INC prefix or location history) ──
+  // ── Server-side history (all three in parallel) ──
   const capturedQ = q;
-  const histRes = await historyPromise;
-  if (histRes && (document.getElementById('searchPanelInput')?.value||'').trim().toUpperCase() === capturedQ) {
+  const [incIdRes, locHistRes, fullSearchRes] = await Promise.all([incIdPromise, locHistPromise, fullSearchPromise]);
+  const currentQ = (document.getElementById('searchPanelInput')?.value||'').trim().toUpperCase();
+  if (currentQ === capturedQ) {
     const alreadyShown = new Set(((STATE && STATE.incidents) ? STATE.incidents : []).map(i => i.incident_id));
-    let histItems = [];
-    if (histRes.ok && histRes.incidents && histRes.incidents.length) {
-      // searchIncidents response
-      histItems = histRes.incidents.filter(r => !alreadyShown.has(r.incident_id));
-    } else if (histRes.ok && histRes.results && histRes.results.length) {
-      // getLocationHistory response
-      histItems = histRes.results.filter(r => !alreadyShown.has(r.incidentId)).map(r => ({
-        incident_id: r.incidentId, incident_type: r.incidentType,
-        status: r.status, scene_address: r.sceneAddress, created_at: r.createdAt
-      }));
+    const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    const canAddToCall = !!ctxId && ROLE !== 'VIEWER';
+
+    function _f3AddBtn(incId, addr) {
+      if (!canAddToCall) return '';
+      const note = '[INTEL] ' + incId + (addr ? ' @ ' + addr.substring(0, 60) : '');
+      return '<button class="btn-sm" style="background:rgba(232,184,48,.18);color:var(--yellow);border-color:var(--yellow);" ' +
+        'onclick="event.stopPropagation();_f3AddToCall(\'' + incId + '\',\'' + (addr||'').replace(/'/g,"\\'").substring(0,60) + '\')">+CALL</button>';
     }
-    if (histItems.length) {
-      html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">HISTORY (' + histItems.length + ')</div>';
-      histItems.slice(0, 8).forEach(inc => {
-        const addrText = inc.scene_address || '—';
-        const type = inc.incident_type || '';
-        const status = inc.status || '';
-        const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
-        const incIdQ = "'" + inc.incident_id + "'";
-        html += '<div class="search-result-row">' +
-          '<div class="search-result-label">' +
-            '<span style="font-weight:900;color:var(--yellow);">' + esc(inc.incident_id) + '</span>' +
-            (type ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;">' + esc(type) + '</span>' : '') +
-            ' <span style="font-size:10px;font-weight:900;color:' + statusColor + ';">' + esc(status) + '</span>' +
-            '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
-          '</div>' +
-          '<div class="search-result-actions">' +
-            '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
-          '</div>' +
-        '</div>';
-      });
+
+    const histSeen = new Set();
+
+    // INC ID prefix matches
+    if (incIdRes?.ok && incIdRes.incidents?.length) {
+      const items = incIdRes.incidents.filter(r => !alreadyShown.has(r.incident_id) && !histSeen.has(r.incident_id));
+      items.forEach(r => histSeen.add(r.incident_id));
+      if (items.length) {
+        html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">INCIDENT ID MATCHES (' + items.length + ')</div>';
+        items.slice(0, 6).forEach(inc => {
+          const addrText = inc.scene_address || '—';
+          const type = inc.incident_type || '';
+          const status = inc.status || '';
+          const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
+          const incIdQ = "'" + inc.incident_id + "'";
+          html += '<div class="search-result-row">' +
+            '<div class="search-result-label">' +
+              '<span style="font-weight:900;color:var(--yellow);">' + esc(inc.incident_id) + '</span>' +
+              (type ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;">' + esc(type) + '</span>' : '') +
+              ' <span style="font-size:10px;font-weight:900;color:' + statusColor + ';">' + esc(status) + '</span>' +
+              '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
+            '</div>' +
+            '<div class="search-result-actions">' +
+              '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+              _f3AddBtn(inc.incident_id, addrText) +
+            '</div>' +
+          '</div>';
+        });
+      }
+    }
+
+    // Location history (address-based) + flags
+    if (locHistRes?.ok) {
+      const flags = locHistRes.flags || [];
+      if (flags.length) {
+        html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--red);border-bottom:1px solid var(--line);margin-top:4px;">⚠ ADDRESS FLAGS (' + flags.length + ')</div>';
+        flags.slice(0, 4).forEach(f => {
+          html += '<div class="search-result-row" style="border-left:3px solid var(--red);">' +
+            '<div class="search-result-label">' +
+              '<span style="font-weight:900;color:var(--red);">' + esc(f.category) + '</span>' +
+              '<br><span style="font-size:11px;">' + esc((f.description||'').substring(0,120)) + '</span>' +
+              '<br><span style="font-size:10px;color:var(--muted);">by ' + esc(f.createdBy || '?') + '</span>' +
+            '</div>' +
+          '</div>';
+        });
+      }
+      if (locHistRes.results?.length) {
+        const items = locHistRes.results.filter(r => !alreadyShown.has(r.incidentId) && !histSeen.has(r.incidentId));
+        items.forEach(r => histSeen.add(r.incidentId));
+        if (items.length) {
+          html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">LOCATION HISTORY (' + items.length + ')</div>';
+          items.slice(0, 8).forEach(r => {
+            const addrText = r.sceneAddress || '—';
+            const type = r.incidentType || '';
+            const status = r.status || '';
+            const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
+            const incIdQ = "'" + r.incidentId + "'";
+            html += '<div class="search-result-row">' +
+              '<div class="search-result-label">' +
+                '<span style="font-weight:900;color:var(--yellow);">' + esc(r.incidentId) + '</span>' +
+                (type ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;">' + esc(type) + '</span>' : '') +
+                ' <span style="font-size:10px;font-weight:900;color:' + statusColor + ';">' + esc(status) + '</span>' +
+                '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
+              '</div>' +
+              '<div class="search-result-actions">' +
+                '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+                _f3AddBtn(r.incidentId, addrText) +
+              '</div>' +
+            '</div>';
+          });
+        }
+      }
+    }
+
+    // General historical search (type, unit)
+    if (fullSearchRes?.ok && fullSearchRes.incidents?.length) {
+      const items = fullSearchRes.incidents.filter(r => !alreadyShown.has(r.incident_id) && !histSeen.has(r.incident_id));
+      items.forEach(r => histSeen.add(r.incident_id));
+      if (items.length) {
+        html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">HISTORICAL INCIDENTS (' + items.length + ')</div>';
+        items.slice(0, 8).forEach(inc => {
+          const addrText = inc.scene_address || '—';
+          const type = inc.incident_type || '';
+          const status = inc.status || '';
+          const statusColor = status === 'ACTIVE' ? 'var(--green)' : status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
+          const incIdQ = "'" + inc.incident_id + "'";
+          html += '<div class="search-result-row">' +
+            '<div class="search-result-label">' +
+              '<span style="font-weight:900;color:var(--yellow);">' + esc(inc.incident_id) + '</span>' +
+              (type ? '<span style="font-size:10px;color:var(--muted);margin-left:6px;">' + esc(type) + '</span>' : '') +
+              (inc.unit_id ? '<span style="font-size:10px;color:var(--muted);margin-left:4px;">· ' + esc(inc.unit_id) + '</span>' : '') +
+              ' <span style="font-size:10px;font-weight:900;color:' + statusColor + ';">' + esc(status) + '</span>' +
+              '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
+            '</div>' +
+            '<div class="search-result-actions">' +
+              '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+              _f3AddBtn(inc.incident_id, addrText) +
+            '</div>' +
+          '</div>';
+        });
+      }
     }
   }
 
@@ -9264,32 +9397,68 @@ async function _doUniversalQuery() {
     type: 'typecode', id: t.code||'', label: t.code||'', sub: t.name||''
   }))});
 
-  // Historical incidents — server-side
-  const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
+  // Historical incidents — server-side, all three searches in parallel
   if (TOKEN && q.length >= 3) {
+    const capturedQ = q;
+    const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
+    const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
+
+    // Run all applicable searches in parallel
+    const incIdPromise = (incPat.test(q) && q.length >= 4)
+      ? API.searchIncidents(TOKEN, q, 5).catch(() => null)
+      : Promise.resolve(null);
+    const locHistPromise = API.getLocationHistory(TOKEN, q, 6).catch(() => null);
+    const fullSearchPromise = API.searchIncidentsFull(TOKEN, q, 8).catch(() => null);
+
     try {
-      const capturedQ = q;
-      const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
-      if (incPat.test(q) && q.length >= 4) {
-        // INC ID prefix search
-        const hr = await API.searchIncidents(TOKEN, q, 5);
-        if (hr?.ok && hr.incidents?.length && inp.value.trim().toUpperCase() === capturedQ) {
-          const hist = hr.incidents.filter(i => !already.has(i.incident_id));
-          if (hist.length) categories.push({ label: 'HISTORICAL INCIDENTS', items: hist.map(i => ({
+      const [hr, lr, fr] = await Promise.all([incIdPromise, locHistPromise, fullSearchPromise]);
+
+      // Only render if query hasn't changed since we fired the requests
+      if ((inp.value||'').trim().toUpperCase() === capturedQ) {
+        const histSeen = new Set();
+
+        // INC ID prefix matches
+        if (hr?.ok && hr.incidents?.length) {
+          const hist = hr.incidents.filter(i => !already.has(i.incident_id) && !histSeen.has(i.incident_id));
+          hist.forEach(i => histSeen.add(i.incident_id));
+          if (hist.length) categories.push({ label: 'INCIDENT ID MATCHES', items: hist.map(i => ({
             type: 'incident', id: i.incident_id, label: i.incident_id,
             sub: (i.incident_type||'') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
             status: i.status
           }))});
         }
-      } else {
-        // Address / name — location history search
-        const lr = await API.getLocationHistory(TOKEN, q, 6);
-        if (lr?.ok && lr.results?.length && inp.value.trim().toUpperCase() === capturedQ) {
-          const hist = lr.results.filter(r => !already.has(r.incidentId));
-          if (hist.length) categories.push({ label: 'LOCATION HISTORY', items: hist.map(r => ({
-            type: 'incident', id: r.incidentId, label: r.incidentId,
-            sub: (r.incidentType||'') + ' · ' + (r.status||'') + (r.sceneAddress ? ' · ' + r.sceneAddress : ''),
-            status: r.status
+
+        // Location history (address-based)
+        if (lr?.ok && lr.results?.length) {
+          const hist = lr.results.filter(r => !already.has(r.incidentId) && !histSeen.has(r.incidentId));
+          hist.forEach(r => histSeen.add(r.incidentId));
+          if (hist.length) {
+            // Check flag cache for flag badges on address
+            const hasFlag = lr.flags && lr.flags.length > 0;
+            const flagBadge = hasFlag ? ' ⚠' : '';
+            categories.push({ label: 'LOCATION HISTORY' + flagBadge, items: hist.map(r => ({
+              type: 'incident', id: r.incidentId, label: r.incidentId,
+              sub: (r.incidentType||'') + ' · ' + (r.status||'') + (r.sceneAddress ? ' · ' + r.sceneAddress : ''),
+              status: r.status
+            }))});
+            // Show flags as a separate category if present
+            if (hasFlag) {
+              categories.push({ label: '⚠ ADDRESS FLAGS', items: lr.flags.slice(0, 4).map(f => ({
+                type: 'flag', id: f.id, label: f.category,
+                sub: f.description.substring(0, 100) + (f.description.length > 100 ? '…' : '')
+              }))});
+            }
+          }
+        }
+
+        // General historical search (type, unit)
+        if (fr?.ok && fr.incidents?.length) {
+          const hist = fr.incidents.filter(i => !already.has(i.incident_id) && !histSeen.has(i.incident_id));
+          hist.forEach(i => histSeen.add(i.incident_id));
+          if (hist.length) categories.push({ label: 'HISTORICAL INCIDENTS', items: hist.map(i => ({
+            type: 'incident', id: i.incident_id, label: i.incident_id,
+            sub: (i.incident_type||'') + (i.unit_id ? ' · ' + i.unit_id : '') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
+            status: i.status
           }))});
         }
       }
@@ -9361,6 +9530,8 @@ async function _uqAddToCall(type, id, label, sub) {
   if (!r.ok) { showToast('FAILED: ' + (r.error || 'ERROR'), 'warn'); return; }
 
   showToast('INTEL ADDED TO ' + ctxId, 'good', 3000);
+  refresh();
+  _refreshIncidentModal(ctxId);
 }
 
 function _uqKeydown(e) {
@@ -9392,6 +9563,17 @@ function _uqSelect(el) {
     const cmd = document.getElementById('cmd');
     if (cmd) { cmd.value = id; cmd.focus(); }
   }
+}
+
+async function _f3AddToCall(incId, addrText) {
+  const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+  if (!ctxId) { showToast('NO ACTIVE CONTEXT — BIND WITH R <INC#>', 'warn'); return; }
+  const note = ('[INTEL] ' + incId + (addrText ? ' @ ' + addrText : '')).toUpperCase().substring(0, 300);
+  const r = await API.appendIncidentNote(TOKEN, ctxId, note);
+  if (!r.ok) { showToast('FAILED: ' + (r.error || 'ERROR'), 'warn'); return; }
+  showToast('INTEL ADDED TO ' + ctxId, 'good', 3000);
+  refresh();
+  _refreshIncidentModal(ctxId);
 }
 
 function searchPanelUse(addr) {

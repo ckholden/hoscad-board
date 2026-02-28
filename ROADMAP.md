@@ -101,16 +101,109 @@ This portal is intentionally separate from the live CAD board to:
 
 ---
 
-## Major Feature Backlog
+## Completed (as of 2026-02-28)
 
-See plan file for architecture details on:
-- CLI Context Mode (bind incident to CLI session)
-- Location History (LH command)
-- Danger/Safety Flag System (per address)
-- Universal Query (! command)
-- Related Incident Linking
-- Hot Call Broadcast (HT command)
-- Real-Time Incident Update Awareness (Supabase Realtime)
-- Multi-Dispatcher Concurrency handling
-- Incident ID Auto-Linking in Messages
-- Soft Presence Indicators (who is viewing an incident)
+All items below have been implemented and deployed:
+
+- **CLI Context Mode** — `R <INC>` binds context, `EXIT` releases, auto-clears on close, context banner
+- **Location History (LH)** — LH panel with Safety Flags / Location Info / History tabs, flag create/deactivate
+- **Danger/Safety Flag System** — per-address flags, FlagCache, danger-banner in modal, ⚠ queue badge, admin panel
+- **Address Resolution Engine** — 5-stage E911 pipeline (EXACT→PREFIX→DIRECTION→FUZZY→USER_INPUT), PostGIS, pg_trgm, resolution audit log
+- **Universal Query (!)** — active incidents, units, addresses, destinations, type codes, historical incidents, +CALL
+- **F3 Search Enhancement** — location history, flags, historical incidents, +CALL button
+- **Related Incident Linking (ILINK/IUNLINK)** — incident_relationships table, bidirectional
+- **Hot Call Broadcast (HT)** — broadcasts incident summary to all dispatchers
+- **Real-Time Incident Update Awareness** — Supabase Realtime WebSocket, per-incident channel, incUpdateNotice
+- **Multi-Dispatcher Concurrency** — field-level last-write-wins + full audit trail + soft presence
+- **Incident ID Auto-Linking in Messages** — clickable INC links in message panels
+- **Soft Presence Indicators** — 30s heartbeat, who is viewing an incident displayed in modal
+
+## Next Candidates — CAD Expert Audit (2026-02-28)
+
+Prioritized by operational impact. Full report available in session history.
+
+---
+
+### Sprint 1 — Safety & Compliance (Do First)
+
+**1. Mandatory disposition at incident close**
+- Backend: reject `closeIncident` with null/OTHER disposition
+- Field app: change `closeIncidentAction` to a `CLOSE_REQUEST` that dispatcher must confirm with disposition selection
+- Files: `incidents.ts` → `closeIncident` action; `field/index.html` close handler
+- Impact: Without this, every field-app close defaults to `OTHER` disposition, corrupting all disposition-based reports from day one
+
+**2. Danger flag warning at dispatch execution time**
+- Frontend: FlagCache check on `canonical_address` when ASSIGN or `D <UNIT>` dispatch executes
+- Show inline confirmation: "⚠ SAFETY FLAGS ACTIVE — CONFIRM DISPATCH"
+- Files: `app.js` ASSIGN handler and `D` status dispatch path
+- Impact: A dispatcher acting through CLI without opening the modal currently receives no safety warning
+
+**3. PRI-1 unassigned alert after 5 minutes**
+- Frontend: scan `STATE.incidents` for PRI-1 + QUEUED + age > 5min in board render loop
+- Trigger existing audio alert + on-screen indicator
+- Files: `app.js` render/interval logic
+- Impact: Clinical event if a CCT call sits unassigned — must be a system interrupt
+
+---
+
+### Sprint 2 — Response Time Reporting (Compliance Necessity)
+
+**4. Response time analytics report**
+- Backend: `getResponseTimeReport(token, startDate, endDate)` in `admin.ts`
+- Compute: dispatch-to-enroute, enroute-to-arrival, on-scene time, transport time, total call time
+- Aggregate by incident_type category, unit, shift, day-of-week
+- Admin panel: new Reports tab with date range picker and results table
+- Note: All data already exists in `incidents` columns — this is purely query + display
+
+**5. Disposition breakdown report**
+- Same endpoint as above — add disposition column aggregate
+- TRANSPORTED / CANCELLED-PRIOR / PATIENT-REFUSED / OTHER breakdown week-over-week
+
+---
+
+### Sprint 3 — Workflow Efficiency
+
+**6. Visual elapsed timer escalation by unit status**
+- CSS class escalation: `elapsed-warn` / `elapsed-alert` thresholds per status
+  - DE: warn 10min, alert 20min
+  - OS: warn 30min, alert 45min
+  - T: warn 30min, alert 60min
+- Files: `app.js` unit board render; `styles.css` new classes
+- No backend change required
+
+**7. SCHED command — scheduled call view**
+- Client-side: filter `STATE.incidents` for QUEUED with `[HOLD:]` tags, sort by hold time
+- Render chronological list of upcoming calls for shift planning
+- Files: `app.js` command handler only
+
+**8. Realtime disconnected indicator**
+- When WebSocket is disconnected, show visible "REALTIME OFFLINE — DATA MAY BE STALE" banner
+- Protects dispatchers from acting on stale state during reconnect window
+- Files: `app.js` `_rtReconTimer` / `_rtConnect` path; `index.html` + `styles.css`
+
+---
+
+### Sprint 4 — Structural Debt
+
+**9. Cache dispatcher_agencies per session in getState**
+- Add 60-second in-memory Map keyed by token in `state.ts`
+- Eliminates redundant DB query on every state poll for every dispatcher
+- File: `state.ts` lines ~163-202
+
+**10. Migrate MA state from incident_note text tags to proper table**
+- Create `incident_ma` table: (incident_id, agency_id, status, requested/acknowledged/released timestamps + actors)
+- Migrate requestMA / acknowledgeMA / releaseMA / listMA to write to table
+- Eliminates text-tag fragility and enables MA utilization reporting
+- File: new migration + `incidents.ts` MA section
+
+---
+
+### Future / Lower Priority
+
+- **Unit crew certification matching**: warn when BLS unit assigned to CCT incident (patient safety warning, not hard block)
+- **Structured patient reference field**: HIPAA-safe (non-PHI) patient reference on incident row (not free text in note)
+- **Session idle timeout**: automatic session expiration for abandoned workstations
+- **Hospital diversion integration**: manual diversion entry at minimum; HAVBed ingest longer term
+- **Recurring / scheduled call support**: dialysis runs 3x/week, recurring transports
+- **Field documentation portal**: post-incident documentation for UNIT role (prerequisite: Sprint 2 reporting complete first)
+- **Multi-agency scaling**: `agency_settings` table for per-agency type codes / positions / destinations

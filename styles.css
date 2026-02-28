@@ -1955,6 +1955,12 @@ body.board-map-open #boardMapPane {
 .lh-deact-btn  { font-size: 10px !important; color: var(--red) !important; border-color: rgba(212,48,48,.4) !important; }
 .lh-deact-btn:hover { border-color: var(--red) !important; }
 
+.queue-flag-badge {
+  display: inline-block;
+  color: var(--red); font-weight: 900; font-size: 10px;
+  margin-left: 4px; opacity: .85; cursor: default;
+}
+
 .flag-badge--safety {
   display: inline-block; background: rgba(212,48,48,.22);
   color: var(--red); border: 1px solid rgba(212,48,48,.35);

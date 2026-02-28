@@ -561,6 +561,12 @@ const API = {
   searchAddressPoints(token, query, limit) {
     return this.call('searchAddressPoints', token, query, limit || 8);
   },
+  nearestAddressPoint(token, lat, lon) {
+    return this.call('nearestAddressPoint', token, lat, lon);
+  },
+  searchIncidentsFull(token, query, limit) {
+    return this.call('searchIncidentsFull', token, query, limit || 10);
+  },
 
   // ============================================================
   // Address Flags
