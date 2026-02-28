@@ -1176,6 +1176,20 @@ function showConfirmAsync(title, msg) {
   });
 }
 
+// ── Disposition Short Codes ────────────────────────────────────────
+const DISPO_SHORT_CODES = {
+  'TC':  'TRANSPORTED',
+  'PR':  'PATIENT-REFUSED',
+  'CAN': 'CANCELLED-ON-SCENE',
+  'OCS': 'CANCELLED-ON-SCENE',
+  'REF': 'PATIENT-REFUSED',
+  'NP':  'NO-PATIENT-FOUND',
+  'MA':  'MUTUAL-AID-TRANSFER',
+  'DUP': 'DUPLICATE',
+  'ERR': 'DATA-ERROR',
+  'OTHER': 'OTHER',
+};
+
 // ── Disposition Picker ────────────────────────────────────────
 let _dispResolve = null;
 const DISPOSITION_CODES = [
@@ -6216,6 +6230,16 @@ async function _execCmd(tx) {
   if (mU.startsWith('CLOSE ')) {
     const inc = ma.substring(6).trim().toUpperCase();
     if (!inc) { showConfirm('ERROR', 'USAGE: CLOSE 0001 OR DEL 023 OR CAN 023', () => { }); return; }
+    // If shortcode provided in nU, skip picker
+    const closeShort = nU.trim().toUpperCase();
+    if (closeShort && DISPO_SHORT_CODES[closeShort]) {
+      const dispo = DISPO_SHORT_CODES[closeShort];
+      const r = await API.closeIncident(TOKEN, inc, dispo);
+      if (!r.ok) return showErr(r);
+      showToast('INC ' + inc.replace(/^[A-Z]*\d{2}-0*/, '') + ' CLOSED — ' + dispo);
+      refresh();
+      return;
+    }
     const disposition = await promptDisposition(inc);
     if (!disposition) return; // user cancelled
     const r = await API.closeIncident(TOKEN, inc, disposition);
@@ -6809,10 +6833,12 @@ async function _execCmd(tx) {
     }
   }
 
-  // AV FORCE check
+  // AV FORCE / dispo check
   // Note: "AV AMBLS1 FORCE" is parsed as ma="AV AMBLS1" nU="FORCE" by the tokenizer,
   // so rawUnit comes out as "AMBLS1" and nU is "FORCE". Check both patterns.
+  // "MALS1 AV TC" → ma="MALS1 AV" nU="TC" → stCmd=AV, rawUnit="MALS1", nU="TC"
   let avForce = false;
+  let _avDispoClose = null; // { incidentId, dispo } — set when nU is a dispo shortcode
   if (stCmd === 'AV') {
     const forceMatch = rawUnit.match(/^(.+?)\s+FORCE$/i);
     if (forceMatch) {
@@ -6822,11 +6848,16 @@ async function _execCmd(tx) {
       avForce = true;
       // rawUnit is already just the unit name (FORCE was in nU)
     } else {
-      // No FORCE — check if unit has active incident
+      const avNuUpper = nU.trim().toUpperCase();
+      const avDispoResolved = DISPO_SHORT_CODES[avNuUpper];
       const avUnitId = canonicalUnit(rawUnit);
       const avUnitObj = (STATE && STATE.units) ? STATE.units.find(x => String(x.unit_id || '').toUpperCase() === avUnitId) : null;
-      if (avUnitObj && avUnitObj.incident) {
-        showErr({ error: 'UNIT HAS ACTIVE INCIDENT (' + avUnitObj.incident + '). USE: AV ' + rawUnit.toUpperCase() + ' FORCE' });
+      if (avDispoResolved && avUnitObj && avUnitObj.incident) {
+        // Dispo-close AV: bypass FORCE restriction, close incident in background
+        avForce = true;
+        _avDispoClose = { incidentId: avUnitObj.incident, dispo: avDispoResolved };
+      } else if (avUnitObj && avUnitObj.incident) {
+        showErr({ error: 'UNIT HAS ACTIVE INCIDENT (' + avUnitObj.incident + '). USE: AV ' + rawUnit.toUpperCase() + ' FORCE  OR  ' + rawUnit.toUpperCase() + ' AV TC' });
         return;
       }
     }
@@ -6840,8 +6871,8 @@ async function _execCmd(tx) {
   }
   const dN = displayNameForUnit(u);
   const p = { status: stCmd, displayName: dN };
-  // nU='FORCE' is consumed as the AV-FORCE flag — don't write it as a unit note
-  const _nuNote = (avForce && nU.trim().toUpperCase() === 'FORCE') ? '' : nU;
+  // nU='FORCE' and nU=dispo-shortcode are consumed as flags — don't write as unit note
+  const _nuNote = (avForce && (nU.trim().toUpperCase() === 'FORCE' || _avDispoClose)) ? '' : nU;
   if (oosNotePrefix || (_nuNote && !nuUsedAsIncident)) p.note = oosNotePrefix + _nuNote;
   if (incidentId) {
     p.incident = incidentId;
@@ -6856,6 +6887,16 @@ async function _execCmd(tx) {
   setLive(true, 'LIVE • UPDATE');
   const r = await API.upsertUnit(TOKEN, u, p, '');
   if (!r.ok) return showErr(r);
+
+  // Dispo-close AV: fire closeIncident in background after unit goes AV
+  if (_avDispoClose) {
+    const _adc = _avDispoClose;
+    API.closeIncident(TOKEN, _adc.incidentId, _adc.dispo).then(function(cr) {
+      if (cr.ok) showToast('INC ' + _adc.incidentId.replace(/^[A-Z]*\d{2}-0*/, '') + ' CLOSED — ' + _adc.dispo);
+      else showToast(u + ' AV — INC CLOSE FAILED: ' + (cr.error || 'ERROR'));
+      refresh();
+    });
+  }
 
   pushUndo(`${u}: ${_prevStat.status}→${stCmd}`, async () => {
     const rv = await API.upsertUnit(TOKEN, u, { status: _prevStat.status, note: _prevStat.note, incident: _prevStat.incident, destination: _prevStat.destination }, '');
@@ -7318,12 +7359,18 @@ OK INC<ID>              Touch incident timestamp
 LINK <U1> <U2> <INC>    Assign both units to incident
 TRANSFER <FROM> <TO> <INC>   Transfer incident
 CLOSE <INC>             Manually close incident (full picker)
+CLOSE <INC> <CODE>      Close with shortcode — no picker
+  CLOSE 0045 TC, CLOSE SC26-0045 PR
+<UNIT> AV <CODE>        Go AV and close incident with shortcode
+  MALS1 AV TC, EMS2 AV CAN
 CAN <INC> [NOTE]        Quick cancel (CANCELLED — no picker)
   CAN SC26-0045, CAN 0045, CAN 0045 PER HOSPITAL
 DEL <INC> [DUP|ERR]     Delete with structured reason
   DEL SC26-0045 DUP  (duplicate call)
   DEL SC26-0045 ERR  (data entry error)
   DEL SC26-0045      (opens reason picker)
+DISPO SHORTCODES: TC=TRANSPORTED  PR=PATIENT-REFUSED  CAN=CANCELLED-ON-SCENE
+  NP=NO-PATIENT-FOUND  MA=MUTUAL-AID-XFER  DUP=DUPLICATE  ERR=DATA-ERROR
 RQ <INC>                Reopen incident
 
 ═══════════════════════════════════════════════════

@@ -1757,6 +1757,32 @@
   </div>
 </div>
 
+<!-- Field Dispo Sheet — required when going AV from an active incident -->
+<div id="fieldDispoSheet" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center;">
+  <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;padding:0 0 env(safe-area-inset-bottom,8px);">
+    <div style="padding:14px 16px 10px;border-bottom:1px solid #1f2b3d;">
+      <div style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">GOING AVAILABLE</div>
+      <div id="fdsIncLabel" style="font-size:11px;color:#8b949e;margin-top:2px;letter-spacing:.05em;"></div>
+      <div style="font-size:10px;color:#ff6b6b;margin-top:4px;letter-spacing:.04em;">DISPOSITION REQUIRED — SELECT TO CLOSE INCIDENT</div>
+    </div>
+    <div style="padding:14px 16px 0;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <button onclick="confirmFieldDispo('TC')" style="padding:14px 8px;background:#0f2a1a;border:2px solid #2aaa5a;color:#7fffb2;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:56px;line-height:1.2;">TC<br><span style="font-size:9px;font-weight:700;opacity:.7;">TRANSPORTED</span></button>
+        <button onclick="confirmFieldDispo('PR')" style="padding:14px 8px;background:#1a1200;border:2px solid #e8a020;color:#ffd66b;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:56px;line-height:1.2;">PR<br><span style="font-size:9px;font-weight:700;opacity:.7;">PT REFUSED</span></button>
+        <button onclick="confirmFieldDispo('CAN')" style="padding:14px 8px;background:#1a1200;border:2px solid #e8a020;color:#ffd66b;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:56px;line-height:1.2;">CAN<br><span style="font-size:9px;font-weight:700;opacity:.7;">CANCELLED ON SCENE</span></button>
+        <button onclick="confirmFieldDispo('NP')" style="padding:14px 8px;background:#1a1200;border:2px solid #e8a020;color:#ffd66b;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:56px;line-height:1.2;">NP<br><span style="font-size:9px;font-weight:700;opacity:.7;">NO PATIENT FOUND</span></button>
+        <button onclick="confirmFieldDispo('MA')" style="padding:14px 8px;background:#1a1200;border:2px solid #e8a020;color:#ffd66b;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:56px;line-height:1.2;">MA<br><span style="font-size:9px;font-weight:700;opacity:.7;">MUTUAL AID XFER</span></button>
+        <button onclick="confirmFieldDispo('OTHER')" style="padding:14px 8px;background:#0a0f17;border:2px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.05em;min-height:56px;line-height:1.2;">OTHER<br><span style="font-size:9px;font-weight:700;opacity:.7;">OTHER/UNSPECIFIED</span></button>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:10px;color:#8b949e;letter-spacing:.05em;margin-bottom:4px;">OPTIONAL NOTE</div>
+        <textarea id="fdsNote" placeholder="E.G. PT STABLE, CLEARED SCENE..." style="width:100%;box-sizing:border-box;min-height:60px;background:#0a0f17;border:1px solid #1f2b3d;color:#e6edf3;font-family:inherit;font-size:13px;padding:10px;resize:none;text-transform:uppercase;border-radius:2px;" autocorrect="off" autocapitalize="characters"></textarea>
+      </div>
+      <div id="fdsStatus" style="font-size:11px;color:#ff6b6b;min-height:16px;margin-bottom:8px;"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Bug Report Modal (field) -->
 <div id="fieldBugModal" style="display:none;position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.82);align-items:flex-end;justify-content:center;">
   <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,8px);">
@@ -1852,9 +1878,12 @@
         </div>
         <textarea id="idmNoteInput" style="width:100%;box-sizing:border-box;background:#0a0f17;border:1px solid #1f2b3d;color:#e6edf3;font-family:inherit;font-size:13px;padding:10px;min-height:80px;resize:vertical;text-transform:uppercase;" placeholder="E.G. PATIENT STABLE. GCS 15. VITALS WNL." autocorrect="off" autocapitalize="characters"></textarea>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
         <button onclick="saveFieldIncNote()" id="idmSaveBtn" style="flex:1;padding:12px;background:#0f3a1a;border:1px solid #2aaa5a;color:#7fffb2;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;letter-spacing:.05em;">SAVE NOTE</button>
         <button onclick="closeIncDetail()" style="padding:12px 16px;background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">CANCEL</button>
+      </div>
+      <div style="margin-bottom:16px;">
+        <button onclick="closeIncDetail(); openFieldDispoSheet(_currentIncident);" style="width:100%;padding:12px;background:#2a1200;border:1px solid #cc4400;color:#ff8844;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:.06em;">CLOSE INCIDENT</button>
       </div>
       <!-- Incident history -->
       <div style="border-top:1px solid #1f2b3d;padding-top:10px;">
@@ -4414,14 +4443,9 @@
 
   // Go available — tap AV button → optional note → set status AV
   async function goAvailable() {
-    var note = '';
     if (_currentIncident) {
-      var resp = await promptClearNote('GO AVAILABLE');
-      if (resp === null) return; // cancelled
-      note = resp;
-    }
-    if (note) {
-      try { await API.appendIncidentNote(_cadToken, _currentIncident, note); } catch(e) {}
+      openFieldDispoSheet(_currentIncident);
+      return; // dispo sheet handles updateFieldStatus('AV') on confirm
     }
     updateFieldStatus('AV');
   }
@@ -5845,6 +5869,35 @@
     if (modal) modal.style.display = 'none';
     _fieldNoteTarget = null;
   }
+
+  // ── Field Dispo Sheet ────────────────────────────────────────────────────
+  var _fdsIncidentId = '';
+
+  function openFieldDispoSheet(incidentId) {
+    _fdsIncidentId = incidentId;
+    var shortId = String(incidentId).replace(/^[A-Z]*\d{2}-0*/, '');
+    document.getElementById('fdsIncLabel').textContent = 'INCIDENT ' + shortId;
+    document.getElementById('fdsNote').value = '';
+    document.getElementById('fdsStatus').textContent = '';
+    document.getElementById('fieldDispoSheet').style.display = 'flex';
+  }
+
+  async function confirmFieldDispo(code) {
+    var stat = document.getElementById('fdsStatus');
+    var note = (document.getElementById('fdsNote').value || '').trim().toUpperCase();
+    stat.textContent = 'CLOSING INCIDENT...';
+    if (note) {
+      try { await API.appendIncidentNote(_cadToken, _fdsIncidentId, note); } catch(e) {}
+    }
+    var r = await API.closeIncident(_cadToken, _fdsIncidentId, code);
+    if (!r.ok) { stat.textContent = 'CLOSE FAILED: ' + (r.error || 'ERROR'); return; }
+    document.getElementById('fieldDispoSheet').style.display = 'none';
+    _fdsIncidentId = '';
+    updateFieldStatus('AV');
+  }
+
+  window.openFieldDispoSheet = openFieldDispoSheet;
+  window.confirmFieldDispo   = confirmFieldDispo;
 
   async function submitFieldIncNote() {
     var note = (document.getElementById('finmText').value || '').trim().toUpperCase();
