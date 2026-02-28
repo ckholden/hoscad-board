@@ -1113,6 +1113,8 @@ function _normalizeAddress(raw) {
   s = s.replace(/\s+/g, ' ');
   // 3. Strip city/state/zip suffix
   s = s.replace(/,\s*[A-Z\s]+,?\s*(?:OR|WA|CA|ID|NV)?\s*\d{0,5}$/i, '').trim();
+  // 3.5. Remove remaining commas (Nominatim separates house# from street with a comma)
+  s = s.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
   // 4. Strip apt/suite
   s = s.replace(/\s+(?:APT|UNIT|STE|SUITE|#)\s*\S+$/i, '').trim();
   // 5. Strip leading zeros from house number
