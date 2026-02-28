@@ -1203,7 +1203,7 @@ async function _openLocationHistory(address) {
   if (r.flags && r.flags.length > 0) {
     html += '<div class="lh-flags-section">';
     r.flags.forEach(f => {
-      html += `<div class="lh-flag-row"><span class="flag-badge">⚠ ${f.category}</span> <span class="lh-flag-desc">${String(f.description)}</span><span class="lh-flag-meta"> — ${f.createdBy}, ${fmtDate(f.createdAt)}</span></div>`;
+      html += `<div class="lh-flag-row"><span class="flag-badge">⚠ ${f.category}</span> <span class="lh-flag-desc">${String(f.description)}</span><span class="lh-flag-meta"> — ${f.createdBy}, ${fmtTime24(f.createdAt)}</span></div>`;
     });
     html += '</div>';
   }
@@ -1217,7 +1217,7 @@ async function _openLocationHistory(address) {
       const ctxBtn = ROLE !== 'VIEWER' && row.status !== 'CLOSED'
         ? `<button class="btn-xs" onclick="_execCmd('R ${row.incidentId}');document.getElementById('lhPanel').style.display='none';" title="Open and bind context">CTX</button>`
         : '';
-      html += `<tr><td>${row.incidentId}</td><td>${fmtDate(row.createdAt)}</td><td>${row.incidentType || '—'}</td><td>${row.priority || '—'}</td><td>${row.disposition || '—'}</td><td>${row.status}</td><td class="lh-snippet">${row.noteSnippet ? row.noteSnippet.substring(0, 80) : '—'}</td><td><button class="btn-xs" onclick="openIncidentFromServer('${row.incidentId}');document.getElementById('lhPanel').style.display='none';">OPEN</button>${ctxBtn}</td></tr>`;
+      html += `<tr><td>${row.incidentId}</td><td>${fmtTime24(row.createdAt)}</td><td>${row.incidentType || '—'}</td><td>${row.priority || '—'}</td><td>${row.disposition || '—'}</td><td>${row.status}</td><td class="lh-snippet">${row.noteSnippet ? row.noteSnippet.substring(0, 80) : '—'}</td><td><button class="btn-xs" onclick="openIncidentFromServer('${row.incidentId}');document.getElementById('lhPanel').style.display='none';">OPEN</button>${ctxBtn}</td></tr>`;
     });
     html += '</tbody></table>';
     if (r.hasMore) {
@@ -4377,9 +4377,8 @@ async function _refreshIncidentModal(incId) {
     const typeEl = document.getElementById('incTypeSelect');
     if (typeEl && typeEl !== active) typeEl.value = inc.incident_type || '';
 
-    // Scene address (skip if focused)
-    const addrEl = document.getElementById('incSceneAddress');
-    if (addrEl && addrEl !== active) addrEl.value = inc.scene_address || '';
+    // Scene address intentionally NOT updated here — only set on modal open.
+    // RT events and background refreshes must not silently overwrite user-visible location.
 
     // Destination (skip if focused)
     const destEl = document.getElementById('incDestEdit');
@@ -4501,7 +4500,7 @@ async function openIncidentFromServer(iId) {
   const rawIncNote = (inc.incident_note || '').toUpperCase();
   const dispTagMatch = rawIncNote.match(/\[DISP:([^\]]+)\]/i);
   const cbTagMatch = rawIncNote.match(/\[CB:([^\]]+)\]/i);
-  document.getElementById('incNote').value = rawIncNote.replace(/\[DISP:[^\]]*\]\s*/gi, '').replace(/\[CB:[^\]]*\]\s*/gi, '').trim();
+  document.getElementById('incNote').value = '';
   const dispBadgeEl = document.getElementById('incDispositionBadge');
   if (dispBadgeEl) {
     const dispCode = dispTagMatch ? dispTagMatch[1].toUpperCase() : (inc.disposition || '').toUpperCase();
@@ -4916,18 +4915,28 @@ async function saveIncidentNote() {
   // Only flag typeChanged if type actually differs from current — avoids spurious [TYPE:] audit entries
   const typeChanged = newType && newType !== curType.toUpperCase();
 
-  // Preserve [DISP:] and [CB:] tags when saving note — re-prepend from current incident
+  // Only re-prepend [DISP:] / [CB:] tags when user actually typed a note — avoids overwriting note with just tags
   const curDispMatch = ((curInc && curInc.incident_note) || '').match(/\[DISP:([^\]]+)\]/i);
   const curCbMatch   = ((curInc && curInc.incident_note) || '').match(/\[CB:([^\]]+)\]/i);
-  let mWithDisp = curDispMatch ? ('[DISP:' + curDispMatch[1].toUpperCase() + '] ' + m).trim() : m;
-  if (curCbMatch) mWithDisp = (mWithDisp + ' [CB:' + curCbMatch[1].toUpperCase() + ']').trim();
+  let mWithDisp = '';
+  if (m) {
+    mWithDisp = curDispMatch ? ('[DISP:' + curDispMatch[1].toUpperCase() + '] ' + m).trim() : m;
+    if (curCbMatch) mWithDisp = (mWithDisp + ' [CB:' + curCbMatch[1].toUpperCase() + ']').trim();
+  }
+
+  // Gate scene address changes behind explicit confirmation
+  if (sceneChanged) {
+    const ok = await showConfirmAsync('CHANGE SCENE ADDRESS?', 'UPDATE SCENE TO:\n' + newScene);
+    if (!ok) return;
+  }
 
   // If anything changed, use updateIncident
   if (typeChanged || m || destChanged || sceneChanged || priorityChanged || locChanged) {
     setLive(true, 'LIVE • UPDATE INCIDENT');
-    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp, typeChanged ? newType : '', destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
+    const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, mWithDisp || undefined, typeChanged ? newType : '', destChanged ? newDest : undefined, sceneChanged ? newScene : undefined, priorityChanged ? newPriority : undefined, locChanged ? newLoc : undefined);
     if (!r.ok) return showErr(r);
     if (sceneChanged && newScene) { AddrHistory.push(newScene); _geoVerifyAddress(newScene); }
+    document.getElementById('incNote').value = '';
     showToast('UPDATED');
     refresh();
     _refreshIncidentModal(CURRENT_INCIDENT_ID);
@@ -7554,6 +7563,17 @@ async function _execCmd(tx) {
 
   const pa = parseStatusUnit(tk);
   if (!pa) {
+    // Single token that looks like a unit ID — open incident mask if unit is assigned to one
+    if (tk.length === 1) {
+      const bareUnit = canonicalUnit(tk[0]);
+      const bareUnitObj = bareUnit && STATE && STATE.units
+        ? STATE.units.find(x => String(x.unit_id || '').toUpperCase() === bareUnit)
+        : null;
+      if (bareUnitObj && bareUnitObj.incident) {
+        openIncidentFromServer(bareUnitObj.incident);
+        return;
+      }
+    }
     showAlert('ERROR', 'UNKNOWN COMMAND. TYPE HELP FOR ALL COMMANDS.');
     return;
   }
