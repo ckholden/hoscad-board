@@ -868,6 +868,132 @@
     }
     .cmd-msgdp-btn:active { filter: brightness(1.3); }
 
+    /* Persistent status strip — shown on all tabs */
+    .persist-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      background: rgba(13,17,23,.95);
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+      height: 42px;
+    }
+    .pss-btn {
+      padding: 5px 12px;
+      font-family: var(--font-mono, monospace);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      cursor: pointer;
+      border-radius: 2px;
+      min-height: 30px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .pss-btn-primary {
+      background: rgba(47,108,255,.25);
+      border: 1.5px solid #2f6cff;
+      color: #7fb3ff;
+    }
+    .pss-btn-sec {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.18);
+      color: #8b949e;
+    }
+    .pss-sec-btns { display: flex; gap: 4px; }
+    .pss-inc-label {
+      margin-left: auto;
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 110px;
+    }
+
+    /* Quick Message section */
+    .qms-target-row {
+      display: flex;
+      gap: 4px;
+      padding: 4px 12px 2px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    .qms-target-row::-webkit-scrollbar { display: none; }
+    .qms-target-btn {
+      padding: 5px 9px;
+      font-family: var(--font-mono, monospace);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .04em;
+      cursor: pointer;
+      white-space: nowrap;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.15);
+      color: #8b949e;
+      border-radius: 2px;
+      flex-shrink: 0;
+      min-height: 32px;
+    }
+    .qms-target-btn.qms-target-active {
+      background: rgba(47,108,255,.2);
+      border-color: #2f6cff;
+      color: #7fb3ff;
+    }
+    .qms-phrases-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px 12px;
+      flex-shrink: 0;
+    }
+    .qms-phrase-btn {
+      padding: 6px 10px;
+      font-family: var(--font-mono, monospace);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      cursor: pointer;
+      background: rgba(100,170,100,.1);
+      border: 1px solid rgba(100,170,100,.3);
+      color: #7fb37f;
+      border-radius: 2px;
+    }
+    .qms-phrase-btn:active { filter: brightness(1.3); }
+    .qms-compose-row {
+      display: flex;
+      gap: 6px;
+      padding: 4px 12px 8px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .qms-input {
+      flex: 1;
+      padding: 6px 10px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-family: var(--font-mono, monospace);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+    .qms-send-btn {
+      padding: 6px 14px;
+      background: rgba(47,108,255,.2);
+      border: 1px solid rgba(47,108,255,.6);
+      color: #7fb3ff;
+      font-family: var(--font-mono, monospace);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      cursor: pointer;
+    }
+
     /* Hospital Quick Reference */
     .btn-info {
       background: #091a18; border-color: #194030; color: #7fffcc;
@@ -1396,6 +1522,14 @@
       <span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.06em;">HOSCAD</span>
     </div>
 
+    <!-- PERSISTENT STATUS STRIP — visible on all tabs -->
+    <div id="persistStatusStrip" class="persist-strip" style="display:none;">
+      <span id="pssStatus" class="cad-unit-status cad-status-AV" style="font-size:11px;padding:3px 8px;">AV</span>
+      <button id="pssNext" class="pss-btn pss-btn-primary" onclick="_pssNextTap()" style="display:none;"></button>
+      <div id="pssSecBtns" class="pss-sec-btns"></div>
+      <span id="pssIncLabel" class="pss-inc-label"></span>
+    </div>
+
     <!-- TAB SHELL -->
     <div class="field-tab-shell" style="display:flex;flex-direction:column;flex:1;min-height:0;">
 
@@ -1532,6 +1666,24 @@
           <button class="cmd-msgdp-btn" data-phrase="NO PATIENT FOUND">NO PATIENT</button>
           <button class="cmd-msgdp-btn" data-phrase="REQUESTING SUPERVISOR">REQ SUPV</button>
           <button class="cmd-msgdp-btn" data-phrase="STAND BY">STAND BY</button>
+        </div>
+        <div class="cmd-phrases-label">QUICK MSG TO:</div>
+        <div id="qmsTargetRow" class="qms-target-row">
+          <button class="qms-target-btn qms-target-active" data-target="DISPATCHERS" onclick="_qmsSelectTarget(this)">ALL DISPATCH</button>
+          <button class="qms-target-btn" data-target="UNITS" onclick="_qmsSelectTarget(this)">ALL UNITS</button>
+          <!-- Dynamic per-unit buttons populated by _updateQmsTargets() -->
+        </div>
+        <div class="qms-phrases-row">
+          <button class="qms-phrase-btn" data-phrase="COPY?">COPY?</button>
+          <button class="qms-phrase-btn" data-phrase="STATUS?">STATUS?</button>
+          <button class="qms-phrase-btn" data-phrase="YOUR ETA?">YOUR ETA?</button>
+          <button class="qms-phrase-btn" data-phrase="NEED ASSIST?">NEED ASSIST?</button>
+          <button class="qms-phrase-btn" data-phrase="10-4">10-4</button>
+          <button class="qms-phrase-btn" data-phrase="STAND BY">STAND BY</button>
+        </div>
+        <div class="qms-compose-row">
+          <input id="qmsInput" class="qms-input" placeholder="CUSTOM MSG..." maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          <button class="qms-send-btn" onclick="_qmsSend()">SEND</button>
         </div>
         <div class="cmd-quick-row">
           <button class="cmd-quick-btn" data-cmd="10-4">10-4</button>
@@ -2012,7 +2164,7 @@
     if (tabId === 'roster') _renderRosterTab();
     if (tabId === 'calls')  { _renderCallsTab(); _clearCallsBadge(); }
     if (tabId === 'more')   _updateMoreTab();
-    if (tabId === 'status') { _unreadMessages = 0; updateMsgBadge(); }
+    if (tabId === 'status') { _unreadMessages = 0; updateMsgBadge(); _updateQmsTargets(); }
 
     try { localStorage.setItem('hoscadfield_tab', tabId); } catch(e) {}
   }
@@ -3024,6 +3176,7 @@
     if (noIncStatus) noIncStatus.textContent = STATUS_LABELS[code] || code;
     _updateHandoffBtn();
     _updateContextButtons(code);
+    _updatePersistStrip();
   }
 
   function _updateContextButtons(code) {
@@ -3052,6 +3205,136 @@
     }
     const thBtn = document.getElementById('fieldTHBtn');
     if (thBtn) thBtn.style.opacity = (_currentStatus === 'T' || _currentStatus === 'TH') ? '1' : '0.45';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PERSISTENT STATUS STRIP (#3 / #4)
+  // ════════════════════════════════════════════════════════════════════════════
+  function _updatePersistStrip() {
+    const strip = document.getElementById('persistStatusStrip');
+    if (!strip) return;
+    if (!_cadToken) { strip.style.display = 'none'; return; }
+    strip.style.display = '';
+
+    const statusEl = document.getElementById('pssStatus');
+    if (statusEl) {
+      statusEl.textContent = _currentStatus;
+      statusEl.className = 'cad-unit-status cad-status-' + _currentStatus;
+    }
+
+    const nexts = VALID_TRANSITIONS[_currentStatus] || [];
+
+    const nextBtn = document.getElementById('pssNext');
+    if (nextBtn) {
+      if (nexts.length > 0) {
+        const s = nexts[0];
+        nextBtn.textContent = '\u25B6 ' + (STATUS_LABELS[s] || s);
+        nextBtn.dataset.status = s;
+        nextBtn.style.display = '';
+      } else {
+        nextBtn.style.display = 'none';
+      }
+    }
+
+    const secDiv = document.getElementById('pssSecBtns');
+    if (secDiv) {
+      secDiv.innerHTML = '';
+      for (let i = 1; i < Math.min(nexts.length, 3); i++) {
+        const s = nexts[i];
+        const btn = document.createElement('button');
+        btn.className = 'pss-btn pss-btn-sec';
+        btn.textContent = STATUS_LABELS[s] || s;
+        btn.dataset.status = s;
+        btn.addEventListener('click', function() { _pssStatusTap(btn.dataset.status); });
+        secDiv.appendChild(btn);
+      }
+    }
+
+    const incLabel = document.getElementById('pssIncLabel');
+    if (incLabel) incLabel.textContent = _currentIncident ? _currentIncident : '';
+  }
+
+  function _pssNextTap() {
+    const btn = document.getElementById('pssNext');
+    if (!btn || !btn.dataset.status) return;
+    _pssStatusTap(btn.dataset.status);
+  }
+
+  // Delegate to the matching status button so all special-case logic is reused:
+  // TH confirm dialog, T transport dest prompt, AV dispo sheet, etc.
+  function _pssStatusTap(statusCode) {
+    const btn = document.querySelector('.field-status-btn[data-status="' + statusCode + '"]');
+    if (btn) { btn.click(); return; }
+    updateFieldStatus(statusCode);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // QUICK MESSAGE SECTION (QMS)
+  // ════════════════════════════════════════════════════════════════════════════
+  let _qmsTarget = 'DISPATCHERS';  // 'DISPATCHERS' | 'UNITS' | <unit_id>
+
+  function _qmsSelectTarget(btn) {
+    document.querySelectorAll('.qms-target-btn').forEach(function(b) {
+      b.classList.remove('qms-target-active');
+    });
+    btn.classList.add('qms-target-active');
+    _qmsTarget = btn.dataset.target;
+  }
+
+  function _qmsSendPhrase(phrase) {
+    if (!phrase || !phrase.trim()) return;
+    let cmd;
+    if (_qmsTarget === 'DISPATCHERS') {
+      cmd = 'MSGDP ' + phrase;
+    } else if (_qmsTarget === 'UNITS') {
+      cmd = 'MSGU ' + phrase;
+    } else {
+      cmd = 'MSG ' + _qmsTarget + ' ' + phrase;
+    }
+    processCommand(cmd);
+  }
+
+  function _qmsSend() {
+    const input = document.getElementById('qmsInput');
+    if (!input) return;
+    const msg = input.value.trim();
+    if (!msg) return;
+    _qmsSendPhrase(msg);
+    input.value = '';
+  }
+
+  function _updateQmsTargets() {
+    const row = document.getElementById('qmsTargetRow');
+    if (!row) return;
+    // Remove previously-added dynamic unit buttons (keep first 2: ALL DISPATCH, ALL UNITS)
+    const allBtns = Array.from(row.querySelectorAll('.qms-target-btn'));
+    allBtns.slice(2).forEach(function(b) { b.remove(); });
+
+    const units = (_lastState && _lastState.units) || [];
+    const me = (_cadCallsign || '').toUpperCase();
+    const activeOther = units.filter(function(u) {
+      return u.active && (u.unit_id || '').toUpperCase() !== me;
+    });
+
+    activeOther.forEach(function(u) {
+      const btn = document.createElement('button');
+      btn.className = 'qms-target-btn';
+      btn.dataset.target = u.unit_id;
+      btn.textContent = u.unit_id;
+      if (u.status) btn.title = u.unit_id + ': ' + (STATUS_LABELS[u.status] || u.status);
+      btn.addEventListener('click', function() { _qmsSelectTarget(btn); });
+      row.appendChild(btn);
+    });
+
+    // Restore selection highlight; if selected unit is no longer active, reset to DISPATCHERS
+    const selBtn = row.querySelector('[data-target="' + _qmsTarget + '"]');
+    if (selBtn) {
+      selBtn.classList.add('qms-target-active');
+    } else {
+      _qmsTarget = 'DISPATCHERS';
+      const dpBtn = row.querySelector('[data-target="DISPATCHERS"]');
+      if (dpBtn) dpBtn.classList.add('qms-target-active');
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -4011,6 +4294,7 @@
     // Clear command feed (don't leak previous unit's messages into new session)
     var feed = document.getElementById('cmdFeed');
     if (feed) feed.innerHTML = '<div class="cmd-feed-line"><span class="cmd-sys">SESSION ENDED. LOGGED OUT.</span></div>';
+    _updatePersistStrip(); // Hide strip on logout
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -4069,6 +4353,7 @@
     // Only set AV badge for brand-new units. Existing units keep their current
     // DB status — the first poll will immediately set the correct badge.
     if (isNewUnit) updateStatusBadge('AV');
+    _updatePersistStrip(); // Show strip immediately after login
     loadAddresses();
 
     // Notification permission is requested via the WAKE button (must be a direct user gesture on iOS)
@@ -4415,6 +4700,7 @@
       if (_activeTab === 'calls')  _renderCallsTab();
       if (_activeTab === 'map')    _maybeRefreshMapTab();
       if (_activeTab === 'more')   _updateMoreTab();
+      _updateQmsTargets();
 
     } catch(e) {
       console.error('[field] Poll error:', e);
@@ -5302,6 +5588,32 @@
       }
     });
   });
+
+  // QMS preset phrase buttons — send to currently-selected target
+  document.querySelectorAll('.qms-phrase-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (_cadToken) {
+        _qmsSendPhrase(btn.dataset.phrase);
+      } else {
+        cmdInput.value = 'MSGDP ' + btn.dataset.phrase;
+        cmdInput.focus();
+      }
+    });
+  });
+
+  // QMS input: Enter key sends
+  (function() {
+    var qi = document.getElementById('qmsInput');
+    if (qi) qi.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); _qmsSend(); }
+    });
+  })();
+
+  // Expose for onclick handlers
+  window._pssNextTap   = _pssNextTap;
+  window._pssStatusTap = _pssStatusTap;
+  window._qmsSelectTarget = _qmsSelectTarget;
+  window._qmsSend      = _qmsSend;
 
   // Status buttons — TH requires confirm, AV prompts for note, others fire on click
   document.querySelectorAll('.field-status-btn').forEach(function(btn) {
