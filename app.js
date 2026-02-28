@@ -4201,8 +4201,19 @@ function _mapPinAt(lat, lon, addr) {
   if (_mapMarker) _mapInstance.removeLayer(_mapMarker);
   _mapMarker = L.marker([lat, lon]).addTo(_mapInstance);
   _mapInstance.setView([lat, lon], 16);
-  // Use short address: everything before the first comma that looks like a county/state
-  const short = addr ? addr.split(',').slice(0, 3).join(',').trim() : (lat.toFixed(5) + ', ' + lon.toFixed(5));
+  // Clean address: Nominatim sometimes separates house# with a comma ("7945, South Ridge Lane, ...")
+  // Join house number + street name with a space so the result has no commas.
+  let short;
+  if (addr) {
+    const parts = addr.split(',').map(p => p.trim()).filter(p => p);
+    if (/^\d+$/.test(parts[0]) && parts.length > 1) {
+      short = parts[0] + ' ' + parts[1]; // e.g. "7945 South Ridge Lane"
+    } else {
+      short = parts[0]; // e.g. "1234 Northeast Main Street"
+    }
+  } else {
+    short = lat.toFixed(5) + ', ' + lon.toFixed(5);
+  }
   _mapSelectedAddr = short;
   document.getElementById('mapSelectedAddr').textContent = short;
   document.getElementById('mapUseBtn').disabled = false;

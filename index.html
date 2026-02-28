@@ -422,7 +422,7 @@
     <h2>CREATE NEW INCIDENT</h2>
     <div class="muted" style="font-size:10px;letter-spacing:.06em;margin-bottom:4px;">SCENE ADDRESS <span style="color:#cc2222;">*</span></div>
     <div class="row">
-      <input id="newIncScene" placeholder="E.G. 1234 MAIN ST OR SCMC-BEND" style="flex:1" autocomplete="off" list="addrHistList1" oninput="_onNcSceneInput(this.value.trim().toUpperCase())" onchange="_onNcSceneInput(this.value.trim().toUpperCase())" />
+      <input id="newIncScene" placeholder="E.G. 1234 MAIN ST OR SCMC-BEND" style="flex:1;min-width:0;font-size:13px;padding:6px 8px;" autocomplete="off" list="addrHistList1" oninput="_onNcSceneInput(this.value.trim().toUpperCase())" onchange="_onNcSceneInput(this.value.trim().toUpperCase())" />
       <datalist id="addrHistList1"></datalist>
       <button type="button" onclick="ncUseLast()" title="Fill with last used address" style="font-size:10px;padding:4px 7px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap;">LAST</button>
       <button type="button" onclick="openMapModal('newIncScene')" style="font-size:10px;padding:4px 8px;background:rgba(91,163,230,.15);border:1px solid rgba(91,163,230,.35);color:#4fa3e0;border-radius:2px;cursor:pointer;font-family:inherit;font-weight:700;">MAP</button>
