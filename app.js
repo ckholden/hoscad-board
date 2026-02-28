@@ -4285,37 +4285,86 @@ function _initMapInstance() {
 async function _mapSearch() {
   const raw = document.getElementById('mapSearchInput').value.trim();
   if (!raw) return;
-  // Append Oregon if no state hint
-  const q = /\bOR\b|\boregon\b/i.test(raw) ? raw : raw + ', Oregon';
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=us&q=' +
-    encodeURIComponent(q) + '&viewbox=' + MAP_VIEWBOX + '&bounded=0';
   const resultsEl = document.getElementById('mapResults');
   resultsEl.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--muted);">SEARCHING...</div>';
   resultsEl.style.display = 'block';
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!data.length) { resultsEl.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--muted);">NO RESULTS.</div>'; return; }
-    resultsEl.innerHTML = data.map((r, i) =>
-      '<div class="map-result-row" onclick="_mapSelectResult(' + i + ')" data-lat="' + r.lat + '" data-lon="' + r.lon + '" data-addr="' + esc(r.display_name) + '">' +
-        esc(r.display_name) +
-      '</div>'
-    ).join('');
-  } catch(e) {
-    resultsEl.innerHTML = '<div style="padding:8px;font-size:11px;color:#e05050;">GEOCODE FAILED. CHECK CONNECTION.</div>';
+
+  // Run GIS + Nominatim in parallel
+  const q = /\bOR\b|\boregon\b/i.test(raw) ? raw : raw + ', Oregon';
+  const nomUrl = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=us&q=' +
+    encodeURIComponent(q) + '&viewbox=' + MAP_VIEWBOX + '&bounded=0';
+
+  const [gisResult, nomResult] = await Promise.allSettled([
+    (TOKEN && raw.length >= 3) ? API.searchAddressPoints(TOKEN, raw, 5) : Promise.resolve(null),
+    fetch(nomUrl).then(r => r.json())
+  ]);
+
+  const gisItems = (gisResult.status === 'fulfilled' && gisResult.value?.ok && gisResult.value.results) || [];
+  const nomItems = (nomResult.status === 'fulfilled' && Array.isArray(nomResult.value) && nomResult.value) || [];
+
+  if (!gisItems.length && !nomItems.length) {
+    resultsEl.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--muted);">NO RESULTS.</div>';
+    return;
   }
+
+  let html = '';
+  let idx = 0;
+
+  // GIS results first — these have exact CAD addresses + verified lat/lon
+  if (gisItems.length) {
+    html += '<div style="padding:3px 8px;font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--muted);background:rgba(255,255,255,.04);">GIS ADDRESS POINTS</div>';
+    for (const r of gisItems) {
+      const city = r.city ? ' <span style="color:var(--muted);font-size:10px;">— ' + esc(r.city) + '</span>' : '';
+      html += '<div class="map-result-row" onclick="_mapSelectResult(' + idx + ')" data-idx="' + idx + '" ' +
+        'data-lat="' + (r.lat || '') + '" data-lon="' + (r.lon || '') + '" ' +
+        'data-addr="' + esc(r.full_address) + '" data-cadaddr="' + esc(r.full_address) + '">' +
+        esc(r.full_address) + city + '</div>';
+      idx++;
+    }
+  }
+
+  // Nominatim results below — for landmarks, intersections, places not in GIS
+  if (nomItems.length) {
+    if (gisItems.length) {
+      html += '<div style="padding:3px 8px;font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--muted);background:rgba(255,255,255,.04);">MAP SEARCH</div>';
+    }
+    for (const r of nomItems) {
+      html += '<div class="map-result-row" onclick="_mapSelectResult(' + idx + ')" data-idx="' + idx + '" ' +
+        'data-lat="' + r.lat + '" data-lon="' + r.lon + '" data-addr="' + esc(r.display_name) + '">' +
+        esc(r.display_name) + '</div>';
+      idx++;
+    }
+  }
+
+  resultsEl.innerHTML = html;
 }
 
 function _mapSelectResult(idx) {
   const rows = document.querySelectorAll('.map-result-row');
-  const row  = rows[idx];
+  const row  = [...rows].find(r => r.dataset.idx === String(idx));
   if (!row) return;
   rows.forEach(r => r.classList.remove('map-result-selected'));
   row.classList.add('map-result-selected');
-  const lat  = parseFloat(row.dataset.lat);
-  const lon  = parseFloat(row.dataset.lon);
-  const addr = row.dataset.addr;
-  _mapPinAt(lat, lon, addr);
+  const lat     = parseFloat(row.dataset.lat);
+  const lon     = parseFloat(row.dataset.lon);
+  const cadAddr = row.dataset.cadaddr;  // only set for GIS results
+  const addr    = row.dataset.addr;
+  if (cadAddr) {
+    // GIS result — address is already clean CAD format, no comma-parsing needed
+    if (_mapInstance && window.L) {
+      if (_mapMarker) _mapInstance.removeLayer(_mapMarker);
+      if (lat && lon) {
+        _mapMarker = L.marker([lat, lon]).addTo(_mapInstance);
+        _mapInstance.setView([lat, lon], 16);
+      }
+    }
+    _mapSelectedAddr = cadAddr;
+    document.getElementById('mapSelectedAddr').textContent = cadAddr;
+    document.getElementById('mapUseBtn').disabled = false;
+    document.getElementById('mapUseBtn').style.opacity = '1';
+  } else {
+    _mapPinAt(lat, lon, addr);
+  }
 }
 
 function _mapPinAt(lat, lon, addr) {
