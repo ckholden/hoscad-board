@@ -7574,6 +7574,23 @@ async function _execCmd(tx) {
         return;
       }
     }
+    // <UNIT> SUP <note> or <UNIT> M <note> — add note to unit's incident without opening mask
+    if (tk.length === 2 && (tk[1] === 'SUP' || tk[1] === 'M')) {
+      const ufUnit = canonicalUnit(tk[0]);
+      const ufObj = ufUnit && STATE && STATE.units
+        ? STATE.units.find(x => String(x.unit_id || '').toUpperCase() === ufUnit)
+        : null;
+      if (ufObj && ufObj.incident) {
+        if (!nU) { showAlert('ERROR', 'NOTE TEXT REQUIRED'); return; }
+        const noteText = tk[1] === 'SUP' ? '[SUP] ' + nU : nU;
+        setLive(true, 'LIVE \u2022 ' + tk[1]);
+        const r = await API.appendIncidentNote(TOKEN, ufObj.incident, noteText);
+        if (!r.ok) return showErr(r);
+        showToast(tk[1] + ' \u2192 ' + ufObj.incident);
+        refresh();
+        return;
+      }
+    }
     showAlert('ERROR', 'UNKNOWN COMMAND. TYPE HELP FOR ALL COMMANDS.');
     return;
   }
@@ -8579,7 +8596,8 @@ function _doSearchPanel() {
       const id = (inc.incident_id || '').toUpperCase();
       const addr = (inc.scene_address || '').toUpperCase();
       const dest = (inc.destination || '').toUpperCase();
-      return id.includes(q) || addr.includes(q) || dest.includes(q);
+      const type = (inc.incident_type || '').toUpperCase();
+      return id.includes(q) || addr.includes(q) || dest.includes(q) || type.includes(q);
     })
     .sort((a, b) => new Date(_normalizeTs(b.created_at)) - new Date(_normalizeTs(a.created_at)))
     .slice(0, 8);
@@ -10511,7 +10529,7 @@ window.addEventListener('load', () => {
       if (brb && brb.style.display === 'flex') { closeBugReport(); return; }
       if (srb && srb.style.display === 'flex') { closeSearchPanel(); return; }
       if (uhb && uhb.style.display === 'flex') { uhb.style.display = 'none'; autoFocusCmd(); return; }
-      if (ib && ib.style.display === 'flex') { ib.style.display = 'none'; autoFocusCmd(); return; }
+      if (ib && ib.style.display === 'flex') { closeIncidentPanel(); autoFocusCmd(); return; }
       if (msgb && msgb.style.display === 'flex') { closeMessages(); return; }
       if (mb && mb.style.display === 'flex') { closeModal(); return; }
       if (cd && cd.classList.contains('active')) { hideConfirm(); return; }
