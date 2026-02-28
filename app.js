@@ -75,6 +75,7 @@ let CLI_CONTEXT = {
 };
 
 let _presenceHBTimer = null;  // setInterval handle for presence heartbeat
+let _incModalRTTopic = null;  // Supabase RT topic for currently open incident
 
 // Address danger flag cache — keyed by canonical_address, 2-minute TTL.
 const FlagCache = {
@@ -2577,7 +2578,7 @@ function renderMessagesPanel() {
     const msgIdx = idx + 1; // 1-based local number
     return `<div class="${cl.join(' ')}">
       <div class="messageDisplayHeader ${fC}"><span class="muted" style="font-size:10px;margin-right:6px;">#${msgIdx}</span>${uH}FROM ${esc(fr)} TO ${esc(msg.to_role)}</div>
-      <div class="messageDisplayText">${esc(msg.message)}</div>
+      <div class="messageDisplayText">${_linkifyIncIds(msg.message)}</div>
       <div class="messageDisplayTime">${fmtTime24(msg.ts)}<button class="btn-secondary mini" style="margin-left:10px;" onclick="replyToMessage('${esc(replyCmd)}')">REPLY</button><button class="btn-danger mini" style="margin-left:6px;" onclick="deleteMessage('${esc(msg.message_id)}')">DEL</button></div>
     </div>`;
   }).join('');
@@ -2609,7 +2610,7 @@ function renderInboxPanel() {
     const replyCmd = 'MSG ' + msg.from_role + ' ';
     return `<div class="${cl.join(' ')}" onclick="readAndReplyInbox('${esc(msg.message_id)}', '${esc(replyCmd)}')">
       <div><span class="inbox-from">${msg.urgent ? 'HOT ' : ''}${esc(fr)}</span> <span class="inbox-time">${esc(ts)}</span></div>
-      <div class="inbox-text">${esc(text)}</div>
+      <div class="inbox-text">${_linkifyIncIds(text)}</div>
     </div>`;
   }).join('');
 }
@@ -4218,6 +4219,53 @@ function assignIncidentToUnit(incidentId) {
 
 // ============================================================
 // Incident Review Modal
+// Scan raw message text for SC/INC incident ID patterns and wrap active ones
+// in clickable anchors. Returns an HTML string (non-matching text is esc()-d).
+function _linkifyIncIds(rawText) {
+  const text = String(rawText || '');
+  const re = /\b(SC\d{2}-\d{4}|INC[-\s]?\d{2}[-\s]?\d{4}|INC\d{4})\b/gi;
+  const activeIds = new Set((STATE?.incidents || []).map(i => i.incident_id));
+  let result = '';
+  let lastIdx = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    result += esc(text.slice(lastIdx, match.index));
+    const raw = match[0];
+    const stripped = raw.replace(/^INC[-\s]*/i, '').replace(/[-\s]/g, '').trim().toUpperCase();
+    let normId = null;
+    if (/^\d{4}$/.test(stripped)) {
+      const found = (STATE?.incidents || []).find(i => i.incident_id.endsWith('-' + stripped));
+      normId = found ? found.incident_id : ('SC' + String(new Date().getFullYear()).slice(-2) + '-' + stripped);
+    } else if (/^SC\d{2}\d{4}$/.test(stripped)) {
+      normId = stripped.slice(0, 4) + '-' + stripped.slice(4);
+    } else if (/^SC\d{2}-\d{4}$/.test(raw.toUpperCase())) {
+      normId = raw.toUpperCase();
+    }
+    if (normId && activeIds.has(normId)) {
+      result += '<a class="inc-link" data-inc-id="' + esc(normId) + '" onclick="_clickIncLink(this)">' + esc(raw) + '</a>';
+    } else {
+      result += esc(raw);
+    }
+    lastIdx = match.index + match[0].length;
+  }
+  result += esc(text.slice(lastIdx));
+  return result;
+}
+
+async function _clickIncLink(el) {
+  const incId = el.dataset.incId;
+  if (!incId) return;
+  if (CLI_CONTEXT.incidentId && CLI_CONTEXT.incidentId !== incId) {
+    const ok = await new Promise(res => showConfirm(
+      'SWITCH CONTEXT?',
+      'LEAVE ' + CLI_CONTEXT.incidentId + ' AND OPEN ' + incId + '?',
+      () => res(true), () => res(false)
+    ));
+    if (!ok) return;
+  }
+  _execCmd('R ' + incId);
+}
+
 function _renderDangerBanner(flags) {
   const el = document.getElementById('incDangerBanner');
   if (!el) return;
@@ -4266,6 +4314,110 @@ function _stopPresenceHB() {
   if (_presenceHBTimer) { clearInterval(_presenceHBTimer); _presenceHBTimer = null; }
   const el = document.getElementById('incPresence');
   if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
+function _subscribeIncidentRT(incId) {
+  _unsubscribeIncidentRT();
+  if (!incId || !_RT || _RT.readyState !== WebSocket.OPEN) return;
+  _incModalRTTopic = 'realtime:incident-modal-' + incId;
+  _rtSend({
+    topic: _incModalRTTopic,
+    event: 'phx_join',
+    payload: {
+      config: {
+        broadcast: { self: false }, presence: { key: '' },
+        postgres_changes: [{ event: '*', schema: 'public', table: 'incidents', filter: 'incident_id=eq.' + incId }]
+      }
+    },
+    ref: String(++_rtRef)
+  });
+}
+
+function _unsubscribeIncidentRT() {
+  if (_incModalRTTopic && _RT && _RT.readyState === WebSocket.OPEN) {
+    _rtSend({ topic: _incModalRTTopic, event: 'phx_leave', payload: {}, ref: String(++_rtRef) });
+  }
+  _incModalRTTopic = null;
+}
+
+async function _refreshIncidentModal(incId) {
+  if (!incId || !TOKEN) return;
+  const modal = document.getElementById('incBack');
+  if (!modal || modal.style.display !== 'flex') return;
+  try {
+    const r = await API.getIncident(TOKEN, incId);
+    if (!r?.ok || !r.incident) return;
+    const inc = r.incident;
+    const active = document.activeElement;
+
+    // Snapshot pre-update values for change detection
+    const prevPri   = document.getElementById('incPriorityEdit')?.value || '';
+    const prevAddr  = document.getElementById('incSceneAddress')?.value || '';
+    const prevUnits = document.getElementById('incUnits')?.textContent  || '';
+
+    // Status badge
+    const statusBadgeEl = document.getElementById('incStatusBadge');
+    if (statusBadgeEl) {
+      const st = (inc.status||'').toUpperCase();
+      const stStyles = { 'ACTIVE':'background:rgba(63,185,80,.18);border:1px solid rgba(63,185,80,.5);color:#3fb950;', 'QUEUED':'background:rgba(210,153,34,.18);border:1px solid rgba(210,153,34,.5);color:#d2a424;', 'CLOSED':'background:rgba(212,48,48,.18);border:1px solid rgba(212,48,48,.5);color:#f85149;' };
+      statusBadgeEl.textContent = st || 'UNKNOWN';
+      statusBadgeEl.style.cssText = stStyles[st] || '';
+      statusBadgeEl.style.display = '';
+    }
+
+    // Units display
+    const incUnitsEl = document.getElementById('incUnits');
+    if (incUnitsEl) incUnitsEl.textContent = (inc.units||[]).join(', ') || '—';
+
+    // Priority (skip if focused)
+    const priEl = document.getElementById('incPriorityEdit');
+    if (priEl && priEl !== active) priEl.value = inc.priority || '';
+
+    // Type (skip if focused)
+    const typeEl = document.getElementById('incTypeSelect');
+    if (typeEl && typeEl !== active) typeEl.value = inc.incident_type || '';
+
+    // Scene address (skip if focused)
+    const addrEl = document.getElementById('incSceneAddress');
+    if (addrEl && addrEl !== active) addrEl.value = inc.scene_address || '';
+
+    // Destination (skip if focused)
+    const destEl = document.getElementById('incDestEdit');
+    if (destEl && destEl !== active) destEl.value = inc.destination || '';
+
+    // Updated by/at
+    const updEl = document.getElementById('incUpdated');
+    if (updEl) updEl.textContent = inc.updated_at ? fmtTime24(inc.updated_at) : '—';
+    const byEl = document.getElementById('incBy');
+    if (byEl) byEl.textContent = (inc.updated_by || '—').toUpperCase();
+
+    // Audit trail (always safe — read only)
+    renderIncidentAudit(r.audit || []);
+
+    // Show update notice for significant field changes
+    const newPri   = inc.priority || '';
+    const newAddr  = inc.scene_address || '';
+    const newUnits = (inc.units||[]).join(', ') || '—';
+    const incStatus = (inc.status||'').toUpperCase();
+    if (newPri !== prevPri || newAddr !== prevAddr || newUnits !== prevUnits || incStatus === 'CLOSED') {
+      _showIncUpdateNotice(inc.updated_by || 'SYSTEM');
+    }
+
+    // Auto-clear context if incident just closed
+    if (incStatus === 'CLOSED' && CLI_CONTEXT.incidentId === incId) {
+      CLI_CONTEXT = { incidentId: null, activatedAt: null, activatedBy: null, lastUpdate: null };
+      _updateContextBanner();
+      showToast('CONTEXT AUTO-CLEARED: ' + incId + ' WAS CLOSED.', 'warn', 6000);
+    }
+  } catch (_) {}
+}
+
+function _showIncUpdateNotice(actor) {
+  const el = document.getElementById('incUpdateNotice');
+  if (!el) return;
+  el.textContent = '↑ UPDATED BY ' + String(actor).toUpperCase() + ' — ' + fmtTime24(new Date().toISOString());
+  el.style.display = '';
+  setTimeout(() => { if (el) el.style.display = 'none'; }, 5000);
 }
 
 // ============================================================
@@ -4467,6 +4619,7 @@ async function openIncidentFromServer(iId) {
   document.getElementById('incBack').style.display = 'flex';
   setTimeout(() => document.getElementById('incNote').focus(), 50);
   _startPresenceHB(CURRENT_INCIDENT_ID);
+  _subscribeIncidentRT(CURRENT_INCIDENT_ID);
 }
 
 function openIncident(iId) {
@@ -4665,6 +4818,7 @@ function fillAssignCmd(unitId, incId) {
 
 function closeIncidentPanel() {
   _stopPresenceHB();
+  _unsubscribeIncidentRT();
   document.getElementById('incBack').style.display = 'none';
   CURRENT_INCIDENT_ID = '';
 }
@@ -4977,7 +5131,7 @@ const _ONE_TOKEN_CMDS = new Set([
   'REPORTOOS', 'REPORT', 'REPORTUTIL', 'REPORTSHIFT',
   'MAP', 'LOC',
   'LH', 'HISTORY', 'EXIT',
-  'HT', 'FLAG',
+  'HT', 'FLAG', '!',
 ]);
 
 async function _execCmd(tx) {
@@ -6155,6 +6309,12 @@ async function _execCmd(tx) {
   }
 
   // EXIT — release CLI context
+  // ! — Universal query overlay
+  if (cmd === '!') {
+    openUniversalQuery(no.trim() || '');
+    return;
+  }
+
   if (mU === 'EXIT') {
     if (!CLI_CONTEXT.incidentId) { showToast('NO ACTIVE CONTEXT.'); return; }
     const exitId = CLI_CONTEXT.incidentId;
@@ -8401,6 +8561,161 @@ function _doSearchPanel() {
   results.innerHTML = html;
 }
 
+// ============================================================
+// Universal Query (! command)
+// ============================================================
+let _uqTimer = null;
+let _uqActiveIdx = -1;
+
+function openUniversalQuery(initial) {
+  const el = document.getElementById('universalSearchBack');
+  if (!el) return;
+  el.style.display = 'flex';
+  const inp = document.getElementById('uqInput');
+  if (inp) { inp.value = initial || ''; inp.focus(); if (initial) _doUniversalQuery(); }
+}
+
+function closeUniversalQuery() {
+  const el = document.getElementById('universalSearchBack');
+  if (el) el.style.display = 'none';
+  _uqActiveIdx = -1;
+  autoFocusCmd();
+}
+
+function _uqDebounce() {
+  if (_uqTimer) clearTimeout(_uqTimer);
+  _uqTimer = setTimeout(_doUniversalQuery, 140);
+}
+
+async function _doUniversalQuery() {
+  const inp = document.getElementById('uqInput');
+  if (!inp) return;
+  const q = (inp.value || '').trim().toUpperCase();
+  const results = document.getElementById('uqResults');
+  if (!results) return;
+  if (q.length < 2) {
+    results.innerHTML = '<div class="muted" style="padding:16px;text-align:center;font-size:12px;">TYPE TO SEARCH INCIDENTS · UNITS · ADDRESSES · TYPES</div>';
+    return;
+  }
+
+  const categories = [];
+
+  // Active incidents (client-side, instant)
+  const activeIncs = (STATE?.incidents || [])
+    .filter(i => (i.incident_id||'').includes(q) || (i.scene_address||'').toUpperCase().includes(q) || (i.incident_type||'').toUpperCase().includes(q))
+    .slice(0, 8);
+  if (activeIncs.length) categories.push({ label: 'ACTIVE INCIDENTS', items: activeIncs.map(i => ({
+    type: 'incident', id: i.incident_id,
+    label: i.incident_id, sub: (i.incident_type||'') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
+    status: i.status
+  }))});
+
+  // Units (client-side)
+  const units = (STATE?.units || [])
+    .filter(u => (u.unit_id||'').includes(q) || (u.display_name||'').toUpperCase().includes(q))
+    .slice(0, 6);
+  if (units.length) categories.push({ label: 'UNITS', items: units.map(u => ({
+    type: 'unit', id: u.unit_id, label: u.unit_id, sub: (u.display_name||'') + ' · ' + (u.status||'')
+  }))});
+
+  // Addresses (client-side cache)
+  const addrs = AddressLookup.search ? AddressLookup.search(q, 6) : [];
+  if (addrs.length) categories.push({ label: 'ADDRESSES', items: addrs.map(a => ({
+    type: 'address', id: a.addr || a.address || a.name || '', label: a.code || a.name || '', sub: a.addr || a.address || ''
+  }))});
+
+  // Destinations (client-side)
+  const dests = (STATE?.destinations || [])
+    .filter(d => (d.code||'').includes(q) || (d.name||'').toUpperCase().includes(q))
+    .slice(0, 5);
+  if (dests.length) categories.push({ label: 'DESTINATIONS', items: dests.map(d => ({
+    type: 'destination', id: d.code||'', label: d.code||'', sub: d.name||''
+  }))});
+
+  // Type codes (client-side)
+  const tcs = (STATE?.typeCodes || [])
+    .filter(t => (t.code||'').includes(q) || (t.name||'').toUpperCase().includes(q))
+    .slice(0, 5);
+  if (tcs.length) categories.push({ label: 'TYPE CODES', items: tcs.map(t => ({
+    type: 'typecode', id: t.code||'', label: t.code||'', sub: t.name||''
+  }))});
+
+  // Historical incidents — server-side, only for INC ID patterns
+  const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
+  if (incPat.test(q) && TOKEN && q.length >= 4) {
+    try {
+      const capturedQ = q;
+      const hr = await API.searchIncidents(TOKEN, q, 5);
+      if (hr?.ok && hr.incidents?.length && inp.value.trim().toUpperCase() === capturedQ) {
+        const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
+        const hist = hr.incidents.filter(i => !already.has(i.incident_id));
+        if (hist.length) categories.push({ label: 'HISTORICAL INCIDENTS', items: hist.map(i => ({
+          type: 'incident', id: i.incident_id, label: i.incident_id,
+          sub: (i.incident_type||'') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
+          status: i.status
+        }))});
+      }
+    } catch (_) {}
+  }
+
+  _renderUniversalResults(categories);
+}
+
+function _renderUniversalResults(categories) {
+  const results = document.getElementById('uqResults');
+  if (!results) return;
+  if (!categories.length) {
+    results.innerHTML = '<div class="muted" style="padding:16px;text-align:center;font-size:12px;">NO RESULTS</div>';
+    return;
+  }
+  let idx = 0;
+  let html = '';
+  categories.forEach(cat => {
+    html += '<div style="padding:5px 14px 3px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);">' + esc(cat.label) + '</div>';
+    cat.items.forEach(item => {
+      const statusColor = item.status === 'ACTIVE' ? 'color:var(--green)' : item.status === 'QUEUED' ? 'color:var(--yellow)' : item.status === 'CLOSED' ? 'color:var(--muted)' : '';
+      html += '<div class="uq-row" data-idx="' + idx + '" data-type="' + esc(item.type) + '" data-id="' + esc(item.id) + '" onclick="_uqSelect(this)">' +
+        '<span class="uq-label" style="' + statusColor + '">' + esc(item.label) + '</span>' +
+        (item.sub ? '<span class="uq-sub">' + esc(item.sub) + '</span>' : '') +
+        '</div>';
+      idx++;
+    });
+  });
+  results.innerHTML = html;
+  _uqActiveIdx = -1;
+}
+
+function _uqKeydown(e) {
+  const rows = document.querySelectorAll('#uqResults .uq-row');
+  if (e.key === 'Escape') { e.preventDefault(); closeUniversalQuery(); return; }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _uqActiveIdx = Math.min(_uqActiveIdx + 1, rows.length - 1);
+    rows.forEach((r, i) => r.classList.toggle('uq-row-active', i === _uqActiveIdx));
+    if (rows[_uqActiveIdx]) rows[_uqActiveIdx].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _uqActiveIdx = Math.max(_uqActiveIdx - 1, 0);
+    rows.forEach((r, i) => r.classList.toggle('uq-row-active', i === _uqActiveIdx));
+    if (rows[_uqActiveIdx]) rows[_uqActiveIdx].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_uqActiveIdx >= 0 && rows[_uqActiveIdx]) _uqSelect(rows[_uqActiveIdx]);
+  }
+}
+
+function _uqSelect(el) {
+  const type = el.dataset.type;
+  const id   = el.dataset.id;
+  closeUniversalQuery();
+  if (type === 'incident') {
+    _execCmd('R ' + id);
+  } else {
+    const cmd = document.getElementById('cmd');
+    if (cmd) { cmd.value = id; cmd.focus(); }
+  }
+}
+
 function searchPanelUse(addr) {
   const inp = document.getElementById('cmd');
   if (inp) { inp.value = addr; inp.focus(); }
@@ -9929,11 +10244,17 @@ function _rtConnect() {
       _rtSend({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' });
     }, 25000);
     refresh(); // catch any state changes missed during disconnect gap
+    // Re-subscribe to incident modal RT channel if modal was open during disconnect
+    if (CURRENT_INCIDENT_ID) _subscribeIncidentRT(CURRENT_INCIDENT_ID);
   };
   _RT.onmessage = function(e) {
     try {
       const msg = JSON.parse(e.data);
       if (msg.event === 'postgres_changes') {
+        // If this event is for the currently open incident modal, refresh it in-place
+        if (_incModalRTTopic && msg.topic === _incModalRTTopic && CURRENT_INCIDENT_ID) {
+          _refreshIncidentModal(CURRENT_INCIDENT_ID);
+        }
         refresh();
       }
     } catch(err) {}

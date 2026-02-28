@@ -555,6 +555,9 @@ const API = {
   getLocationHistory(token, address, limit, offset) {
     return this.call('getLocationHistory', token, address, limit || 25, offset || 0);
   },
+  searchIncidents(token, query, limit) {
+    return this.call('searchIncidents', token, query, limit || 5);
+  },
 
   // ============================================================
   // Address Flags

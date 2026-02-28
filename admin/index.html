@@ -356,6 +356,12 @@
         <div id="clearPpStatus" class="admin-status"></div>
       </div>
       <div class="tool-card">
+        <h4>REBACKFILL CANONICAL ADDRESSES</h4>
+        <p>Re-process all incident addresses through TypeScript normalizeAddress(). Run after a normalization logic change. IT role required.</p>
+        <button class="btn-secondary" onclick="runRebackfillCanonicalAddresses()">RUN REBACKFILL</button>
+        <div id="rebackfillCanonicalResult" class="admin-status"></div>
+      </div>
+      <div class="tool-card">
         <h4>RUN PURGE</h4>
         <p>Delete old audit records and closed incidents beyond retention window.</p>
         <button class="btn-secondary" onclick="runPurge()">RUN PURGE</button>
@@ -1569,6 +1575,17 @@
       return;
     }
     document.getElementById('migrateUnitsResult').textContent = r.message || ('DONE. ADDED: ' + r.added + '  ALREADY IN ROSTER: ' + r.skipped);
+  }
+
+  async function runRebackfillCanonicalAddresses() {
+    const ok = await showConfirm('REBACKFILL CANONICAL ADDRESSES',
+      'Re-process all incidents with a scene_address using the TypeScript normalizeAddress() function.\nSafe to re-run. May take 30-60 seconds for large datasets. IT ROLE REQUIRED.');
+    if (!ok) return;
+    document.getElementById('rebackfillCanonicalResult').textContent = 'RUNNING...';
+    const r = await API.call('rebackfillCanonicalAddresses', _token);
+    if (!r.ok) { document.getElementById('rebackfillCanonicalResult').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    document.getElementById('rebackfillCanonicalResult').textContent = 'DONE. PROCESSED: ' + r.processed + ' · UPDATED: ' + r.updated;
+    showToast('CANONICAL ADDRESS BACKFILL COMPLETE.', 'success');
   }
 
   async function runBackfillRosterData() {

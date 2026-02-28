@@ -1880,3 +1880,21 @@ body.board-map-open #boardMapPane {
 }
 .btn-xs:hover { border-color: var(--blue); color: var(--hi); }
 .search-result-actions .btn-sm { font-size: 10px; padding: 2px 7px; }
+
+/* Universal Query (!) overlay */
+.uq-row {
+  display: flex; flex-direction: column; padding: 7px 14px;
+  cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.04);
+  font-family: inherit;
+}
+.uq-row:hover, .uq-row-active { background: rgba(255,255,255,.07); }
+.uq-label { font-size: 12px; font-weight: 900; color: var(--text); letter-spacing: .04em; }
+.uq-sub   { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+/* Incident ID links in messages */
+a.inc-link {
+  color: var(--yellow); font-weight: 900; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 2px;
+  background: none; border: none; padding: 0;
+}
+a.inc-link:hover { color: var(--hi); }
