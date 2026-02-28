@@ -254,14 +254,17 @@
           </select>
         </div>
         <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">CATEGORY</div>
-          <select id="tcFormCategory" style="width:130px;">
+          <select id="tcFormCategory" style="width:130px;" onchange="toggleTcNewCat()">
             <option value="CARDIAC">CARDIAC</option>
             <option value="NEURO">NEURO</option>
             <option value="RESPIRATORY">RESPIRATORY</option>
             <option value="TRAUMA">TRAUMA</option>
             <option value="MEDICAL">MEDICAL</option>
             <option value="TRANSFER">TRANSFER</option>
+            <option value="_new">+ NEW CATEGORY</option>
           </select>
+          <input id="tcFormNewCategory" placeholder="NEW CATEGORY NAME" maxlength="40"
+            style="display:none;margin-top:4px;width:130px;box-sizing:border-box;padding:3px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" />
         </div>
         <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">SORT ORDER</div><input id="tcFormSort" type="number" placeholder="999" style="width:70px;" /></div>
         <button class="btn-good" style="font-size:11px;" onclick="submitTypeCode()">SAVE</button>
@@ -959,6 +962,7 @@
 
   // ── Issues Tab ─────────────────────────────────────────────
   let _resolveTargetId = null;
+  let _issueContexts   = {}; // id → context JSON string (avoids embedding raw JSON in onclick attr)
 
   async function loadIssues() {
     const filter = (document.getElementById('issuesFilter') || {}).value || 'OPEN';
@@ -975,16 +979,17 @@
     if (stat) stat.textContent = issues.length + ' ISSUE(S) — ' + filter;
 
     const sevColor = { LOW: '#8b949e', MED: '#ffd66b', HIGH: '#ff6b6b' };
+    _issueContexts = {};
     if (tbody) tbody.innerHTML = issues.length ? issues.map(function(iss) {
+      _issueContexts[iss.id] = iss.context || ''; // store context by id — avoid embedding raw JSON in onclick
       const ts  = iss.submitted_at ? fmtTime(iss.submitted_at) : '—';
       const sc  = sevColor[iss.severity] || '#8b949e';
       const res = iss.status === 'RESOLVED'
         ? '<span style="color:#7fffb2;font-size:10px;">RESOLVED ' + fmtTime(iss.resolved_at) + ' BY ' + esc(iss.resolved_by) + '</span>' +
           (iss.admin_note ? '<br><span style="color:#8b949e;font-size:10px;">' + esc(iss.admin_note) + '</span>' : '')
         : '';
-      const ctxEsc = (iss.context || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const btn = iss.status === 'OPEN'
-        ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="openResolvePanel(' + iss.id + ',\'' + ctxEsc + '\')">RESOLVE</button>'
+        ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="openResolvePanel(' + iss.id + ')">RESOLVE</button>'
         : '';
       return '<tr>' +
         '<td style="font-family:monospace;">' + iss.id + '</td>' +
@@ -1002,12 +1007,13 @@
     if (tbl) tbl.style.display = '';
   }
 
-  function openResolvePanel(id, ctxJson) {
+  function openResolvePanel(id) {
     _resolveTargetId = id;
     document.getElementById('resolveIssueId').textContent = id;
     document.getElementById('resolveNote').value = '';
     document.getElementById('resolveStatus').textContent = '';
-    // Show context if available
+    // Show context if available (read from map to avoid JSON/quote issues in onclick)
+    const ctxJson = _issueContexts[id] || '';
     const ctxBlock = document.getElementById('resolveContextBlock');
     const ctxPre   = document.getElementById('resolveContextPre');
     if (ctxJson && ctxBlock && ctxPre) {
@@ -1694,6 +1700,56 @@
     }
   }
 
+  async function openAdminIncPrint(id) {
+    const r = await API.getIncident(_token, id);
+    if (!r.ok) { alert('INCIDENT REPORT FAILED: ' + (r.error || 'ERROR')); return; }
+    const w = window.open('', '_blank');
+    if (!w) { alert('ALLOW POPUPS FOR INCIDENT REPORT.'); return; }
+    const inc = r.incident;
+    const fmt = (v) => v ? new Date(v).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+    const fmtMin = (a,b) => { if(!a||!b) return null; const m=Math.round((new Date(b)-new Date(a))/60000); return m>0?m+' min':null; };
+    const KPI = { 'D→DE':5,'DE→OS':10,'OS→T':30,'T→AV':20 };
+    let h = `<!DOCTYPE html><html><head><title>INC ${esc(inc.incident_id)}</title>
+    <style>body{font-family:monospace;background:#fff;color:#1a1a1a;padding:24px;max-width:860px;margin:0 auto;}
+    h2{font-size:18px;margin:0 0 4px;}h3{font-size:13px;margin:16px 0 6px;text-transform:uppercase;border-bottom:1px solid #999;}
+    table{border-collapse:collapse;width:100%;margin-bottom:12px;}
+    td,th{border:1px solid #bbb;padding:5px 10px;font-size:12px;text-align:left;}th{background:#eee;width:180px;}
+    .good{color:#1a7a3a;}.warn{color:#a06000;}.bad{color:#cc2222;}
+    .footer{margin-top:24px;font-size:10px;color:#666;border-top:1px solid #ccc;padding-top:8px;}
+    .conf{font-weight:bold;color:#cc2222;}@media print{body{padding:8px;}}</style></head><body>`;
+    h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;">`;
+    h += `<div><h2>HOSCAD INCIDENT REPORT</h2><div style="font-size:11px;color:#555;">HOSCAD — SCMC EMS TRACKING SYSTEM</div></div>`;
+    h += `<div class="conf" style="font-size:10px;text-align:right;">FOR OFFICIAL USE ONLY<br>NOT FOR PUBLIC DISTRIBUTION</div></div>`;
+    h += `<h3>Incident Details</h3><table>
+    <tr><th>INCIDENT #</th><td><strong>${esc(inc.incident_id)}</strong></td></tr>
+    <tr><th>STATUS</th><td>${esc(inc.status)}</td></tr>
+    <tr><th>TYPE</th><td>${esc(inc.incident_type||'—')}</td></tr>
+    <tr><th>PRIORITY</th><td>${esc(inc.priority||'—')}</td></tr>
+    <tr><th>SCENE ADDRESS</th><td>${esc(inc.scene_address||'—')}</td></tr>
+    <tr><th>DESTINATION</th><td>${esc(inc.destination||'—')}</td></tr>
+    <tr><th>UNITS ASSIGNED</th><td>${esc(inc.units||'—')}</td></tr>
+    ${(()=>{const dm=(inc.incident_note||'').match(/\[DISP:([^\]]+)\]/i);const dv=dm?dm[1].toUpperCase():(inc.disposition||'').toUpperCase();return dv?`<tr><th>DISPOSITION</th><td>${esc(dv)}</td></tr>`:''})()}
+    <tr><th>CREATED</th><td>${fmt(inc.created_at)} by ${esc(inc.created_by||'?')}</td></tr>
+    <tr><th>DISPATCH TIME</th><td>${fmt(inc.dispatch_time)}</td></tr>
+    <tr><th>ENROUTE TIME</th><td>${fmt(inc.enroute_time)}</td></tr>
+    <tr><th>ARRIVAL TIME</th><td>${fmt(inc.arrival_time)}</td></tr>
+    <tr><th>TRANSPORT TIME</th><td>${fmt(inc.transport_time)}</td></tr>
+    <tr><th>AT HOSPITAL TIME</th><td>${fmt(inc.at_hospital_time)}</td></tr>
+    <tr><th>INCIDENT NOTE</th><td>${esc((inc.incident_note||'').replace(/\[[A-Z]+:[^\]]*\]\s*/gi,'').trim()||'—')}</td></tr>
+    </table>`;
+    const rtRows=[{l:'DISPATCH → ENROUTE',a:inc.dispatch_time,b:inc.enroute_time,t:KPI['D→DE']},
+      {l:'ENROUTE → ON SCENE',a:inc.enroute_time,b:inc.arrival_time,t:KPI['DE→OS']},
+      {l:'ON SCENE → TRANSPORT',a:inc.arrival_time,b:inc.transport_time,t:KPI['OS→T']},
+      {l:'AT HOSP → HANDOFF',a:inc.at_hospital_time,b:inc.handoff_time,t:KPI['T→AV']}].filter(r=>r.a&&r.b);
+    if(rtRows.length){h+='<h3>RESPONSE TIMES</h3><table><tr><th>INTERVAL</th><th>ELAPSED</th><th>TARGET</th><th>STATUS</th></tr>';
+      rtRows.forEach(r=>{const m=fmtMin(r.a,r.b);const n=m?parseInt(m):null;const c=!r.t||n==null?'':n<=r.t?'good':n<=r.t*1.5?'warn':'bad';h+=`<tr><td>${r.l}</td><td class="${c}">${m||'—'}</td><td>${r.t?r.t+' min':'—'}</td><td class="${c}">${!r.t?'—':n==null?'—':n<=r.t?'OK':'OVER'}</td></tr>`;});h+='</table>';}
+    if(r.audit&&r.audit.length){h+='<h3>Incident Audit Trail</h3>';r.audit.forEach(a=>{h+=`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid #eee;"><span style="color:#555;min-width:80px;display:inline-block;">${fmt(a.ts)}</span> <span style="font-weight:bold;min-width:90px;display:inline-block;">${esc((a.actor||'').toUpperCase())}</span> ${esc(a.message)}</div>`;});}
+    h += `<div class="footer"><span class="conf">FOR OFFICIAL USE ONLY — HOSCAD CONFIDENTIAL OPERATIONAL RECORD</span><br>Generated: ${new Date().toISOString().slice(0,16)} UTC | HOSCAD EMS Tracking System — SCMC</div>`;
+    h += '</body></html>';
+    w.document.write(h); w.document.close();
+    setTimeout(()=>{try{w.print();}catch(e){}},600);
+  }
+
   async function loadReports() {
     const preset = document.getElementById('reportPreset').value;
     let hrs = null, startIso = null, endIso = null;
@@ -1742,7 +1798,7 @@
     document.getElementById('rptIncCount').textContent = incs.length + ' INCIDENT(S) IN WINDOW';
     document.getElementById('rptIncBody').innerHTML = incs.length
       ? incs.map(i => `<tr>
-          <td>${esc(i.incident_id)}</td>
+          <td><a href="#" onclick="openAdminIncPrint('${esc(i.incident_id)}');return false;" style="color:#58a6ff;text-decoration:none;" title="Open printable report" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(i.incident_id)}</a></td>
           <td>${esc(i.incident_type || '—')}</td>
           <td>${esc(i.priority || '—')}</td>
           <td>${esc((i.scene_address || '—').substring(0, 35))}</td>
@@ -2190,12 +2246,22 @@
 
   function showTypeCodeForm() { document.getElementById('typeCodeFormRow').style.display = 'block'; document.getElementById('tcFormCode').focus(); }
   function hideTypeCodeForm() { document.getElementById('typeCodeFormRow').style.display = 'none'; document.getElementById('tcFormStatus').textContent = ''; }
+  function toggleTcNewCat() {
+    const sel = document.getElementById('tcFormCategory');
+    const inp = document.getElementById('tcFormNewCategory');
+    if (!sel || !inp) return;
+    if (sel.value === '_new') { inp.style.display = 'block'; inp.focus(); }
+    else { inp.style.display = 'none'; }
+  }
 
   async function submitTypeCode() {
     const code     = (document.getElementById('tcFormCode').value || '').trim().toUpperCase();
     const name     = (document.getElementById('tcFormName').value || '').trim();
     const priority = parseInt(document.getElementById('tcFormPriority').value || '', 10);
-    const category = document.getElementById('tcFormCategory').value || '';
+    const catSel   = document.getElementById('tcFormCategory').value || '';
+    const category = catSel === '_new'
+      ? (document.getElementById('tcFormNewCategory').value || '').trim().toUpperCase()
+      : catSel;
     const sort     = parseInt(document.getElementById('tcFormSort').value || '999', 10);
     const stat     = document.getElementById('tcFormStatus');
     if (!code) { stat.textContent = 'CODE REQUIRED.'; return; }
@@ -2205,7 +2271,9 @@
     const r = await API.call('addTypeCode', _token, code, name, priority, category, isNaN(sort) ? 999 : sort);
     if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
     hideTypeCodeForm();
-    ['tcFormCode','tcFormName','tcFormPriority','tcFormSort'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['tcFormCode','tcFormName','tcFormPriority','tcFormSort','tcFormNewCategory'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const catSel2 = document.getElementById('tcFormCategory'); if (catSel2) catSel2.value = 'CARDIAC';
+    const newCatInp = document.getElementById('tcFormNewCategory'); if (newCatInp) newCatInp.style.display = 'none';
     showToast('TYPE CODE ' + code + ' ADDED.', 'success');
     loadTypeCodeTab();
   }
