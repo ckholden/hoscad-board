@@ -555,6 +555,7 @@ header {
 .col-elapsed { width: 52px;  text-align: right; }
 .col-dest    { width: 160px; }
 .col-note    { }              /* flex fill */
+.col-type    { width: 90px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .col-inc     { width: 70px;  }
 .col-updated { width: 90px;  }
 
@@ -758,6 +759,9 @@ tr.stale30 {
 /* Queue row urgency tints */
 .inc-urgent    { background: rgba(212,48,48,.12);  }
 .inc-mutual-aid { background: rgba(192,96,16,.07); }
+/* PRI-1 queued: slow pulsing background to draw attention */
+@keyframes pri1-pulse { 0%,100% { background: rgba(212,48,48,.10); } 50% { background: rgba(212,48,48,.28); } }
+.inc-pri1-queue { animation: pri1-pulse 2.4s ease-in-out infinite; }
 
 /* Queue cell classes */
 .inc-id {

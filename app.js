@@ -78,7 +78,8 @@ let VIEW = {
   preset: 'dispatch',
   elapsedFormat: 'short',
   nightMode: false,
-  theme: 'dark'    // 'dark' | 'night' | 'light'
+  theme: 'dark',    // 'dark' | 'night' | 'light'
+  showActiveBar: false  // active calls bar below map — off by default
 };
 
 // Hardcoded fallback positions — used immediately on page load before API responds.
@@ -905,6 +906,12 @@ function toggleView(panel) {
   applyViewState();
 }
 
+function toggleActiveBar() {
+  VIEW.showActiveBar = !VIEW.showActiveBar;
+  saveViewState();
+  renderActiveCallsBar();
+}
+
 function toggleNightMode() {
   const cycle = { 'dark': 'night', 'night': 'light', 'light': 'dark' };
   VIEW.theme = cycle[VIEW.theme || 'dark'] || 'dark';
@@ -1216,7 +1223,7 @@ function promptDisposition(incidentId) {
     if (label) label.textContent = 'INCIDENT ' + String(incidentId).replace(/^[A-Z]*\d{2}-0*/, '');
     if (btns) {
       btns.innerHTML = DISPOSITION_CODES.map(d =>
-        '<button onclick="selectDisposition(\'' + d.code.replace(/'/g, "\\'") + '\')" style="padding:8px 6px;background:#0a1628;border:1px solid #1a3a5c;color:#c9d1d9;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;text-align:center;letter-spacing:.04em;line-height:1.3;">' + esc(d.label) + '</button>'
+        '<button onclick="selectDisposition(\'' + d.code.replace(/'/g, "\\'") + '\')" style="padding:8px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;text-align:center;letter-spacing:.04em;line-height:1.3;">' + esc(d.label) + '</button>'
       ).join('');
     }
     if (overlay) overlay.style.display = 'flex';
@@ -1990,10 +1997,21 @@ function renderActiveCallsBar() {
   const bar = document.getElementById('activeCallsBar');
   if (!bar || !STATE) return;
 
-  const active = (STATE.incidents || []).filter(i => i.status === 'ACTIVE');
-  if (!active.length) { bar.style.display = 'none'; return; }
+  // Update toggle button label
+  const toggleBtn = document.getElementById('activeBarToggleBtn');
+  if (toggleBtn) toggleBtn.textContent = VIEW.showActiveBar ? 'ACTIVE ▲' : 'ACTIVE ▼';
 
-  active.sort((a, b) => new Date(_normalizeTs(a.created_at)) - new Date(_normalizeTs(b.created_at)));
+  const active = (STATE.incidents || []).filter(i => i.status === 'ACTIVE');
+  if (!active.length || !VIEW.showActiveBar) { bar.style.display = 'none'; return; }
+
+  // Sort by priority (PRI-1 first), then by created_at
+  const priOrder = { 'PRI-1': 0, 'CRITICAL': 0, 'PRI-2': 1, 'PRI-3': 2, 'PRI-4': 3 };
+  active.sort((a, b) => {
+    const pa = priOrder[(a.priority || '').toUpperCase()] ?? 9;
+    const pb = priOrder[(b.priority || '').toUpperCase()] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return new Date(_normalizeTs(a.created_at)) - new Date(_normalizeTs(b.created_at));
+  });
 
   const now = Date.now();
   const cards = active.map(inc => {
@@ -2266,7 +2284,14 @@ function renderIncidentQueue() {
     return;
   }
 
-  incidents.sort((a, b) => new Date(_normalizeTs(a.created_at)) - new Date(_normalizeTs(b.created_at)));
+  // Sort by priority (PRI-1 first), then by creation time (oldest first)
+  const _qPriOrder = { 'PRI-1': 0, 'CRITICAL': 0, 'PRI-2': 1, 'PRI-3': 2, 'PRI-4': 3 };
+  incidents.sort((a, b) => {
+    const pa = _qPriOrder[(a.priority || '').toUpperCase()] ?? 9;
+    const pb = _qPriOrder[(b.priority || '').toUpperCase()] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return new Date(_normalizeTs(a.created_at)) - new Date(_normalizeTs(b.created_at));
+  });
 
   let html = '<table class="inc-queue-table"><thead><tr>';
   html += '<th>INC#</th><th>LOCATION</th><th>TYPE</th><th>NOTE</th><th>SCENE</th><th>WAIT</th><th>ACTIONS</th>';
@@ -2297,7 +2322,8 @@ function renderIncidentQueue() {
       const shortRel = String(rid).replace(/^\d{2}-/, '');
       return '<span class="rel-badge" title="Linked Incident" onclick="event.stopPropagation();openIncident(\'' + esc(rid) + '\')">REL:' + esc(shortRel) + '</span>';
     }).join('');
-    let rowCl = (urgent || pri === 'PRI-1' || pri === 'CRITICAL' ? 'inc-urgent' : '') + (hasMutualAid ? ' inc-mutual-aid' : '');
+    const isPri1 = pri === 'PRI-1' || pri === 'CRITICAL';
+    let rowCl = (urgent || isPri1 ? 'inc-urgent' : '') + (isPri1 ? ' inc-pri1-queue' : '') + (hasMutualAid ? ' inc-mutual-aid' : '');
     const mins = minutesSince(inc.created_at);
     const age = mins != null ? Math.floor(mins) + 'M' : '--';
     const waitMins = Math.floor((Date.now() - new Date(_normalizeTs(inc.created_at)).getTime()) / 60000);
@@ -2365,17 +2391,18 @@ function renderMessagesPanel() {
     return;
   }
 
-  panel.innerHTML = m.map(msg => {
+  panel.innerHTML = m.map((msg, idx) => {
     const cl = ['messageDisplayItem'];
     if (msg.urgent) cl.push('urgent');
     const fr = msg.from_initials + '@' + msg.from_role;
     const fC = getRoleColor(fr);
     const uH = msg.urgent ? '[HOT] ' : '';
     const replyCmd = 'MSG ' + msg.from_role + ' ';
+    const msgIdx = idx + 1; // 1-based local number
     return `<div class="${cl.join(' ')}">
-      <div class="messageDisplayHeader ${fC}">${uH}FROM ${esc(fr)} TO ${esc(msg.to_role)}</div>
+      <div class="messageDisplayHeader ${fC}"><span class="muted" style="font-size:10px;margin-right:6px;">#${msgIdx}</span>${uH}FROM ${esc(fr)} TO ${esc(msg.to_role)}</div>
       <div class="messageDisplayText">${esc(msg.message)}</div>
-      <div class="messageDisplayTime">${fmtTime24(msg.ts)}<button class="btn-secondary mini" style="margin-left:10px;" onclick="replyToMessage('${esc(replyCmd)}')">REPLY</button></div>
+      <div class="messageDisplayTime">${fmtTime24(msg.ts)}<button class="btn-secondary mini" style="margin-left:10px;" onclick="replyToMessage('${esc(replyCmd)}')">REPLY</button><button class="btn-danger mini" style="margin-left:6px;" onclick="deleteMessage('${esc(msg.message_id)}')">DEL</button></div>
     </div>`;
   }).join('');
 }
@@ -2691,6 +2718,16 @@ function renderBoard() {
       tr.style.borderLeft = '3px solid #888';
     }
 
+    // TYPE column — incident type from incObj (already fetched in INC# block)
+    let typeHtml = '<span class="muted">—</span>';
+    if (u.incident) {
+      const incObjForType = (STATE.incidents || []).find(i => i.incident_id === u.incident);
+      if (incObjForType && incObjForType.incident_type) {
+        const typCl = getIncidentTypeClass(incObjForType.incident_type);
+        typeHtml = '<span class="inc-type ' + typCl + '" style="font-size:10px;">' + esc(incObjForType.incident_type) + '</span>';
+      }
+    }
+
     // UPDATED column
     const aC = getRoleColor(u.updated_by);
     const updatedHtml = fmtTime24(u.updated_at) + ' <span class="muted ' + aC + '" style="font-size:10px;">' + esc((u.updated_by || '').toUpperCase()) + '</span>';
@@ -2700,6 +2737,7 @@ function renderBoard() {
       '<td class="' + elapsedClass + '">' + elapsedVal + '</td>' +
       '<td>' + destHtml + '</td>' +
       '<td>' + noteHtml + '</td>' +
+      '<td>' + typeHtml + '</td>' +
       '<td>' + incHtml + '</td>' +
       '<td>' + updatedHtml + '</td>';
 
@@ -6758,13 +6796,19 @@ async function _execCmd(tx) {
 
   if (mU.startsWith('DEL MSG') || (mU === 'DEL' && /^MSG/i.test(nU))) {
     const re = mU.startsWith('DEL MSG') ? mU.substring(7).trim() : nU.trim();
-    if (!re) { showConfirm('ERROR', 'USAGE: DEL MSG1 OR DEL ALL MSG', () => { }); return; }
+    if (!re) { showConfirm('ERROR', 'USAGE: DEL MSG1 OR DEL MSG #2 (inbox position)', () => { }); return; }
     const msgId = re.toUpperCase();
-    if (/^MSG\d+$/i.test(msgId) || /^\d+$/.test(re)) {
-      const finalId = /^\d+$/.test(re) ? 'MSG' + re : msgId;
-      return deleteMessage(finalId);
+    if (/^MSG\d+$/i.test(msgId)) {
+      return deleteMessage(msgId);
     }
-    showConfirm('ERROR', 'USAGE: DEL MSG1 OR DEL ALL MSG', () => { });
+    if (/^\d+$/.test(re)) {
+      // Bare number = local inbox position (1-based) — resolve to actual message_id
+      const idx = parseInt(re, 10) - 1;
+      const msgs = STATE.messages || [];
+      if (idx < 0 || idx >= msgs.length) { showConfirm('ERROR', 'MESSAGE #' + re + ' NOT FOUND. YOU HAVE ' + msgs.length + ' MESSAGE' + (msgs.length !== 1 ? 'S' : '') + '.', () => { }); return; }
+      return deleteMessage(msgs[idx].message_id);
+    }
+    showConfirm('ERROR', 'USAGE: DEL MSG1 OR DEL MSG #2 (inbox position)', () => { });
     return;
   }
 
@@ -6806,15 +6850,23 @@ async function _execCmd(tx) {
     oosNotePrefix = `[OOS:${reason}] `;
   }
 
+  // Resolve 4-digit shorthand to full incident_id by looking up STATE.incidents first,
+  // then falling back to SC+YY- prefix (current format). Avoids FK failures from format mismatch.
+  function resolveIncidentId(raw) {
+    const stripped = raw.replace(/^INC[-\s]*/i, '').trim().toUpperCase();
+    if (/^\d{4}$/.test(stripped)) {
+      const stateInc = (STATE.incidents || []).find(i => i.incident_id.endsWith('-' + stripped));
+      if (stateInc) return stateInc.incident_id;
+      const yy = String(new Date().getFullYear()).slice(-2);
+      return 'SC' + yy + '-' + stripped;
+    }
+    return stripped;
+  }
+
   // Check for incident ID at end of unit (e.g. "D AMWC1 INC-0001" or "D AMWC1 SC26-0001")
   const incMatch = rawUnit.match(/\s+(INC\s*[A-Z]*\d{2}-\d{4}|INC\s*\d{4}|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4})$/i);
   if (incMatch) {
-    incidentId = incMatch[1].replace(/^INC\s*/i, '').trim().toUpperCase();
-    if (/^\d{4}$/.test(incidentId)) {
-      const year = new Date().getFullYear();
-      const yy = String(year).slice(-2);
-      incidentId = yy + '-' + incidentId;
-    }
+    incidentId = resolveIncidentId(incMatch[1]);
     rawUnit = rawUnit.substring(0, incMatch.index).trim();
   }
 
@@ -6824,11 +6876,7 @@ async function _execCmd(tx) {
   if (!incidentId && dispatchLikeStatuses.has(stCmd) && nU) {
     const nuIncMatch = nU.trim().match(/^(INC[-\s]?[A-Z]*\d{2}-\d{4}|INC[-\s]?\d{4}|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4})$/i);
     if (nuIncMatch) {
-      incidentId = nuIncMatch[1].replace(/^INC[-\s]*/i, '').trim().toUpperCase();
-      if (/^\d{4}$/.test(incidentId)) {
-        const yy = String(new Date().getFullYear()).slice(-2);
-        incidentId = yy + '-' + incidentId;
-      }
+      incidentId = resolveIncidentId(nuIncMatch[1]);
       nuUsedAsIncident = true;
     }
   }
@@ -6875,10 +6923,15 @@ async function _execCmd(tx) {
   const _nuNote = (avForce && (nU.trim().toUpperCase() === 'FORCE' || _avDispoClose)) ? '' : nU;
   if (oosNotePrefix || (_nuNote && !nuUsedAsIncident)) p.note = oosNotePrefix + _nuNote;
   if (incidentId) {
+    // Validate incident exists in STATE before dispatching (prevents FK constraint errors)
+    const incObj = (STATE.incidents || []).find(i => i.incident_id === incidentId);
+    if (!incObj) {
+      showErr({ error: 'INCIDENT NOT FOUND: ' + incidentId + '\nVERIFY INC# AND TRY AGAIN.' });
+      return;
+    }
     p.incident = incidentId;
     // Auto-copy incident destination to unit
-    const incObj = (STATE.incidents || []).find(i => i.incident_id === incidentId);
-    if (incObj && incObj.destination) {
+    if (incObj.destination) {
       p.destination = incObj.destination;
     }
   }

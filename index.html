@@ -172,6 +172,7 @@
     <div class="board-main" id="boardMain">
       <div class="board-header-row">
         <span>RESOURCE BOARD <span id="boardCount" class="muted" style="font-size:11px;"></span></span>
+        <button id="activeBarToggleBtn" onclick="toggleActiveBar()" class="toolbar-btn" style="font-size:10px;padding:2px 8px;margin-left:auto;" title="Toggle active incidents panel">ACTIVE ▼</button>
       </div>
       <div style="overflow:auto;">
         <table class="board-table" id="boardTable">
@@ -182,6 +183,7 @@
               <th class="col-elapsed sortable" data-sort="elapsed">ELAPSED<div class="col-resize-handle"></div></th>
               <th class="col-dest">LOCATION<div class="col-resize-handle"></div></th>
               <th class="col-note">NOTES</th>
+              <th class="col-type">TYPE</th>
               <th class="col-inc">INC#<div class="col-resize-handle"></div></th>
               <th class="col-updated sortable" data-sort="updated">UPDATED<div class="col-resize-handle"></div></th>
             </tr>
@@ -488,12 +490,12 @@
 
 <!-- Disposition Picker — shown on incident close to capture structured close reason -->
 <div id="dispositionOverlay" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.82);align-items:center;justify-content:center;">
-  <div style="background:#0d1117;border:2px solid #1a3a5c;padding:24px 28px;min-width:320px;max-width:94vw;">
-    <div style="font-size:13px;font-weight:900;letter-spacing:.08em;color:#e6edf3;margin-bottom:4px;">CLOSE INCIDENT</div>
-    <div id="dispositionIncLabel" style="font-size:11px;color:#8b949e;margin-bottom:14px;letter-spacing:.04em;"></div>
-    <div style="font-size:11px;font-weight:700;color:#8b949e;letter-spacing:.06em;margin-bottom:8px;">SELECT DISPOSITION:</div>
+  <div style="background:var(--bg2);border:2px solid var(--hi-dim,#1a3a5c);padding:24px 28px;min-width:320px;max-width:94vw;border-radius:4px;">
+    <div style="font-size:13px;font-weight:900;letter-spacing:.08em;color:var(--text);margin-bottom:4px;">CLOSE INCIDENT</div>
+    <div id="dispositionIncLabel" style="font-size:11px;color:var(--muted);margin-bottom:14px;letter-spacing:.04em;"></div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em;margin-bottom:8px;">SELECT DISPOSITION:</div>
     <div id="dispositionBtns" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;"></div>
-    <button id="btnDispositionCancel" onclick="cancelDisposition()" style="width:100%;padding:8px;background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;">CANCEL — DON'T CLOSE</button>
+    <button id="btnDispositionCancel" onclick="cancelDisposition()" style="width:100%;padding:8px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;">CANCEL — DON'T CLOSE</button>
   </div>
 </div>
 
