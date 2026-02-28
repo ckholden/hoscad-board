@@ -548,6 +548,36 @@ const API = {
   resolveIssue(token, id, adminNote) {
     return this.call('resolveIssue', token, id, adminNote || '');
   },
+
+  // ============================================================
+  // Location History
+  // ============================================================
+  getLocationHistory(token, address, limit, offset) {
+    return this.call('getLocationHistory', token, address, limit || 25, offset || 0);
+  },
+
+  // ============================================================
+  // Address Flags
+  // ============================================================
+  getAddressFlags(token, address) {
+    return this.call('getAddressFlags', token, address);
+  },
+  createAddressFlag(token, address, category, description, sourceIncidentId) {
+    return this.call('createAddressFlag', token, address, category, description, sourceIncidentId || '');
+  },
+  deactivateAddressFlag(token, flagId, reason) {
+    return this.call('deactivateAddressFlag', token, flagId, reason);
+  },
+
+  // ============================================================
+  // Soft Presence
+  // ============================================================
+  upsertPresence(token, incidentId, actionHint) {
+    return this.call('upsertPresence', token, incidentId, actionHint || 'viewing');
+  },
+  getPresence(token, incidentId) {
+    return this.call('getPresence', token, incidentId);
+  },
 };
 
 // Export for module systems (if used)

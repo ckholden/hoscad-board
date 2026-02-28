@@ -544,6 +544,15 @@
   </div>
 </div>
 
+<!-- Context Banner (Fixed above command bar — hidden when no context active) -->
+<div id="ctxBanner" class="ctx-banner" style="display:none;">
+  <span class="ctx-banner-label">CONTEXT:</span>
+  <span id="ctxBannerInc" class="ctx-banner-inc"></span>
+  <span id="ctxBannerType" class="ctx-banner-type"></span>
+  <span id="ctxBannerAddr" class="ctx-banner-addr"></span>
+  <button class="ctx-banner-exit" onclick="_execCmd('EXIT')">&#xD7; EXIT</button>
+</div>
+
 <!-- Command Bar (Fixed at Bottom) -->
 <div class="cmdbar">
   <div id="cmdHints" class="cmd-hints"></div>
@@ -558,6 +567,15 @@
 
 <div id="toastContainer" class="toast-container"></div>
 <div id="globalTip"></div>
+
+<!-- Location History Panel -->
+<div id="lhPanel" style="display:none;position:fixed;inset:0;z-index:7500;background:rgba(0,0,0,.82);flex-direction:column;">
+  <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:12px;">
+    <span id="lhPanelTitle" style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--hi);flex:1;"></span>
+    <button class="btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="document.getElementById('lhPanel').style.display='none';">&#xD7; CLOSE</button>
+  </div>
+  <div id="lhPanelBody" style="flex:1;overflow-y:auto;padding:12px 14px;"></div>
+</div>
 
 <!-- OOS Reason Dialog -->
 <div id="oosReasonDialog" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.7);align-items:center;justify-content:center;">

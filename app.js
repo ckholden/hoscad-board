@@ -65,6 +65,32 @@ let _rtHbTimer = null;     // heartbeat interval (25s)
 let _rtReconTimer = null;  // reconnect timeout (5s)
 let _rtRef = 0;            // Phoenix message ref counter
 
+// CLI Incident Context — session-local only, never persisted to localStorage.
+// Stale context pointing to a closed incident could silently misdirect commands.
+let CLI_CONTEXT = {
+  incidentId:  null,  // string|null — e.g. "SC26-0042"
+  activatedAt: null,  // Date|null
+  activatedBy: null,  // string|null — ACTOR at bind time
+  lastUpdate:  null,  // string|null — inc.last_update at bind time
+};
+
+// Address danger flag cache — keyed by canonical_address, 2-minute TTL.
+const FlagCache = {
+  _store: new Map(),
+  TTL_MS: 120_000,
+  set(canonical, flags) { this._store.set(canonical, { flags, ts: Date.now() }); },
+  get(canonical) {
+    const e = this._store.get(canonical);
+    if (!e || Date.now() - e.ts > this.TTL_MS) return null;
+    return e.flags;
+  },
+  hasActive(canonical) {
+    const f = this.get(canonical);
+    return f ? f.some(x => x.is_active !== false) : false;
+  },
+  clear() { this._store.clear(); },
+};
+
 // VIEW state for layout/display controls
 let VIEW = {
   sidebar: false,
@@ -1071,6 +1097,134 @@ function fmtTime24(i) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 }
 
+// ---------------------------------------------------------------------------
+// Address normalization — canonical form for indexed lookups.
+// MUST produce byte-identical output to normalizeAddress() in incidents.ts.
+// Any change requires updating both files + a re-backfill migration.
+// ---------------------------------------------------------------------------
+function _normalizeAddress(raw) {
+  if (!raw) return '';
+  // 1. Trim + uppercase
+  let s = raw.trim().toUpperCase();
+  // 2. Collapse whitespace
+  s = s.replace(/\s+/g, ' ');
+  // 3. Strip city/state/zip suffix
+  s = s.replace(/,\s*[A-Z\s]+,?\s*(?:OR|WA|CA|ID|NV)?\s*\d{0,5}$/i, '').trim();
+  // 4. Strip apt/suite
+  s = s.replace(/\s+(?:APT|UNIT|STE|SUITE|#)\s*\S+$/i, '').trim();
+  // 5. Strip leading zeros from house number
+  s = s.replace(/^0+(\d)/, '$1');
+  // 6. Normalize direction words (multi-word first)
+  s = s.replace(/\bNORTHEAST\b/g, 'NE').replace(/\bNORTHWEST\b/g, 'NW')
+       .replace(/\bSOUTHEAST\b/g, 'SE').replace(/\bSOUTHWEST\b/g, 'SW')
+       .replace(/\bNORTH\b/g, 'N').replace(/\bSOUTH\b/g, 'S')
+       .replace(/\bEAST\b/g, 'E').replace(/\bWEST\b/g, 'W');
+  // 7. Normalize street type suffixes
+  s = s.replace(/\b(?:STREET|STR)\b/g, 'ST').replace(/\bAVENUE\b/g, 'AVE')
+       .replace(/\bBOULEVARD\b/g, 'BLVD').replace(/\bDRIVE\b/g, 'DR')
+       .replace(/\bROAD\b/g, 'RD').replace(/\bHIGHWAY\b/g, 'HWY')
+       .replace(/\bLANE\b/g, 'LN').replace(/\bCOURT\b/g, 'CT')
+       .replace(/\bPLACE\b/g, 'PL');
+  return s.trim();
+}
+
+// ---------------------------------------------------------------------------
+// CLI Context banner — updates the fixed banner at bottom of screen.
+// ---------------------------------------------------------------------------
+function _updateContextBanner() {
+  const banner  = document.getElementById('ctxBanner');
+  const incEl   = document.getElementById('ctxBannerInc');
+  const typeEl  = document.getElementById('ctxBannerType');
+  const addrEl  = document.getElementById('ctxBannerAddr');
+  const prompt  = document.querySelector('.cmd-prompt');
+  if (!banner) return;
+
+  if (!CLI_CONTEXT.incidentId) {
+    banner.style.display = 'none';
+    document.body.classList.remove('ctx-active');
+    if (prompt) prompt.textContent = 'CMD>';
+    return;
+  }
+
+  const inc = STATE && STATE.incidents
+    ? STATE.incidents.find(i => i.incident_id === CLI_CONTEXT.incidentId)
+    : null;
+
+  if (incEl)  incEl.textContent  = CLI_CONTEXT.incidentId;
+  if (typeEl) typeEl.textContent = inc ? (inc.incident_type || '') : '';
+  if (addrEl) addrEl.textContent = inc ? (inc.scene_address || inc.destination || '') : '';
+
+  banner.style.display = 'flex';
+  document.body.classList.add('ctx-active');
+  if (prompt) prompt.textContent = 'CTX>';
+}
+
+// ---------------------------------------------------------------------------
+// Context validation — called after each STATE update in refresh().
+// Auto-clears context if the bound incident has been closed or removed.
+// ---------------------------------------------------------------------------
+function _validateContext() {
+  if (!CLI_CONTEXT.incidentId) return;
+  const inc = (STATE && STATE.incidents || []).find(i => i.incident_id === CLI_CONTEXT.incidentId);
+  if (!inc || inc.status === 'CLOSED') {
+    const staleId = CLI_CONTEXT.incidentId;
+    CLI_CONTEXT = { incidentId: null, activatedAt: null, activatedBy: null, lastUpdate: null };
+    _updateContextBanner();
+    showToast('CONTEXT AUTO-CLEARED: ' + staleId + ' WAS CLOSED.', 'warn', 6000);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Location History panel — opens lhPanel with history + flags for an address
+// ---------------------------------------------------------------------------
+async function _openLocationHistory(address) {
+  const panel = document.getElementById('lhPanel');
+  if (!panel) return;
+
+  const canonical = _normalizeAddress(address);
+  const lhTitle = document.getElementById('lhPanelTitle');
+  const lhBody  = document.getElementById('lhPanelBody');
+  if (lhTitle) lhTitle.textContent = 'LOCATION HISTORY: ' + (canonical || address.toUpperCase());
+  if (lhBody)  lhBody.innerHTML = '<div style="color:var(--muted);padding:12px;">LOADING...</div>';
+  panel.style.display = 'flex';
+
+  const r = await API.getLocationHistory(TOKEN, address, 25, 0);
+  if (!r.ok) {
+    if (lhBody) lhBody.innerHTML = '<div style="color:var(--red);padding:12px;">ERROR: ' + (r.error || 'FAILED') + '</div>';
+    return;
+  }
+
+  let html = '';
+
+  // Danger flags section
+  if (r.flags && r.flags.length > 0) {
+    html += '<div class="lh-flags-section">';
+    r.flags.forEach(f => {
+      html += `<div class="lh-flag-row"><span class="flag-badge">⚠ ${f.category}</span> <span class="lh-flag-desc">${String(f.description)}</span><span class="lh-flag-meta"> — ${f.createdBy}, ${fmtDate(f.createdAt)}</span></div>`;
+    });
+    html += '</div>';
+  }
+
+  // History table
+  if (!r.results || r.results.length === 0) {
+    html += '<div style="color:var(--muted);padding:12px;">NO PRIOR INCIDENTS AT THIS ADDRESS.</div>';
+  } else {
+    html += '<table class="lh-table"><thead><tr><th>INC#</th><th>DATE</th><th>TYPE</th><th>PRI</th><th>DISPO</th><th>STATUS</th><th>NOTE</th><th></th></tr></thead><tbody>';
+    r.results.forEach(row => {
+      const ctxBtn = ROLE !== 'VIEWER' && row.status !== 'CLOSED'
+        ? `<button class="btn-xs" onclick="_execCmd('R ${row.incidentId}');document.getElementById('lhPanel').style.display='none';" title="Open and bind context">CTX</button>`
+        : '';
+      html += `<tr><td>${row.incidentId}</td><td>${fmtDate(row.createdAt)}</td><td>${row.incidentType || '—'}</td><td>${row.priority || '—'}</td><td>${row.disposition || '—'}</td><td>${row.status}</td><td class="lh-snippet">${row.noteSnippet ? row.noteSnippet.substring(0, 80) : '—'}</td><td><button class="btn-xs" onclick="openIncidentFromServer('${row.incidentId}');document.getElementById('lhPanel').style.display='none';">OPEN</button>${ctxBtn}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    if (r.hasMore) {
+      html += '<div style="padding:8px 12px;color:var(--muted);font-size:11px;">MORE RESULTS AVAILABLE — USE LH WITH OFFSET.</div>';
+    }
+  }
+
+  if (lhBody) lhBody.innerHTML = html;
+}
+
 function minutesSince(i) {
   if (!i) return null;
   const t = new Date(_normalizeTs(i)).getTime();
@@ -1664,6 +1818,7 @@ async function refresh(forceFull) {
     ACTOR = STATE.actor || ACTOR;
     document.getElementById('userLabel').textContent = ACTOR;
     tryBeepOnStateChange();
+    _validateContext();
 
     // Granular change detection — only re-render what actually changed
     const unitsHash = _computeUnitsHash(STATE.units);
@@ -4719,7 +4874,8 @@ const _ONE_TOKEN_CMDS = new Set([
   'NC', 'MSGALL', 'HTALL', 'MSGU', 'HTU', 'HTMSU', 'MSGDP', 'HTDP',
   'NOTE', 'ALERT', 'NEWUSER', 'DELUSER', 'CLEARDATA', 'PASSWD',
   'REPORTOOS', 'REPORT', 'REPORTUTIL', 'REPORTSHIFT',
-  'MAP', 'LOC'
+  'MAP', 'LOC',
+  'LH', 'HISTORY', 'EXIT',
 ]);
 
 async function _execCmd(tx) {
@@ -5896,11 +6052,81 @@ async function _execCmd(tx) {
     return;
   }
 
-  // R - Review incident
-  if (mU.startsWith('R ')) {
-    const iR = ma.substring(2).trim().toUpperCase();
-    if (!iR) { showConfirm('ERROR', 'USAGE: R INC0001 OR R 0001', () => { }); return; }
-    return openIncidentFromServer(iR);
+  // EXIT — release CLI context
+  if (mU === 'EXIT') {
+    if (!CLI_CONTEXT.incidentId) { showToast('NO ACTIVE CONTEXT.'); return; }
+    const exitId = CLI_CONTEXT.incidentId;
+    // Fire-and-forget audit log on old incident
+    if (ACTOR) {
+      API.appendIncidentNote(TOKEN, exitId, '[SYS] CONTEXT RELEASED BY ' + ACTOR).catch(() => {});
+    }
+    CLI_CONTEXT = { incidentId: null, activatedAt: null, activatedBy: null, lastUpdate: null };
+    _updateContextBanner();
+    showToast('CONTEXT CLEARED: ' + exitId);
+    return;
+  }
+
+  // R - Review incident / bind context
+  if (mU.startsWith('R ') || mU === 'R') {
+    const iR = mU === 'R' ? '' : ma.substring(2).trim().toUpperCase();
+
+    // Bare R with context — refresh the modal
+    if (!iR && CLI_CONTEXT.incidentId) {
+      return openIncidentFromServer(CLI_CONTEXT.incidentId);
+    }
+    if (!iR) { showConfirm('ERROR', 'USAGE: R INC0001 OR R 0001', () => {}); return; }
+
+    // Resolve incident ID
+    let rIncId = iR;
+    if (/^\d{3,4}$/.test(rIncId)) {
+      const yy = String(new Date().getFullYear()).slice(-2);
+      rIncId = 'SC' + yy + '-' + rIncId.padStart(4, '0');
+    } else if (/^INC(\d+)$/.test(rIncId)) {
+      const yy = String(new Date().getFullYear()).slice(-2);
+      rIncId = 'SC' + yy + '-' + rIncId.replace(/^INC/, '').padStart(4, '0');
+    }
+
+    // Look up in STATE
+    const rInc = STATE && STATE.incidents
+      ? STATE.incidents.find(i => i.incident_id.toUpperCase() === rIncId.toUpperCase())
+      : null;
+
+    // Always open the modal
+    openIncidentFromServer(rIncId);
+
+    // Bind context only for non-VIEWER on active/queued incidents
+    if (ROLE !== 'VIEWER' && rInc && rInc.status !== 'CLOSED') {
+      if (CLI_CONTEXT.incidentId && CLI_CONTEXT.incidentId !== rIncId) {
+        // Context switch — log exit from old incident
+        const oldId = CLI_CONTEXT.incidentId;
+        API.appendIncidentNote(TOKEN, oldId, '[SYS] CONTEXT RELEASED BY ' + ACTOR).catch(() => {});
+        showToast('CONTEXT: ' + oldId + ' → ' + rIncId);
+      }
+      CLI_CONTEXT = { incidentId: rIncId, activatedAt: new Date(), activatedBy: ACTOR, lastUpdate: rInc.last_update || null };
+      _updateContextBanner();
+      // Fire-and-forget audit on new incident
+      API.appendIncidentNote(TOKEN, rIncId, '[SYS] CONTEXT BOUND BY ' + ACTOR).catch(() => {});
+    } else if (rInc && rInc.status === 'CLOSED') {
+      showToast('INC CLOSED — CONTEXT NOT BOUND', 'warn');
+    }
+    return;
+  }
+
+  // LH - Location history for an address
+  if (mU === 'LH' || mU === 'HISTORY' || mU.startsWith('LH ') || mU.startsWith('HISTORY ')) {
+    let lhAddr = '';
+    if (mU === 'LH' || mU === 'HISTORY') {
+      // Bare — use context incident's scene_address
+      if (!CLI_CONTEXT.incidentId) { showAlert('ERROR', 'LH: PROVIDE AN ADDRESS OR BIND A CONTEXT INCIDENT FIRST (R <INC#>).'); return; }
+      const ctxInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === CLI_CONTEXT.incidentId) : null;
+      lhAddr = ctxInc ? (ctxInc.scene_address || '') : '';
+      if (!lhAddr) { showAlert('ERROR', 'CONTEXT INCIDENT HAS NO SCENE ADDRESS.'); return; }
+    } else {
+      lhAddr = mU.startsWith('LH ') ? ma.substring(3).trim() : ma.substring(8).trim();
+      if (!lhAddr) { showAlert('ERROR', 'USAGE: LH <ADDRESS>'); return; }
+    }
+    _openLocationHistory(lhAddr);
+    return;
   }
 
   // CB - Set/update callback number on incident
