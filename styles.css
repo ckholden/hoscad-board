@@ -980,7 +980,13 @@ tr.stale30 {
 }
 .ifb-none:hover { border-color: var(--border); color: var(--hi); }
 .ifb-link { color: var(--blue); font-weight: 700; }
-.ifb-wrap { display: flex; flex-direction: column; gap: 4px; }
+.ifb-wrap { display: flex; flex-direction: column; gap: 3px; }
+.ifb-section-hdr {
+  font-size: 9px; font-weight: 900; letter-spacing: .08em;
+  padding: 2px 0 1px; margin-top: 2px;
+}
+.ifb-section-hdr--safety { color: var(--red); }
+.ifb-section-hdr--info   { color: var(--muted); }
 .ifb-flag {
   display: flex; gap: 8px; align-items: baseline;
   padding: 5px 10px; border-radius: 2px; cursor: pointer;
@@ -988,11 +994,11 @@ tr.stale30 {
 }
 .ifb-flag--safety { background: rgba(212,48,48,.12); border: 1px solid rgba(212,48,48,.3); }
 .ifb-flag--safety:hover { background: rgba(212,48,48,.2); }
-.ifb-flag--info   { background: rgba(232,184,48,.08); border: 1px solid rgba(232,184,48,.2); }
-.ifb-flag--info:hover   { background: rgba(232,184,48,.15); }
+.ifb-flag--info   { background: rgba(88,166,255,.06); border: 1px solid rgba(88,166,255,.15); }
+.ifb-flag--info:hover   { background: rgba(88,166,255,.12); }
 .ifb-cat  { font-weight: 900; letter-spacing: .05em; white-space: nowrap; flex-shrink: 0; }
 .ifb-flag--safety .ifb-cat { color: var(--red); }
-.ifb-flag--info   .ifb-cat { color: var(--yellow); }
+.ifb-flag--info   .ifb-cat { color: var(--blue); }
 .ifb-desc { color: var(--text); opacity: .85; }
 .ifb-more {
   font-size: 10px; color: var(--blue); cursor: pointer; padding: 3px 10px;

@@ -1471,10 +1471,7 @@ function _drawFlagBanner(el, flags, address) {
   const SAFETY_CATS = new Set(_LH_SAFETY_CATS);
   const safety = flags.filter(f => SAFETY_CATS.has(String(f.category).toUpperCase()));
   const info   = flags.filter(f => !SAFETY_CATS.has(String(f.category).toUpperCase()));
-
-  // Safety first, then info; limit to 3 shown
-  const sorted  = [...safety, ...info].slice(0, 3);
-  const addrJ   = JSON.stringify(address);
+  const addrJ  = JSON.stringify(address);
 
   if (flags.length === 0) {
     el.innerHTML = `<div class="ifb-none" onclick="_openLocationHistory(${addrJ})">NO FLAGS AT THIS LOCATION &nbsp;<span class="ifb-link">VIEW PROFILE →</span></div>`;
@@ -1482,17 +1479,37 @@ function _drawFlagBanner(el, flags, address) {
   }
 
   let html = '<div class="ifb-wrap">';
-  sorted.forEach(f => {
-    const isSafety = SAFETY_CATS.has(String(f.category).toUpperCase());
-    const desc = f.description.length > 60 ? f.description.substring(0, 57) + '...' : f.description;
-    html += `<div class="ifb-flag ${isSafety ? 'ifb-flag--safety' : 'ifb-flag--info'}" onclick="_openLocationHistory(${addrJ})">
-      <span class="ifb-cat">${isSafety ? '⚠' : '📋'} ${esc(f.category)}</span>
-      <span class="ifb-desc">${esc(desc)}</span>
-    </div>`;
-  });
-  if (flags.length > 3) {
-    html += `<div class="ifb-more" onclick="_openLocationHistory(${addrJ})">${flags.length - 3} MORE FLAG${flags.length - 3 > 1 ? 'S' : ''} — VIEW ALL →</div>`;
+
+  // ── Hazard / safety flags ──
+  if (safety.length) {
+    html += '<div class="ifb-section-hdr ifb-section-hdr--safety">⚠ HAZARD ALERTS</div>';
+    safety.slice(0, 3).forEach(f => {
+      const desc = f.description.length > 60 ? f.description.substring(0, 57) + '...' : f.description;
+      html += `<div class="ifb-flag ifb-flag--safety" onclick="_openLocationHistory(${addrJ})">
+        <span class="ifb-cat">${esc(f.category)}</span>
+        <span class="ifb-desc">${esc(desc)}</span>
+      </div>`;
+    });
+    if (safety.length > 3) {
+      html += `<div class="ifb-more" onclick="_openLocationHistory(${addrJ})">${safety.length - 3} MORE HAZARD FLAG${safety.length - 3 > 1 ? 'S' : ''} — VIEW ALL →</div>`;
+    }
   }
+
+  // ── Informational / location info flags ──
+  if (info.length) {
+    html += '<div class="ifb-section-hdr ifb-section-hdr--info">ℹ LOCATION INFO</div>';
+    info.slice(0, 3).forEach(f => {
+      const desc = f.description.length > 60 ? f.description.substring(0, 57) + '...' : f.description;
+      html += `<div class="ifb-flag ifb-flag--info" onclick="_openLocationHistory(${addrJ})">
+        <span class="ifb-cat">${esc(f.category)}</span>
+        <span class="ifb-desc">${esc(desc)}</span>
+      </div>`;
+    });
+    if (info.length > 3) {
+      html += `<div class="ifb-more ifb-more--info" onclick="_openLocationHistory(${addrJ})">${info.length - 3} MORE — VIEW LOCATION PROFILE →</div>`;
+    }
+  }
+
   html += '</div>';
   el.innerHTML = html;
 }
@@ -6689,11 +6706,12 @@ async function _execCmd(tx) {
   if (mU === 'LH' || mU === 'HISTORY' || mU.startsWith('LH ') || mU.startsWith('HISTORY ')) {
     let lhAddr = '';
     if (mU === 'LH' || mU === 'HISTORY') {
-      // Bare — use context incident's scene_address
-      if (!CLI_CONTEXT.incidentId) { showAlert('ERROR', 'LH: PROVIDE AN ADDRESS OR BIND A CONTEXT INCIDENT FIRST (R <INC#>).'); return; }
-      const ctxInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === CLI_CONTEXT.incidentId) : null;
+      // Bare — use context or currently-open incident's scene_address
+      const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+      if (!_ctxId) { showAlert('ERROR', 'LH: PROVIDE AN ADDRESS OR BIND A CONTEXT INCIDENT FIRST (R <INC#>).'); return; }
+      const ctxInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === _ctxId) : null;
       lhAddr = ctxInc ? (ctxInc.scene_address || '') : '';
-      if (!lhAddr) { showAlert('ERROR', 'CONTEXT INCIDENT HAS NO SCENE ADDRESS.'); return; }
+      if (!lhAddr) { showAlert('ERROR', 'INCIDENT HAS NO SCENE ADDRESS.'); return; }
     } else {
       lhAddr = mU.startsWith('LH ') ? ma.substring(3).trim() : ma.substring(8).trim();
       if (!lhAddr) { showAlert('ERROR', 'USAGE: LH <ADDRESS>'); return; }
