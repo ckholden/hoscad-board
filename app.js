@@ -4027,7 +4027,20 @@ async function openIncidentFromServer(iId) {
 
   const inc = r.incident;
   CURRENT_INCIDENT_ID = String(inc.incident_id || '').toUpperCase();
-  document.getElementById('incTitle').textContent = 'INCIDENT ' + CURRENT_INCIDENT_ID;
+  document.getElementById('incTitle').firstChild.textContent = 'INCIDENT ' + CURRENT_INCIDENT_ID;
+
+  // Status badge — color-coded: ACTIVE=green, QUEUED=yellow, CLOSED=red
+  const statusBadgeEl = document.getElementById('incStatusBadge');
+  if (statusBadgeEl) {
+    const incStatus = (inc.status || '').toUpperCase();
+    const statusStyles = {
+      'ACTIVE': 'background:rgba(63,185,80,.18);border:1px solid rgba(63,185,80,.5);color:#3fb950;',
+      'QUEUED': 'background:rgba(210,153,34,.18);border:1px solid rgba(210,153,34,.5);color:#d2a424;',
+      'CLOSED': 'background:rgba(212,48,48,.18);border:1px solid rgba(212,48,48,.5);color:#f85149;',
+    };
+    statusBadgeEl.textContent = incStatus || 'UNKNOWN';
+    statusBadgeEl.style.cssText = (statusStyles[incStatus] || 'background:rgba(139,148,158,.18);border:1px solid rgba(139,148,158,.4);color:#8b949e;') + 'display:inline-block;font-size:12px;font-weight:900;padding:3px 10px;border-radius:3px;letter-spacing:.08em;';
+  }
   document.getElementById('incUnits').textContent = (inc.units || '—').toUpperCase();
 
   // Show live unit status for all active units currently on this incident
@@ -4091,9 +4104,17 @@ async function openIncidentFromServer(iId) {
   const dispBadgeEl = document.getElementById('incDispositionBadge');
   if (dispBadgeEl) {
     const dispCode = dispTagMatch ? dispTagMatch[1].toUpperCase() : (inc.disposition || '').toUpperCase();
-    if (dispCode) {
+    const incStatus = (inc.status || '').toUpperCase();
+    if (incStatus === 'CLOSED') {
+      // Prominent closed banner: show status + disposition together
+      let closedText = 'CLOSED';
+      if (inc.closed_at) closedText += ' · ' + fmtTime24(inc.closed_at);
+      if (dispCode) closedText += ' · DISPO: ' + dispCode;
+      dispBadgeEl.innerHTML = '<span style="color:#f85149;font-weight:900;">■ ' + esc(closedText) + '</span>';
+      dispBadgeEl.style.cssText = 'display:block;margin:4px 0 2px;font-size:11px;font-weight:900;letter-spacing:.06em;font-family:monospace;padding:4px 8px;background:rgba(212,48,48,.12);border-left:3px solid #f85149;';
+    } else if (dispCode) {
       dispBadgeEl.textContent = 'DISPOSITION: ' + dispCode;
-      dispBadgeEl.style.display = 'block';
+      dispBadgeEl.style.cssText = 'display:block;margin:4px 0 2px;font-size:11px;font-weight:900;letter-spacing:.06em;color:#79c0ff;font-family:monospace;';
     } else {
       dispBadgeEl.style.display = 'none';
     }
