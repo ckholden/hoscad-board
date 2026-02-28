@@ -235,14 +235,40 @@
   <!-- TYPE CODES TAB -->
   <section id="tabTypes" class="tab-section">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-      <div class="section-title" style="margin:0;">INCIDENT TYPE CODE TAXONOMY</div>
-      <button class="btn-good" style="font-size:11px;" onclick="addTypeCat()">+ CATEGORY</button>
-      <button class="btn-secondary" style="font-size:11px;" onclick="saveTaxonomy()">SAVE TO SERVER</button>
-      <button class="btn-secondary" style="font-size:11px;" onclick="resetTypeDefaults()">RESET DEFAULTS</button>
+      <div class="section-title" style="margin:0;">INCIDENT TYPE CODES</div>
+      <button class="btn-good" style="font-size:11px;" onclick="showTypeCodeForm()">+ ADD CODE</button>
       <button class="btn-secondary" style="font-size:11px;" onclick="loadTypeCodeTab()">RELOAD</button>
-      <button id="btnToggleLegacy" class="btn-secondary" style="font-size:11px;" onclick="toggleShowLegacy()">SHOW LEGACY</button>
+      <span id="typeCodesStatus" class="muted" style="font-size:11px;"></span>
     </div>
-    <div id="typeCodesStatus" class="admin-status" style="margin-bottom:8px;">SELECT TYPE CODES TAB TO LOAD.</div>
+    <div id="typeCodeFormRow" style="display:none;margin-bottom:12px;background:#0c111a;border:1px solid var(--line);padding:12px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px;">
+        <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">CODE *</div><input id="tcFormCode" placeholder="e.g. CP1" style="width:90px;text-transform:uppercase;" maxlength="12" /></div>
+        <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">NAME *</div><input id="tcFormName" placeholder="Chest Pain" style="width:200px;" maxlength="60" /></div>
+        <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">PRIORITY *</div>
+          <select id="tcFormPriority" style="width:80px;">
+            <option value="">--</option>
+            <option value="1">1 — Critical</option>
+            <option value="2">2 — ALS</option>
+            <option value="3">3 — BLS</option>
+            <option value="4">4 — Routine</option>
+          </select>
+        </div>
+        <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">CATEGORY</div>
+          <select id="tcFormCategory" style="width:130px;">
+            <option value="CARDIAC">CARDIAC</option>
+            <option value="NEURO">NEURO</option>
+            <option value="RESPIRATORY">RESPIRATORY</option>
+            <option value="TRAUMA">TRAUMA</option>
+            <option value="MEDICAL">MEDICAL</option>
+            <option value="TRANSFER">TRANSFER</option>
+          </select>
+        </div>
+        <div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">SORT ORDER</div><input id="tcFormSort" type="number" placeholder="999" style="width:70px;" /></div>
+        <button class="btn-good" style="font-size:11px;" onclick="submitTypeCode()">SAVE</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="hideTypeCodeForm()">CANCEL</button>
+      </div>
+      <div id="tcFormStatus" class="admin-status"></div>
+    </div>
     <div id="typeCodesContent"></div>
   </section>
 
@@ -1907,11 +1933,12 @@
   // incident_type format: "CAT-NATURE-DET" e.g. "CCT-CARDIAC-CRITICAL-PRI-1" or "IFT-ALS-CHEST-PAIN"
   function resolveTypeMeta(incidentType) {
     const EMPTY = { clinical_group: '', service_level: '', clinical_severity: '' };
-    if (!_activeTaxonomy || !incidentType) return EMPTY;
+    if (!incidentType) return EMPTY;
     const t = String(incidentType).toUpperCase().trim();
-    for (const cat of Object.keys(_activeTaxonomy)) {
+    const taxonomy = DEFAULT_TAXONOMY;
+    for (const cat of Object.keys(taxonomy)) {
       if (t === cat || t.startsWith(cat + '-')) {
-        const natMap = (_activeTaxonomy[cat]?.natures !== undefined) ? _activeTaxonomy[cat].natures : (_activeTaxonomy[cat] || {});
+        const natMap = (taxonomy[cat]?.natures !== undefined) ? taxonomy[cat].natures : (taxonomy[cat] || {});
         const remainder = t === cat ? '' : t.slice(cat.length + 1);
         for (const nat of Object.keys(natMap)) {
           if (remainder === nat || remainder.startsWith(nat + '-')) {
@@ -2148,209 +2175,98 @@
     }},
   };
 
-  let _activeTaxonomy = null;
-  let _showLegacy = false;
-  const _expandedNatures = new Set(); // "CAT|NAT" keys
-
-  function toggleShowLegacy() {
-    _showLegacy = !_showLegacy;
-    const btn = document.getElementById('btnToggleLegacy');
-    if (btn) { btn.textContent = _showLegacy ? 'HIDE LEGACY' : 'SHOW LEGACY'; btn.style.opacity = _showLegacy ? '1' : '0.65'; }
-    renderTypeCodes();
-  }
+  // ── Type Codes Tab (flat type_codes table) ────────────────
+  let _typeCodes = [];
 
   async function loadTypeCodeTab() {
-    document.getElementById('typeCodesStatus').textContent = 'LOADING...';
-    const r = await API.getState(_token);
-    if (!r.ok) { document.getElementById('typeCodesStatus').textContent = 'ERROR LOADING STATE'; return; }
-    _activeTaxonomy = (r.incTypeTaxonomy && typeof r.incTypeTaxonomy === 'object')
-      ? JSON.parse(JSON.stringify(r.incTypeTaxonomy))
-      : JSON.parse(JSON.stringify(DEFAULT_TAXONOMY));
-    const isCustom = !!r.incTypeTaxonomy;
-    document.getElementById('typeCodesStatus').textContent =
-      isCustom ? 'CUSTOM TAXONOMY LOADED FROM SERVER.' : 'USING BUILT-IN DEFAULTS (NO SERVER CUSTOMIZATION YET).';
+    const stat = document.getElementById('typeCodesStatus');
+    stat.textContent = 'LOADING...';
+    const r = await API.call('listTypeCodes', _token);
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    _typeCodes = r.typeCodes || [];
+    stat.textContent = _typeCodes.length + ' CODES';
     renderTypeCodes();
   }
 
-  const _CG_OPTIONS = ['CARDIOVASCULAR','NEUROLOGICAL','RESPIRATORY','INFECTIOUS','TRAUMA','OB','GASTROINTESTINAL','RENAL','MUSCULOSKELETAL','ENDOCRINE','PSYCHIATRIC','GENERAL'];
-  const _SL_OPTIONS = ['CCT','ALS1','ALS2','BLS'];
-  const _SV_OPTIONS = ['LIFE_THREATENING','TIME_SENSITIVE','MODERATE','STABLE','ROUTINE'];
+  function showTypeCodeForm() { document.getElementById('typeCodeFormRow').style.display = 'block'; document.getElementById('tcFormCode').focus(); }
+  function hideTypeCodeForm() { document.getElementById('typeCodeFormRow').style.display = 'none'; document.getElementById('tcFormStatus').textContent = ''; }
 
-  function _selOpts(options, current) {
-    return options.map(o => `<option value="${esc(o)}"${o === current ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  async function submitTypeCode() {
+    const code     = (document.getElementById('tcFormCode').value || '').trim().toUpperCase();
+    const name     = (document.getElementById('tcFormName').value || '').trim();
+    const priority = parseInt(document.getElementById('tcFormPriority').value || '', 10);
+    const category = document.getElementById('tcFormCategory').value || '';
+    const sort     = parseInt(document.getElementById('tcFormSort').value || '999', 10);
+    const stat     = document.getElementById('tcFormStatus');
+    if (!code) { stat.textContent = 'CODE REQUIRED.'; return; }
+    if (!name) { stat.textContent = 'NAME REQUIRED.'; return; }
+    if (![1,2,3,4].includes(priority)) { stat.textContent = 'SELECT PRIORITY 1–4.'; return; }
+    stat.textContent = 'SAVING...';
+    const r = await API.call('addTypeCode', _token, code, name, priority, category, isNaN(sort) ? 999 : sort);
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'FAILED'); return; }
+    hideTypeCodeForm();
+    ['tcFormCode','tcFormName','tcFormPriority','tcFormSort'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    showToast('TYPE CODE ' + code + ' ADDED.', 'success');
+    loadTypeCodeTab();
+  }
+
+  async function deleteTypeCode(code) {
+    const ok = await showConfirm('DELETE TYPE CODE', 'DELETE "' + code + '"? THIS CANNOT BE UNDONE.');
+    if (!ok) return;
+    const r = await API.call('deleteTypeCode', _token, code);
+    if (!r.ok) { showToast('DELETE FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
+    showToast(code + ' DELETED.', 'success');
+    loadTypeCodeTab();
+  }
+
+  async function toggleTypeCodeActive(code, current) {
+    const r = await API.call('updateTypeCode', _token, code, { active: !current });
+    if (!r.ok) { showToast('UPDATE FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
+    loadTypeCodeTab();
   }
 
   function renderTypeCodes() {
     const el = document.getElementById('typeCodesContent');
-    if (!_activeTaxonomy) { el.innerHTML = '<div class="muted">CLICK RELOAD TO LOAD TYPE CODES.</div>'; return; }
-    const cats = Object.keys(_activeTaxonomy);
-    if (!cats.length) { el.innerHTML = '<div class="muted">NO CATEGORIES DEFINED. ADD ONE ABOVE.</div>'; return; }
-
-    const inputStyle = 'background:#060b12;border:1px solid #1a2a3a;color:#cdd9e5;font-family:inherit;font-size:11px;padding:3px 6px;width:100%;box-sizing:border-box;';
-    const selectStyle = 'background:#060b12;border:1px solid #1a2a3a;color:#cdd9e5;font-family:inherit;font-size:11px;padding:3px 4px;width:100%;box-sizing:border-box;';
-    const labelStyle = 'font-size:10px;color:var(--muted);display:block;margin-bottom:2px;letter-spacing:.04em;';
-
+    if (!_typeCodes.length) { el.innerHTML = '<div class="muted" style="padding:12px;">NO TYPE CODES FOUND. ADD ONE ABOVE.</div>'; return; }
+    const CATS = ['CARDIAC','NEURO','RESPIRATORY','TRAUMA','MEDICAL','TRANSFER'];
+    const PRI_COLORS = { 1: '#ff4444', 2: '#ff9900', 3: '#4fa3e0', 4: '#7fffb2' };
+    const PRI_LABELS = { 1: 'PRI 1', 2: 'PRI 2', 3: 'PRI 3', 4: 'PRI 4' };
+    // Group by category
+    const groups = {};
+    _typeCodes.forEach(tc => { const c = tc.category || 'OTHER'; if (!groups[c]) groups[c] = []; groups[c].push(tc); });
+    // Render in canonical category order, then any extras
+    const orderedCats = [...CATS, ...Object.keys(groups).filter(c => !CATS.includes(c))];
     let html = '';
-    cats.forEach(cat => {
-      const catQ = esc(cat).replace(/'/g, '&#039;');
-      html += `<div style="background:#0c111a;border:1px solid var(--line);padding:12px;margin-bottom:10px;">`;
-      html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">`;
-      html += `<strong style="font-size:13px;color:var(--fg);">${esc(cat)}</strong>`;
-      html += `<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="addTypeNature('${catQ}')">+ NATURE</button>`;
-      html += `<button class="btn-danger" style="font-size:10px;padding:2px 8px;" onclick="deleteTypeCat('${catQ}')">× DELETE CAT</button>`;
-      html += `</div>`;
-
-      // Support both new natures-wrapped format and old flat format
-      const natMap = (_activeTaxonomy[cat]?.natures !== undefined) ? _activeTaxonomy[cat].natures : (_activeTaxonomy[cat] || {});
-      const natKeys = Object.keys(natMap);
-      if (!natKeys.length) {
-        html += `<div class="muted" style="font-size:11px;margin-left:8px;">No natures defined.</div>`;
-      } else {
-        natKeys.forEach(nat => {
-          const natVal = natMap[nat];
-          const dets = natVal?.dets || (Array.isArray(natVal) ? natVal : []);
-          const isLegacy = natVal?.legacy || false;
-          if (isLegacy && !_showLegacy) return; // Skip legacy natures when toggle is off
-          const cg = natVal?.clinical_group || '';
-          const sl = natVal?.service_level || '';
-          const sv = natVal?.clinical_severity || '';
-          const desc = natVal?.desc || '';
-          const key = cat + '|' + nat;
-          const isExpanded = _expandedNatures.has(key);
-          const natQ = esc(nat).replace(/'/g, '&#039;');
-
-          html += `<div style="border-left:2px solid ${isExpanded ? '#2a5a8a' : 'var(--line)'};margin-bottom:${isExpanded ? '4' : '1'}px;">`;
-          // Nature summary row
-          html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 0 4px 10px;${isLegacy ? 'opacity:0.6;' : ''}">`;
-          html += `<span style="font-size:12px;font-weight:700;min-width:140px;">${esc(nat)}</span>`;
-          if (isLegacy) html += `<span style="font-size:10px;background:#4a2800;color:#ff9900;padding:1px 5px;border-radius:3px;white-space:nowrap;">LEGACY</span>`;
-          html += `<span style="font-size:11px;color:var(--muted);">${dets.length ? dets.join(' / ') : '(no dets)'}</span>`;
-          if (sl) html += `<span style="font-size:10px;color:#5ba3e6;padding:1px 4px;border:1px solid #1a3a5c;border-radius:3px;">${esc(sl)}</span>`;
-          if (cg) html += `<span style="font-size:10px;color:#6aaaa0;padding:1px 4px;border:1px solid #2a4a44;border-radius:3px;">${esc(cg)}</span>`;
-          if (desc && !isLegacy) html += `<span style="font-size:10px;color:var(--muted);font-style:italic;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(desc)}">${esc(desc)}</span>`;
-          html += `<button class="btn-secondary" style="font-size:10px;padding:2px 6px;${isExpanded ? 'opacity:0.5;' : ''}" onclick="toggleNatureEdit('${catQ}','${natQ}')">${isExpanded ? 'CANCEL' : 'EDIT'}</button>`;
-          html += `<button class="btn-danger" style="font-size:10px;padding:2px 6px;" onclick="deleteTypeNature('${catQ}','${natQ}')">× DEL</button>`;
-          html += `</div>`;
-
-          // Inline edit form (only when expanded)
-          if (isExpanded) {
-            html += `<div style="padding:10px 10px 10px 14px;background:#080d16;border-top:1px solid #1a2a3a;">`;
-            html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">`;
-            html += `<div><label style="${labelStyle}">DETERMINANTS (comma-sep)</label><input id="nef-dets-${esc(cat)}-${esc(nat)}" type="text" style="${inputStyle}" value="${esc(dets.join(', '))}"></div>`;
-            html += `<div><label style="${labelStyle}">CLINICAL GROUP</label><select id="nef-cg-${esc(cat)}-${esc(nat)}" style="${selectStyle}">${_selOpts(_CG_OPTIONS, cg)}</select></div>`;
-            html += `<div><label style="${labelStyle}">SERVICE LEVEL</label><select id="nef-sl-${esc(cat)}-${esc(nat)}" style="${selectStyle}">${_selOpts(_SL_OPTIONS, sl)}</select></div>`;
-            html += `<div><label style="${labelStyle}">SEVERITY</label><select id="nef-sv-${esc(cat)}-${esc(nat)}" style="${selectStyle}">${_selOpts(_SV_OPTIONS, sv)}</select></div>`;
-            html += `</div>`;
-            html += `<div style="margin-bottom:8px;"><label style="${labelStyle}">DESCRIPTION</label><textarea id="nef-desc-${esc(cat)}-${esc(nat)}" style="${inputStyle}height:44px;resize:vertical;" rows="2">${esc(desc)}</textarea></div>`;
-            html += `<div style="display:flex;align-items:center;gap:12px;">`;
-            html += `<label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="nef-leg-${esc(cat)}-${esc(nat)}" ${isLegacy ? 'checked' : ''}> LEGACY</label>`;
-            html += `<button class="btn-good" style="font-size:11px;padding:3px 12px;" onclick="saveNatureEdit('${catQ}','${natQ}')">SAVE</button>`;
-            html += `<button class="btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="toggleNatureEdit('${catQ}','${natQ}')">CANCEL</button>`;
-            html += `</div>`;
-            html += `</div>`;
-          }
-          html += `</div>`;
-        });
-      }
-      html += `</div>`;
+    orderedCats.forEach(cat => {
+      const codes = groups[cat];
+      if (!codes || !codes.length) return;
+      html += `<div style="margin-bottom:16px;">`;
+      html += `<div style="font-size:11px;font-weight:900;color:var(--muted);letter-spacing:.08em;padding:4px 0;border-bottom:1px solid var(--line);margin-bottom:4px;">${esc(cat)}</div>`;
+      html += `<table style="width:100%;border-collapse:collapse;">`;
+      html += `<thead><tr style="font-size:10px;color:var(--muted);">`;
+      html += `<th style="text-align:left;padding:3px 6px;font-weight:400;">CODE</th>`;
+      html += `<th style="text-align:left;padding:3px 6px;font-weight:400;">NAME</th>`;
+      html += `<th style="text-align:center;padding:3px 6px;font-weight:400;">PRIORITY</th>`;
+      html += `<th style="text-align:center;padding:3px 6px;font-weight:400;">SORT</th>`;
+      html += `<th style="text-align:center;padding:3px 6px;font-weight:400;">ACTIVE</th>`;
+      html += `<th style="padding:3px 6px;font-weight:400;"></th>`;
+      html += `</tr></thead><tbody>`;
+      codes.forEach(tc => {
+        const pCol = PRI_COLORS[tc.priority] || '#888';
+        const pLbl = PRI_LABELS[tc.priority] || ('P' + tc.priority);
+        const rowStyle = tc.active ? '' : 'opacity:0.45;';
+        html += `<tr style="border-bottom:1px solid #0d1520;${rowStyle}">`;
+        html += `<td style="padding:4px 6px;font-size:12px;font-weight:700;font-family:monospace;">${esc(tc.code)}</td>`;
+        html += `<td style="padding:4px 6px;font-size:12px;">${esc(tc.name)}</td>`;
+        html += `<td style="padding:4px 6px;text-align:center;"><span style="font-size:10px;font-weight:900;color:${pCol};border:1px solid ${pCol}44;border-radius:3px;padding:1px 6px;">${pLbl}</span></td>`;
+        html += `<td style="padding:4px 6px;text-align:center;font-size:11px;color:var(--muted);">${tc.sort_order}</td>`;
+        html += `<td style="padding:4px 6px;text-align:center;"><button onclick="toggleTypeCodeActive('${esc(tc.code)}',${tc.active})" style="font-size:10px;padding:1px 8px;cursor:pointer;border-radius:2px;border:1px solid ${tc.active ? '#2aaa5a44' : 'var(--line)'};background:${tc.active ? '#0a1a0a' : 'var(--bg2)'};color:${tc.active ? '#7fffb2' : 'var(--muted)'};">${tc.active ? 'ON' : 'OFF'}</button></td>`;
+        html += `<td style="padding:4px 6px;"><button class="btn-danger" style="font-size:10px;padding:1px 8px;" onclick="deleteTypeCode('${esc(tc.code)}')">× DEL</button></td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody></table></div>`;
     });
     el.innerHTML = html;
-  }
-
-  async function saveTaxonomy() {
-    if (!_activeTaxonomy) { showToast('LOAD TYPE CODES FIRST.', 'warn'); return; }
-    const json = JSON.stringify(_activeTaxonomy);
-    const r = await API.saveIncTypeTaxonomy(_token, json);
-    if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
-    showToast('TYPE CODES SAVED — WILL APPLY ON NEXT BOARD REFRESH.', 'success');
-    document.getElementById('typeCodesStatus').textContent = 'SAVED AT ' + fmtTime(r.savedAt);
-  }
-
-  function addTypeCat() {
-    if (!_activeTaxonomy) { showToast('LOAD TYPE CODES FIRST.', 'warn'); return; }
-    const name = window.prompt('CATEGORY NAME (e.g. MED, FIRE, OTHER):');
-    if (!name) return;
-    const upper = name.trim().toUpperCase();
-    if (!upper) return;
-    if (_activeTaxonomy[upper]) { showToast('CATEGORY ALREADY EXISTS.', 'warn'); return; }
-    _activeTaxonomy[upper] = {};
-    renderTypeCodes();
-    showToast('CATEGORY ADDED — CLICK SAVE TO PERSIST.', 'ok');
-  }
-
-  function deleteTypeCat(cat) {
-    if (!confirm('DELETE CATEGORY "' + cat + '" AND ALL ITS NATURES?')) return;
-    delete _activeTaxonomy[cat];
-    renderTypeCodes();
-    showToast('DELETED — CLICK SAVE TO PERSIST.', 'ok');
-  }
-
-  function _getNatMap(cat) {
-    // Returns the nature map for a category, supporting both old flat and new natures-wrapped format
-    return (_activeTaxonomy[cat]?.natures !== undefined) ? _activeTaxonomy[cat].natures : (_activeTaxonomy[cat] || {});
-  }
-
-  function addTypeNature(cat) {
-    const name = window.prompt('NATURE NAME (e.g. CHEST-PAIN, STROKE, POST-OP):');
-    if (!name) return;
-    const upper = name.trim().toUpperCase();
-    if (!upper) return;
-    const natMap = _getNatMap(cat);
-    if (natMap[upper]) { showToast('NATURE ALREADY EXISTS.', 'warn'); return; }
-    const detsStr = window.prompt('DETERMINANTS — comma-separated (e.g. PRI-1,PRI-2)\nLeave blank for none:') || '';
-    const dets = detsStr.split(',').map(d => d.trim().toUpperCase()).filter(d => d);
-    const newNat = { dets, clinical_group: 'GENERAL', service_level: 'BLS', clinical_severity: 'STABLE', legacy: false, desc: '' };
-    if (_activeTaxonomy[cat]?.natures !== undefined) {
-      _activeTaxonomy[cat].natures[upper] = newNat;
-    } else {
-      if (!_activeTaxonomy[cat]) _activeTaxonomy[cat] = {};
-      _activeTaxonomy[cat][upper] = newNat;
-    }
-    renderTypeCodes();
-    showToast('NATURE ADDED — CLICK SAVE TO PERSIST.', 'ok');
-  }
-
-  function toggleNatureEdit(cat, nat) {
-    const key = cat + '|' + nat;
-    if (_expandedNatures.has(key)) { _expandedNatures.delete(key); } else { _expandedNatures.add(key); }
-    renderTypeCodes();
-  }
-
-  function saveNatureEdit(cat, nat) {
-    const natMap = _getNatMap(cat);
-    const natVal = natMap[nat];
-    const idSuf = esc(cat) + '-' + esc(nat);
-    const detsRaw = (document.getElementById('nef-dets-' + idSuf) || {}).value || '';
-    const dets = detsRaw.split(',').map(d => d.trim().toUpperCase()).filter(d => d);
-    const cg = (document.getElementById('nef-cg-' + idSuf) || {}).value || 'GENERAL';
-    const sl = (document.getElementById('nef-sl-' + idSuf) || {}).value || 'BLS';
-    const sv = (document.getElementById('nef-sv-' + idSuf) || {}).value || 'ROUTINE';
-    const desc = ((document.getElementById('nef-desc-' + idSuf) || {}).value || '').trim();
-    const legacy = !!(document.getElementById('nef-leg-' + idSuf) || {}).checked;
-    const newNat = { dets, clinical_group: cg, service_level: sl, clinical_severity: sv, legacy, desc };
-    if (typeof natVal === 'object' && !Array.isArray(natVal) && natVal !== null) {
-      Object.assign(natVal, newNat);
-    } else {
-      natMap[nat] = newNat;
-    }
-    _expandedNatures.delete(cat + '|' + nat);
-    renderTypeCodes();
-    showToast('UPDATED — CLICK "SAVE TO SERVER" TO PERSIST.', 'ok');
-  }
-
-  function deleteTypeNature(cat, nat) {
-    if (!confirm('DELETE NATURE "' + nat + '" FROM ' + cat + '?')) return;
-    const natMap = _getNatMap(cat);
-    delete natMap[nat];
-    renderTypeCodes();
-    showToast('DELETED — CLICK SAVE TO PERSIST.', 'ok');
-  }
-
-  function resetTypeDefaults() {
-    if (!confirm('RESET TO BUILT-IN DEFAULT TAXONOMY?\nThis will overwrite your current edits (not yet saved to server).')) return;
-    _activeTaxonomy = JSON.parse(JSON.stringify(DEFAULT_TAXONOMY));
-    renderTypeCodes();
-    showToast('RESET TO DEFAULTS — CLICK SAVE TO PERSIST.', 'ok');
   }
 
   // ── Destinations Tab ──────────────────────────────────────

@@ -1605,7 +1605,7 @@ async function refresh(forceFull) {
       if (r.dc911Config !== undefined) STATE.dc911Config = r.dc911Config;
       if (r.dc911State !== undefined) STATE.dc911State = r.dc911State;
       if (r.roster !== undefined) STATE.roster = r.roster;
-      if (r.typeCodes !== undefined) STATE.typeCodes = r.typeCodes;
+      if (r.typeCodes !== undefined) { STATE.typeCodes = r.typeCodes; populateTypeCodeDatalist(); }
       if (r.featureFlags !== undefined) STATE.featureFlags = r.featureFlags;
       STATE.serverTime = r.serverTime;
       STATE.actor = r.actor || STATE.actor;
@@ -3430,6 +3430,35 @@ function confirmRidoff() {
 // ============================================================
 // Type Code Flat Picker
 // ============================================================
+function populateTypeCodeDatalist() {
+  const dl = document.getElementById('typeCodeList');
+  if (!dl) return;
+  const codes = (STATE && STATE.typeCodes) || [];
+  dl.innerHTML = codes.filter(c => (c.category || '').toUpperCase() !== 'ADMIN')
+    .map(c => `<option value="${c.code}">${c.code} — ${c.name}${c.priority ? ' · PRI-' + c.priority : ''}</option>`)
+    .join('');
+}
+
+function onNewIncTypeInput(val) {
+  const v = (val || '').trim().toUpperCase();
+  if (!v || !(STATE && STATE.typeCodes)) return;
+  // Auto-set priority when a known code is typed/selected exactly
+  const tc = STATE.typeCodes.find(c => c.code === v);
+  if (!tc) return;
+  const priEl = document.getElementById('newIncPriority');
+  if (priEl && tc.priority && !priEl.value) priEl.value = 'PRI-' + tc.priority;
+  const locEl = document.getElementById('newIncLoc');
+  if (locEl && !locEl.value && tc.category) {
+    const cat = tc.category.toUpperCase();
+    if (cat === 'CARDIAC' || cat === 'NEURO' || cat === 'RESPIRATORY' || cat === 'TRAUMA') locEl.value = 'CCT';
+    else if (cat === 'MEDICAL') locEl.value = 'ALS';
+    else if (cat === 'TRANSFER') locEl.value = 'BLS';
+  }
+  // Also sync the dropdown if it has this value
+  const sel = document.getElementById('newIncTypeSelect');
+  if (sel) { try { sel.value = v; } catch(_) {} }
+}
+
 function populateTypeCodeSelect(selectEl, includeAdmin) {
   if (!selectEl) return;
   const codes = (STATE && STATE.typeCodes) || [];
@@ -3524,6 +3553,7 @@ function openNewIncident(prefillScene) {
   const tcSelectEl = document.getElementById('newIncTypeSelect');
   populateTypeCodeSelect(tcSelectEl, false);
   if (tcSelectEl) tcSelectEl.value = '';
+  populateTypeCodeDatalist();
   // Callback + MA reset
   const cbEl = document.getElementById('newIncCallback');
   if (cbEl) cbEl.value = '';

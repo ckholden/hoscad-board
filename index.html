@@ -434,7 +434,8 @@
       </select>
     </div>
     <div class="row">
-      <input type="text" id="newIncType" placeholder="CUSTOM TYPE CODE (FALLBACK — E.G. IFT-ALS-CARDIAC-PRI-2)" style="flex:1" autocomplete="off" oninput="renderIncSuggest()" />
+      <input type="text" id="newIncType" placeholder="TYPE CODE — START TYPING TO FILTER (E.G. STROKE, CARDIAC)" style="flex:1" list="typeCodeList" autocomplete="off" oninput="onNewIncTypeInput(this.value);renderIncSuggest();" onchange="onNewIncTypeInput(this.value);" />
+      <datalist id="typeCodeList"></datalist>
     </div>
     <div class="row">
       <select id="newIncLoc" style="flex:0 0 auto">
