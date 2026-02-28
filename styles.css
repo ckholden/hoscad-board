@@ -2058,3 +2058,69 @@ a.inc-link:hover { color: var(--hi); }
 .addr-ta-row:last-child { border-bottom: none; }
 .addr-ta-row:hover, .addr-ta-row.active { background: rgba(255,255,255,.1); }
 .addr-ta-city { font-size: 10px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+/* ============================================================
+   RESPONSIVE — Mobile / Tablet (max-width: 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+  /* ── Modals ────────────────────────────────────────────── */
+  .modalBack {
+    padding: 4px;
+    align-items: flex-start;
+    padding-top: 6px;
+    box-sizing: border-box;
+  }
+  .modal {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 8px;
+    border-radius: 0;
+    box-sizing: border-box;
+  }
+  #incBack .modal {
+    max-height: calc(100dvh - 52px);
+  }
+  /* Incident modal: unit list table cells wrap/truncate */
+  #incBack .modal table td,
+  #incBack .modal table th {
+    white-space: normal;
+    word-break: break-word;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #incBack .modal .twoCol {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Command Bar ───────────────────────────────────────── */
+  .cmdbar {
+    padding: 4px 6px;
+  }
+  .cmd-hints {
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmd-prompt {
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+
+  /* ── Location History Panel ───────────────────────────── */
+  /* lhPanel is inline-styled but lh-table and lh-snippet apply */
+  .lh-table th,
+  .lh-table td {
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+  .lh-snippet {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
