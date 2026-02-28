@@ -4244,6 +4244,8 @@ function _loadLeaflet(cb) {
   document.head.appendChild(js);
 }
 
+let _mapAutoPin = false;  // true when search is seeded from existing field value
+
 function openMapModal(fieldId) {
   _mapTargetFieldId = fieldId;
   _mapSelectedAddr  = null;
@@ -4260,7 +4262,7 @@ function openMapModal(fieldId) {
     _initMapInstance();
     setTimeout(() => {
       if (_mapInstance) _mapInstance.invalidateSize();
-      if (existing) _mapSearch();
+      if (existing) { _mapAutoPin = true; _mapSearch(); }
     }, 150);
     document.getElementById('mapSearchInput').focus();
   });
@@ -4337,6 +4339,14 @@ async function _mapSearch() {
   }
 
   resultsEl.innerHTML = html;
+
+  // Auto-pin: when search was seeded from existing field value, auto-select
+  // the first GIS result so the map pins immediately without a manual click.
+  const autoPin = _mapAutoPin;
+  _mapAutoPin = false;
+  if (autoPin && gisItems.length > 0) {
+    setTimeout(() => _mapSelectResult(0), 80);
+  }
 }
 
 function _mapSelectResult(idx) {

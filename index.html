@@ -617,7 +617,7 @@
     <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);flex-shrink:0;">
       <input id="mapSearchInput" type="text" placeholder="SEARCH ADDRESS..." autocomplete="off"
         style="flex:1;padding:6px 8px;background:var(--input-bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:12px;border-radius:2px;"
-        onkeydown="if(event.key==='Enter')_mapSearch()" />
+        oninput="_mapAutoPin=false" onkeydown="if(event.key==='Enter')_mapSearch()" />
       <button onclick="_mapSearch()" style="padding:6px 12px;background:rgba(91,163,230,.2);border:1px solid rgba(91,163,230,.4);color:#4fa3e0;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border-radius:2px;">SEARCH</button>
       <button onclick="closeMapModal()" style="padding:6px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:inherit;font-size:11px;cursor:pointer;border-radius:2px;">✕</button>
     </div>
