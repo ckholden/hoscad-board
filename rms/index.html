@@ -121,7 +121,7 @@
     .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
     .tab:hover:not(.active) { color: var(--text); }
 
-    .tab-content { display: none; padding: 20px 16px; max-width: 860px; }
+    .tab-content { display: none; padding: 20px 16px; max-width: 900px; }
     .tab-content.active { display: block; }
 
     /* ── Cards / panels ── */
@@ -137,9 +137,32 @@
     /* ── Tables ── */
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th { font-size: 10px; color: var(--muted); letter-spacing: .06em; text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
-    td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
     tr:hover td { background: rgba(255,255,255,.02); }
     .empty-state { color: var(--muted); font-size: 12px; padding: 16px 8px; }
+
+    /* ── Assignment incident sub-row ── */
+    .inc-sub-row td { background: rgba(0,0,0,.25) !important; padding: 8px 12px; }
+    .inc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0; }
+    .inc-chip {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 4px 10px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: default;
+    }
+    .inc-chip .chip-id   { color: var(--blue); font-weight: 700; }
+    .inc-chip .chip-type { color: var(--muted); }
+    .inc-chip .chip-addr { color: var(--text); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .inc-chip .chip-btn  {
+      background: transparent; border: 1px solid var(--line); color: var(--muted);
+      font-family: inherit; font-size: 10px; padding: 2px 6px; border-radius: 2px; cursor: pointer;
+    }
+    .inc-chip .chip-btn:hover { border-color: var(--blue); color: var(--blue); }
 
     /* ── Expiry color coding ── */
     .exp-ok      { color: var(--green); }
@@ -172,7 +195,7 @@
       margin-top: 8px;
     }
     .ref-panel.collapsed { display: none; }
-    .ref-toggle { font-size: 10px; color: var(--blue); cursor: pointer; margin-top: 6px; display: inline-block; }
+    .ref-toggle { font-size: 10px; color: var(--blue); cursor: pointer; margin-left: 8px; }
     .ref-note-line { margin-bottom: 4px; line-height: 1.5; color: var(--text); }
 
     /* ── Inline edit strip ── */
@@ -187,6 +210,12 @@
     .edit-strip input { margin-bottom: 10px; }
     .edit-strip .btn-row { display: flex; gap: 8px; }
 
+    /* ── Search / Records ── */
+    .search-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: flex-end; }
+    .search-row .field-block { display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+    .search-row .field-block label { font-size: 10px; color: var(--muted); letter-spacing: .06em; }
+    .search-row input, .search-row select { padding: 6px 9px; font-size: 12px; }
+
     .row { display: flex; gap: 10px; flex-wrap: wrap; }
     .row > * { flex: 1; min-width: 120px; }
 
@@ -199,6 +228,13 @@
     .toast.show { opacity: 1; }
     .toast.ok   { border-color: var(--green); color: var(--green); }
     .toast.err  { border-color: var(--red);   color: var(--red); }
+
+    .expand-btn {
+      background: transparent; border: 1px solid var(--line); color: var(--muted);
+      font-family: inherit; font-size: 10px; padding: 2px 7px; border-radius: 2px; cursor: pointer;
+      letter-spacing: .04em;
+    }
+    .expand-btn:hover { border-color: var(--blue); color: var(--blue); }
   </style>
 </head>
 <body>
@@ -215,9 +251,9 @@
              autocomplete="off" autocorrect="off" autocapitalize="off" />
     </div>
     <div class="field-group">
-      <div class="field-label">PIN</div>
-      <input id="loginPin" type="password" inputmode="numeric" placeholder="4–6 DIGIT PIN"
-             maxlength="6" autocomplete="current-password" />
+      <div class="field-label">PIN / PASSWORD</div>
+      <input id="loginPin" type="password" inputmode="numeric" placeholder="PIN OR BOARD PASSWORD"
+             maxlength="64" autocomplete="current-password" />
     </div>
     <button class="btn" id="btnLogin" style="width:100%;">LOG IN</button>
     <div class="login-err" id="loginErr"></div>
@@ -237,7 +273,8 @@
   <div class="tabs">
     <div class="tab active" data-tab="profile">MY PROFILE</div>
     <div class="tab"        data-tab="reports">MY REPORTS</div>
-    <div class="tab"        data-tab="writer"  id="writerTab">WRITE REPORT</div>
+    <div class="tab"        data-tab="writer" id="writerTab">WRITE REPORT</div>
+    <div class="tab"        data-tab="records">RECORDS</div>
   </div>
 
   <!-- ── PROFILE TAB ── -->
@@ -245,7 +282,7 @@
     <div class="card">
       <div class="card-title">PROFILE</div>
       <div id="profileInfo" style="font-size:13px;line-height:2;"></div>
-      <div style="margin-top:12px;">
+      <div style="margin-top:12px;" id="certEditBtnWrap">
         <button class="btn btn-secondary" style="font-size:11px;" id="btnEditCert">EDIT CERT / LICENSE</button>
       </div>
       <div class="edit-strip" id="certEditStrip" style="display:none;">
@@ -322,9 +359,10 @@
 
         <!-- Incident reference panel -->
         <div id="incRefArea" style="display:none;margin-top:12px;">
-          <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:4px;">
-            INCIDENT REFERENCE
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+            <span>INCIDENT REFERENCE</span>
             <span class="ref-toggle" id="refToggleBtn" onclick="_toggleRefPanel()">▼ COLLAPSE</span>
+            <button class="btn btn-secondary" id="btnIncludeHeader" style="font-size:10px;padding:3px 9px;margin-left:auto;">INCLUDE CAD HEADER IN NARRATIVE</button>
           </div>
           <div id="incRefPanel" class="ref-panel"></div>
         </div>
@@ -344,6 +382,75 @@
         <div style="font-size:11px;color:var(--muted);align-self:center;" id="writerStatus"></div>
       </div>
     </div>
+  </div>
+
+  <!-- ── RECORDS TAB ── -->
+  <div class="tab-content" id="tabRecords">
+
+    <!-- SEARCH REPORTS -->
+    <div class="card">
+      <div class="card-title">SEARCH REPORTS</div>
+      <div class="search-row">
+        <div class="field-block" style="flex:2;min-width:180px;">
+          <label>KEYWORD (RPT ID, INCIDENT, AUTHOR)</label>
+          <input id="srQuery" type="text" placeholder="SC26-0042 OR SMITH..." autocomplete="off" />
+        </div>
+        <div class="field-block">
+          <label>DATE FROM</label>
+          <input id="srDateFrom" type="date" />
+        </div>
+        <div class="field-block">
+          <label>DATE TO</label>
+          <input id="srDateTo" type="date" />
+        </div>
+        <div class="field-block">
+          <label>STATUS</label>
+          <select id="srStatus">
+            <option value="">ALL</option>
+            <option value="DRAFT">DRAFT</option>
+            <option value="SUBMITTED">SUBMITTED</option>
+          </select>
+        </div>
+        <div class="field-block">
+          <label>TYPE</label>
+          <select id="srType">
+            <option value="">ALL</option>
+            <option value="PCR">PCR</option>
+            <option value="REFUSAL">REFUSAL</option>
+            <option value="EXPOSURE">EXPOSURE</option>
+            <option value="INCIDENT">INCIDENT</option>
+          </select>
+        </div>
+        <div class="field-block" style="justify-content:flex-end;">
+          <button class="btn" id="btnSearchReports" style="padding:7px 16px;">SEARCH</button>
+        </div>
+      </div>
+      <div id="searchReportsResults"></div>
+    </div>
+
+    <!-- SEARCH INCIDENTS -->
+    <div class="card">
+      <div class="card-title">SEARCH INCIDENTS</div>
+      <div class="search-row">
+        <div class="field-block" style="flex:2;min-width:180px;">
+          <label>KEYWORD (INC ID, ADDRESS, TYPE)</label>
+          <input id="siQuery" type="text" placeholder="SC26-0042 OR MAIN ST..." autocomplete="off" />
+        </div>
+        <div class="field-block">
+          <label>DATE FROM</label>
+          <input id="siDateFrom" type="date" />
+        </div>
+        <div class="field-block">
+          <label>DATE TO</label>
+          <input id="siDateTo" type="date" />
+        </div>
+        <div class="field-block" style="justify-content:flex-end;">
+          <button class="btn" id="btnSearchInc" style="padding:7px 16px;">SEARCH</button>
+        </div>
+      </div>
+      <div id="searchIncResults"></div>
+    </div>
+
   </div>
 </div>
 
@@ -370,14 +477,16 @@ let _fullName  = '';
 let _certLevel = '';
 let _editingReportId = null;   // null = new report
 let _refCollapsed    = false;
+let _loadedIncData   = null;   // holds incident data for INCLUDE CAD HEADER
 
 // ════════════════════════════════════════════════════════════════════════
 // API
 // ════════════════════════════════════════════════════════════════════════
-async function rmsCall(action, ...params) {
-  const body = new URLSearchParams({ action, params: JSON.stringify(params) });
+async function rmsCall(action) {
+  var params = Array.prototype.slice.call(arguments, 1);
+  var body = new URLSearchParams({ action: action, params: JSON.stringify(params) });
   try {
-    const res = await fetch(RMS_API_BASE, {
+    var res = await fetch(RMS_API_BASE, {
       method: 'POST',
       headers: {
         'Content-Type':  'application/x-www-form-urlencoded',
@@ -386,7 +495,7 @@ async function rmsCall(action, ...params) {
       },
       body: body.toString()
     });
-    const text = await res.text();
+    var text = await res.text();
     try { return JSON.parse(text); } catch(_) { return { ok: false, error: 'INVALID RESPONSE' }; }
   } catch(e) {
     return { ok: false, error: 'NETWORK ERROR: ' + (e.message || 'UNKNOWN') };
@@ -416,28 +525,28 @@ function fmtDateTime(ts) {
 
 function expiryClass(dateStr) {
   if (!dateStr) return '';
-  const days = (new Date(dateStr) - Date.now()) / 86400000;
+  var days = (new Date(dateStr) - Date.now()) / 86400000;
   if (days < 0)  return 'exp-expired';
   if (days < 30) return 'exp-warn';
   return 'exp-ok';
 }
 
-let _toastTimer = null;
+var _toastTimer = null;
 function showToast(msg, type) {
-  const el = document.getElementById('toast');
+  var el = document.getElementById('toast');
   el.textContent = msg;
   el.className   = 'toast show ' + (type === 'err' ? 'err' : 'ok');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(function() { el.className = 'toast'; }, 3000);
+  _toastTimer = setTimeout(function() { el.className = 'toast'; }, 3500);
 }
 
 // ════════════════════════════════════════════════════════════════════════
 // Auth
 // ════════════════════════════════════════════════════════════════════════
 async function tryRestoreSession() {
-  const savedToken = localStorage.getItem(LS_TOKEN);
+  var savedToken = localStorage.getItem(LS_TOKEN);
   if (!savedToken) return false;
-  const r = await rmsCall('getOwnProfile', savedToken);
+  var r = await rmsCall('getOwnProfile', savedToken);
   if (!r.ok) {
     localStorage.removeItem(LS_TOKEN);
     localStorage.removeItem(LS_CADID);
@@ -456,14 +565,14 @@ async function tryRestoreSession() {
 }
 
 async function doLogin() {
-  const cadId = document.getElementById('loginCadId').value.trim();
-  const pin   = document.getElementById('loginPin').value.trim();
-  const errEl = document.getElementById('loginErr');
+  var cadId = document.getElementById('loginCadId').value.trim();
+  var pin   = document.getElementById('loginPin').value.trim();
+  var errEl = document.getElementById('loginErr');
   errEl.textContent = '';
   if (!cadId) { errEl.textContent = 'CAD ID REQUIRED.'; return; }
   if (!pin)   { errEl.textContent = 'PIN REQUIRED.'; return; }
   errEl.textContent = 'VERIFYING...';
-  const r = await rmsCall('crewPinLogin', cadId, pin);
+  var r = await rmsCall('crewPinLogin', cadId, pin);
   if (!r.ok) { errEl.textContent = r.error || 'LOGIN FAILED.'; return; }
   if (!r.sessionToken) { errEl.textContent = 'SESSION TOKEN NOT RETURNED. CONTACT ADMIN.'; return; }
   _token     = r.sessionToken;
@@ -501,8 +610,8 @@ function showApp() {
   loadProfile();
   loadReports();
   // Check URL param for incident deep-link
-  const urlParams = new URLSearchParams(window.location.search);
-  const incParam  = urlParams.get('incident');
+  var urlParams = new URLSearchParams(window.location.search);
+  var incParam  = urlParams.get('incident');
   if (incParam) {
     switchTab('writer');
     startNewReport(incParam.toUpperCase());
@@ -519,7 +628,8 @@ function switchTab(name) {
   document.querySelectorAll('.tab-content').forEach(function(c) {
     c.classList.remove('active');
   });
-  const target = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
+  var key    = name.charAt(0).toUpperCase() + name.slice(1);
+  var target = document.getElementById('tab' + key);
   if (target) target.classList.add('active');
 }
 
@@ -533,17 +643,21 @@ document.querySelectorAll('.tab').forEach(function(tab) {
 // PROFILE TAB
 // ════════════════════════════════════════════════════════════════════════
 async function loadProfile() {
-  const r = await rmsCall('getOwnProfile', _token);
+  var r = await rmsCall('getOwnProfile', _token);
   if (!r.ok) { showToast('PROFILE LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
 
-  const expClass = expiryClass(r.certExpiryDate);
+  var expClass = expiryClass(r.certExpiryDate);
   document.getElementById('profileInfo').innerHTML =
     '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">NAME</span>' + esc(r.fullName) + '</div>' +
     '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CAD ID</span>' + esc(r.cadId) + '</div>' +
     '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CERT LEVEL</span>' + esc(r.certLevel || '—') + '</div>' +
-    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CERT EXPIRY</span>' +
-      '<span class="' + expClass + '">' + esc(r.certExpiryDate || '—') + '</span></div>' +
-    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">LICENSE #</span>' + esc(r.licenseNumber || '—') + '</div>';
+    (r.isDispatcher ? '' :
+      '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CERT EXPIRY</span>' +
+        '<span class="' + expClass + '">' + esc(r.certExpiryDate || '—') + '</span></div>' +
+      '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">LICENSE #</span>' + esc(r.licenseNumber || '—') + '</div>');
+
+  // Hide cert edit for dispatchers (not in crew_roster)
+  document.getElementById('certEditBtnWrap').style.display = r.isDispatcher ? 'none' : '';
 
   // Pre-fill edit form
   document.getElementById('editExpiry').value  = r.certExpiryDate || '';
@@ -554,23 +668,77 @@ async function loadProfile() {
 }
 
 async function loadAssignments() {
-  const r = await rmsCall('getOwnAssignments', _token, 15);
-  const el = document.getElementById('assignmentsList');
+  var r = await rmsCall('getOwnAssignments', _token, 15);
+  var el = document.getElementById('assignmentsList');
   if (!r.ok || !r.assignments || !r.assignments.length) {
     el.innerHTML = '<div class="empty-state">NO RECENT ASSIGNMENTS.</div>';
     return;
   }
-  el.innerHTML = '<table><thead><tr><th>UNIT</th><th>FLEET #</th><th>ROLE</th><th>LOGGED ON</th><th>LOGGED OFF</th></tr></thead><tbody>' +
-    r.assignments.map(function(a) {
-      return '<tr><td>' + esc(a.unit_id || '—') + '</td><td>' + esc(a.fleet_number || '—') + '</td>' +
+
+  var rows = r.assignments.map(function(a, i) {
+    var unitId    = a.unit_id     || '';
+    var loggedOn  = a.logged_on_at  || '';
+    var loggedOff = a.logged_off_at || '';
+    var isActive  = !loggedOff;
+    return (
+      '<tr>' +
+        '<td style="color:var(--blue);font-weight:700;">' + esc(unitId) + '</td>' +
+        '<td>' + esc(a.fleet_number || '—') + '</td>' +
         '<td>' + esc(a.crew_role || '—') + '</td>' +
-        '<td>' + fmtDateTime(a.logged_on_at) + '</td>' +
-        '<td>' + (a.logged_off_at ? fmtDateTime(a.logged_off_at) : '<span style="color:var(--green);">ACTIVE</span>') + '</td></tr>';
-    }).join('') + '</tbody></table>';
+        '<td>' + fmtDateTime(loggedOn) + '</td>' +
+        '<td>' + (isActive ? '<span style="color:var(--green);">ACTIVE</span>' : fmtDateTime(loggedOff)) + '</td>' +
+        '<td><button class="expand-btn" onclick="_toggleAssignInc(this,\'' + esc(unitId) + '\',\'' + esc(loggedOn) + '\',\'' + esc(loggedOff) + '\',' + i + ')">INCIDENTS ▼</button></td>' +
+      '</tr>' +
+      '<tr class="inc-sub-row" id="assignInc-' + i + '" style="display:none;">' +
+        '<td colspan="6"><div class="inc-chips" id="assignIncChips-' + i + '"><span style="color:var(--muted);font-size:11px;">Loading...</span></div></td>' +
+      '</tr>'
+    );
+  }).join('');
+
+  el.innerHTML = '<table><thead><tr><th>UNIT</th><th>FLEET #</th><th>ROLE</th><th>LOGGED ON</th><th>LOGGED OFF</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
+window._toggleAssignInc = async function(btn, unitId, loggedOn, loggedOff, idx) {
+  var subRow  = document.getElementById('assignInc-' + idx);
+  var chipDiv = document.getElementById('assignIncChips-' + idx);
+  var open    = subRow.style.display !== 'none';
+
+  if (open) {
+    subRow.style.display = 'none';
+    btn.textContent = 'INCIDENTS ▼';
+    return;
+  }
+
+  subRow.style.display = '';
+  btn.textContent = 'INCIDENTS ▲';
+  chipDiv.innerHTML = '<span style="color:var(--muted);font-size:11px;">LOADING...</span>';
+
+  var r = await rmsCall('getAssignmentIncidents', _token, unitId, loggedOn, loggedOff || null);
+  if (!r.ok) {
+    chipDiv.innerHTML = '<span style="color:var(--red);font-size:11px;">FAILED: ' + esc(r.error || 'UNKNOWN') + '</span>';
+    return;
+  }
+  if (!r.incidents || !r.incidents.length) {
+    chipDiv.innerHTML = '<span style="color:var(--muted);font-size:11px;">NO INCIDENTS FOUND FOR THIS SHIFT.</span>';
+    return;
+  }
+  chipDiv.innerHTML = r.incidents.map(function(inc) {
+    return '<div class="inc-chip">' +
+      '<span class="chip-id">' + esc(inc.incident_id) + '</span>' +
+      '<span class="chip-type">' + esc(inc.incident_type || '?') + '</span>' +
+      (inc.scene_address ? '<span class="chip-addr" title="' + esc(inc.scene_address) + '">' + esc(inc.scene_address) + '</span>' : '') +
+      '<button class="chip-btn" onclick="_writeReportForInc(\'' + esc(inc.incident_id) + '\')">WRITE REPORT</button>' +
+      '</div>';
+  }).join('');
+};
+
+window._writeReportForInc = function(incidentId) {
+  startNewReport(incidentId);
+  switchTab('writer');
+};
+
 document.getElementById('btnEditCert').addEventListener('click', function() {
-  const strip = document.getElementById('certEditStrip');
+  var strip = document.getElementById('certEditStrip');
   strip.style.display = strip.style.display === 'none' ? 'block' : 'none';
 });
 
@@ -579,9 +747,9 @@ document.getElementById('btnCancelCert').addEventListener('click', function() {
 });
 
 document.getElementById('btnSaveCert').addEventListener('click', async function() {
-  const expiry  = document.getElementById('editExpiry').value.trim()  || null;
-  const license = document.getElementById('editLicense').value.trim() || null;
-  const r = await rmsCall('updateOwnCertInfo', _token, expiry, license);
+  var expiry  = document.getElementById('editExpiry').value.trim()  || null;
+  var license = document.getElementById('editLicense').value.trim() || null;
+  var r = await rmsCall('updateOwnCertInfo', _token, expiry, license);
   if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
   showToast('CERT INFO SAVED.', 'ok');
   document.getElementById('certEditStrip').style.display = 'none';
@@ -592,8 +760,8 @@ document.getElementById('btnSaveCert').addEventListener('click', async function(
 // REPORTS TAB
 // ════════════════════════════════════════════════════════════════════════
 async function loadReports() {
-  const r = await rmsCall('listMyReports', _token, 50);
-  const el = document.getElementById('reportsList');
+  var r = await rmsCall('listMyReports', _token, 50);
+  var el = document.getElementById('reportsList');
   if (!r.ok) { el.innerHTML = '<div class="empty-state">LOAD FAILED: ' + esc(r.error || 'UNKNOWN') + '</div>'; return; }
   if (!r.reports || !r.reports.length) {
     el.innerHTML = '<div class="empty-state">NO REPORTS YET. CLICK + NEW REPORT TO WRITE ONE.</div>';
@@ -601,9 +769,9 @@ async function loadReports() {
   }
   el.innerHTML = '<table><thead><tr><th>RPT ID</th><th>INCIDENT</th><th>TYPE</th><th>STATUS</th><th>DATE</th><th></th></tr></thead><tbody>' +
     r.reports.map(function(rpt) {
-      const pill = '<span class="pill ' + (rpt.status === 'SUBMITTED' ? 'pill-submitted' : 'pill-draft') + '">' + esc(rpt.status) + '</span>';
-      const isSubmitted = rpt.status === 'SUBMITTED';
-      const btn = isSubmitted
+      var pill = '<span class="pill ' + (rpt.status === 'SUBMITTED' ? 'pill-submitted' : 'pill-draft') + '">' + esc(rpt.status) + '</span>';
+      var isSubmitted = rpt.status === 'SUBMITTED';
+      var btn = isSubmitted
         ? '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_viewReport(\'' + esc(rpt.report_id) + '\')">VIEW</button>'
         : '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_editReport(\'' + esc(rpt.report_id) + '\')">EDIT</button>';
       return '<tr><td style="color:var(--blue);font-weight:700;">' + esc(rpt.report_id) + '</td>' +
@@ -625,6 +793,7 @@ document.getElementById('btnNewReport').addEventListener('click', function() {
 // ════════════════════════════════════════════════════════════════════════
 function startNewReport(incidentId) {
   _editingReportId = null;
+  _loadedIncData   = null;
   document.getElementById('writerTitle').textContent = 'NEW REPORT';
   document.getElementById('writerIncidentId').value  = incidentId || '';
   document.getElementById('writerReportType').value  = 'PCR';
@@ -641,11 +810,12 @@ function startNewReport(incidentId) {
 }
 
 async function _editReport(reportId) {
-  const r = await rmsCall('getReport', _token, reportId);
+  var r = await rmsCall('getReport', _token, reportId);
   if (!r.ok) { showToast('LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
-  const rpt = r.report;
+  var rpt = r.report;
   if (rpt.status === 'SUBMITTED') { _viewReport(reportId); return; }
   _editingReportId = reportId;
+  _loadedIncData   = null;
   document.getElementById('writerTitle').textContent = 'EDITING ' + rpt.report_id;
   document.getElementById('writerIncidentId').value  = rpt.incident_id;
   document.getElementById('writerReportType').value  = rpt.report_type;
@@ -662,14 +832,15 @@ async function _editReport(reportId) {
 }
 
 async function _viewReport(reportId) {
-  const r = await rmsCall('getReport', _token, reportId);
+  var r = await rmsCall('getReport', _token, reportId);
   if (!r.ok) { showToast('LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
-  const rpt = r.report;
+  var rpt = r.report;
   document.getElementById('viewReportTitle').textContent = rpt.report_id + ' — ' + rpt.report_type;
   document.getElementById('viewReportMeta').innerHTML =
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">INCIDENT</span>' + esc(rpt.incident_id) + '</div>' +
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">UNIT</span>' + esc(rpt.unit_id || '—') + '</div>' +
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">FLEET #</span>' + esc(rpt.fleet_number || '—') + '</div>' +
+    '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">AUTHOR</span>' + esc(rpt.author_name || '—') + '</div>' +
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">STATUS</span><span class="pill pill-submitted">' + esc(rpt.status) + '</span></div>' +
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">SUBMITTED</span>' + fmtDateTime(rpt.submitted_at) + '</div>';
   document.getElementById('viewReportNarrative').textContent = rpt.narrative || '(No narrative)';
@@ -681,21 +852,33 @@ async function _viewReport(reportId) {
 // ── Incident reference panel ──
 async function _loadIncidentRef(incidentId) {
   if (!incidentId) return;
-  const r = await rmsCall('getIncidentForReport', _token, incidentId);
+  _loadedIncData = null;
+  document.getElementById('incRefPanel').innerHTML = '<span style="color:var(--muted);">LOADING...</span>';
+  document.getElementById('incRefArea').style.display = '';
+
+  var r = await rmsCall('getIncidentForReport', _token, incidentId);
   if (!r.ok) {
     document.getElementById('incRefArea').style.display = 'none';
+    showToast('INCIDENT NOT FOUND: ' + incidentId, 'err');
     return;
   }
-  const inc  = r.incident;
-  const audit = r.audit || [];
-  let html = '';
-  if (inc.scene_address) html += '<div class="ref-note-line" style="color:var(--blue);font-weight:700;">📍 ' + esc(inc.scene_address) + '</div>';
+
+  _loadedIncData = r.incident;
+
+  var inc   = r.incident;
+  var audit = r.audit || [];
+  var html  = '';
+  if (inc.scene_address) html += '<div class="ref-note-line" style="color:var(--blue);font-weight:700;">&#128205; ' + esc(inc.scene_address) + '</div>';
   if (inc.incident_type) html += '<div class="ref-note-line">TYPE: ' + esc(inc.incident_type) + (inc.priority ? ' &nbsp;|&nbsp; PRI: ' + esc(inc.priority) : '') + '</div>';
-  if (inc.notes) html += '<div class="ref-note-line" style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px;">' + esc(inc.notes).replace(/\n/g,'<br>') + '</div>';
+  if (inc.status)        html += '<div class="ref-note-line" style="color:var(--muted);">STATUS: ' + esc(inc.status) + ' &nbsp;|&nbsp; CREATED: ' + fmtDateTime(inc.created_at) + '</div>';
+  if (inc.incident_note) {
+    html += '<div class="ref-note-line" style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px;">' +
+      esc(inc.incident_note).replace(/\n/g, '<br>') + '</div>';
+  }
   if (audit.length) {
     html += '<div style="margin-top:8px;font-size:10px;color:var(--muted);letter-spacing:.05em;">LAST ' + audit.length + ' EVENTS:</div>';
     audit.forEach(function(e) {
-      const aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+      var aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
       html += '<div class="ref-note-line" style="font-size:11px;">' +
         '<span style="color:var(--muted);">' + esc(aTime) + '</span> ' +
         '<span>' + esc(e.actor || '') + '</span></div>';
@@ -711,9 +894,32 @@ function _toggleRefPanel() {
   document.getElementById('refToggleBtn').textContent = _refCollapsed ? '▶ EXPAND' : '▼ COLLAPSE';
 }
 
+// ── INCLUDE CAD HEADER ──
+document.getElementById('btnIncludeHeader').addEventListener('click', function() {
+  if (!_loadedIncData) { showToast('LOAD AN INCIDENT FIRST.', 'err'); return; }
+  var inc  = _loadedIncData;
+  var incId = document.getElementById('writerIncidentId').value.trim().toUpperCase() || (inc.incident_id || '');
+  var lines = [
+    '=== CAD INCIDENT REFERENCE ===',
+    'INCIDENT:  ' + incId,
+    'DATE:      ' + fmtDateTime(inc.created_at),
+    'TYPE:      ' + (inc.incident_type || '—'),
+    'PRIORITY:  ' + (inc.priority || '—'),
+    'ADDRESS:   ' + (inc.scene_address || '—'),
+    'STATUS:    ' + (inc.status || '—'),
+    '================================',
+    ''
+  ].join('\n');
+  var ta = document.getElementById('writerNarrative');
+  ta.value = lines + ta.value;
+  ta.focus();
+  showToast('CAD HEADER INSERTED.', 'ok');
+});
+
 document.getElementById('btnLoadInc').addEventListener('click', function() {
-  const incId = document.getElementById('writerIncidentId').value.trim().toUpperCase();
-  if (incId) _loadIncidentRef(incId);
+  var incId = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+  if (!incId) { showToast('ENTER AN INCIDENT ID FIRST.', 'err'); return; }
+  _loadIncidentRef(incId);
 });
 
 document.getElementById('writerIncidentId').addEventListener('keydown', function(e) {
@@ -722,15 +928,15 @@ document.getElementById('writerIncidentId').addEventListener('keydown', function
 
 // ── Save Draft ──
 document.getElementById('btnSaveDraft').addEventListener('click', async function() {
-  const incId     = document.getElementById('writerIncidentId').value.trim().toUpperCase();
-  const rptType   = document.getElementById('writerReportType').value;
-  const narrative = document.getElementById('writerNarrative').value.trim();
-  const statusEl  = document.getElementById('writerStatus');
+  var incId     = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+  var rptType   = document.getElementById('writerReportType').value;
+  var narrative = document.getElementById('writerNarrative').value.trim();
+  var statusEl  = document.getElementById('writerStatus');
 
   if (!incId) { showToast('INCIDENT ID REQUIRED.', 'err'); return; }
 
   statusEl.textContent = 'SAVING...';
-  let r;
+  var r;
   if (_editingReportId) {
     r = await rmsCall('updateReport', _token, _editingReportId, narrative);
   } else {
@@ -750,19 +956,19 @@ document.getElementById('btnSaveDraft').addEventListener('click', async function
 
 // ── Submit ──
 document.getElementById('btnSubmitReport').addEventListener('click', async function() {
-  const narrative = document.getElementById('writerNarrative').value.trim();
+  var narrative = document.getElementById('writerNarrative').value.trim();
   if (!narrative) { showToast('NARRATIVE IS REQUIRED.', 'err'); return; }
 
-  const confirmed = window.confirm('SUBMIT REPORT?\n\nOnce submitted, the report cannot be edited. This action is irreversible.');
+  var confirmed = window.confirm('SUBMIT REPORT?\n\nOnce submitted, the report cannot be edited. This action is irreversible.');
   if (!confirmed) return;
 
-  let reportId = _editingReportId;
+  var reportId = _editingReportId;
   if (!reportId) {
     // Auto-save draft first
-    const incId   = document.getElementById('writerIncidentId').value.trim().toUpperCase();
-    const rptType = document.getElementById('writerReportType').value;
+    var incId   = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+    var rptType = document.getElementById('writerReportType').value;
     if (!incId) { showToast('INCIDENT ID REQUIRED.', 'err'); return; }
-    const cR = await rmsCall('createReport', _token, incId, rptType, narrative);
+    var cR = await rmsCall('createReport', _token, incId, rptType, narrative);
     if (!cR.ok) { showToast('CREATE FAILED: ' + (cR.error || 'UNKNOWN'), 'err'); return; }
     reportId = cR.reportId;
   } else {
@@ -770,7 +976,7 @@ document.getElementById('btnSubmitReport').addEventListener('click', async funct
     await rmsCall('updateReport', _token, reportId, narrative);
   }
 
-  const r = await rmsCall('submitReport', _token, reportId);
+  var r = await rmsCall('submitReport', _token, reportId);
   if (!r.ok) { showToast('SUBMIT FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
   showToast('REPORT SUBMITTED: ' + reportId, 'ok');
   loadReports();
@@ -780,6 +986,7 @@ document.getElementById('btnSubmitReport').addEventListener('click', async funct
 // ── Back buttons ──
 function _backToReports() {
   _editingReportId = null;
+  _loadedIncData   = null;
   document.getElementById('writerViewMode').style.display = 'none';
   document.getElementById('writerEditMode').style.display = 'none';
   switchTab('reports');
@@ -788,6 +995,99 @@ function _backToReports() {
 
 document.getElementById('btnBackToReports').addEventListener('click', _backToReports);
 document.getElementById('btnBackToReports2').addEventListener('click', _backToReports);
+
+// window-expose functions called from innerHTML onclick
+window._editReport      = _editReport;
+window._viewReport      = _viewReport;
+window._toggleRefPanel  = _toggleRefPanel;
+
+// ════════════════════════════════════════════════════════════════════════
+// RECORDS TAB
+// ════════════════════════════════════════════════════════════════════════
+
+// ── Search reports ──
+document.getElementById('btnSearchReports').addEventListener('click', _doSearchReports);
+document.getElementById('srQuery').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') _doSearchReports();
+});
+
+async function _doSearchReports() {
+  var q        = document.getElementById('srQuery').value.trim();
+  var dateFrom = document.getElementById('srDateFrom').value || null;
+  var dateTo   = document.getElementById('srDateTo').value   || null;
+  var status   = document.getElementById('srStatus').value   || null;
+  var rtype    = document.getElementById('srType').value     || null;
+  var el       = document.getElementById('searchReportsResults');
+
+  el.innerHTML = '<div class="empty-state">SEARCHING...</div>';
+  var r = await rmsCall('searchAllReports', _token, q, dateFrom, dateTo, status, rtype);
+  if (!r.ok) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--red);">ERROR: ' + esc(r.error || 'UNKNOWN') + '</div>';
+    return;
+  }
+  if (!r.reports || !r.reports.length) {
+    el.innerHTML = '<div class="empty-state">NO REPORTS MATCH YOUR SEARCH.</div>';
+    return;
+  }
+  el.innerHTML = '<table><thead><tr><th>RPT ID</th><th>INCIDENT</th><th>AUTHOR</th><th>TYPE</th><th>STATUS</th><th>DATE</th><th></th></tr></thead><tbody>' +
+    r.reports.map(function(rpt) {
+      var pill = '<span class="pill ' + (rpt.status === 'SUBMITTED' ? 'pill-submitted' : 'pill-draft') + '">' + esc(rpt.status) + '</span>';
+      var isSubmitted = rpt.status === 'SUBMITTED';
+      var btn = isSubmitted
+        ? '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_viewReport(\'' + esc(rpt.report_id) + '\')">VIEW</button>'
+        : '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_editReport(\'' + esc(rpt.report_id) + '\')">EDIT</button>';
+      return '<tr>' +
+        '<td style="color:var(--blue);font-weight:700;">' + esc(rpt.report_id) + '</td>' +
+        '<td>' + esc(rpt.incident_id) + '</td>' +
+        '<td>' + esc(rpt.author_name || '—') + '</td>' +
+        '<td>' + esc(rpt.report_type) + '</td>' +
+        '<td>' + pill + '</td>' +
+        '<td>' + fmtDate(rpt.submitted_at || rpt.created_at) + '</td>' +
+        '<td>' + btn + '</td>' +
+      '</tr>';
+    }).join('') + '</tbody></table>';
+}
+
+// ── Search incidents ──
+document.getElementById('btnSearchInc').addEventListener('click', _doSearchIncidents);
+document.getElementById('siQuery').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') _doSearchIncidents();
+});
+
+async function _doSearchIncidents() {
+  var q        = document.getElementById('siQuery').value.trim();
+  var dateFrom = document.getElementById('siDateFrom').value || null;
+  var dateTo   = document.getElementById('siDateTo').value   || null;
+  var el       = document.getElementById('searchIncResults');
+
+  if (!q && !dateFrom && !dateTo) {
+    showToast('ENTER A KEYWORD OR DATE RANGE.', 'err');
+    return;
+  }
+
+  el.innerHTML = '<div class="empty-state">SEARCHING...</div>';
+  var r = await rmsCall('searchRmsIncidents', _token, q, dateFrom, dateTo);
+  if (!r.ok) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--red);">ERROR: ' + esc(r.error || 'UNKNOWN') + '</div>';
+    return;
+  }
+  if (!r.incidents || !r.incidents.length) {
+    el.innerHTML = '<div class="empty-state">NO INCIDENTS MATCH YOUR SEARCH.</div>';
+    return;
+  }
+  el.innerHTML = '<table><thead><tr><th>INCIDENT</th><th>TYPE</th><th>ADDRESS</th><th>STATUS</th><th>DATE</th><th></th></tr></thead><tbody>' +
+    r.incidents.map(function(inc) {
+      var statusColor = inc.status === 'CLOSED' ? 'color:var(--muted)' : 'color:var(--green)';
+      return '<tr>' +
+        '<td style="color:var(--blue);font-weight:700;">' + esc(inc.incident_id) + '</td>' +
+        '<td>' + esc(inc.incident_type || '—') + '</td>' +
+        '<td>' + esc(inc.scene_address || '—') + '</td>' +
+        '<td style="' + statusColor + '">' + esc(inc.status || '—') + '</td>' +
+        '<td>' + fmtDate(inc.created_at) + '</td>' +
+        '<td><button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_writeReportForInc(\'' + esc(inc.incident_id) + '\')">WRITE REPORT</button></td>' +
+      '</tr>';
+    }).join('') + '</tbody></table>';
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // Login / logout event bindings
@@ -809,7 +1109,7 @@ document.getElementById('btnLogout').addEventListener('click', async function() 
 // Init — try to restore session on page load
 // ════════════════════════════════════════════════════════════════════════
 (async function init() {
-  const restored = await tryRestoreSession();
+  var restored = await tryRestoreSession();
   if (restored) {
     showApp();
   } else {
