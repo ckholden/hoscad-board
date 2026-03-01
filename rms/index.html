@@ -803,10 +803,16 @@ document.getElementById('btnNewReport').addEventListener('click', function() {
 function _resetAttachments() {
   _attachedCadHeader = null;
   _attachedCadNotes  = null;
-  document.getElementById('btnIncludeHeader').textContent  = 'INCLUDE CAD HEADER IN NARRATIVE';
-  document.getElementById('btnAttachAllNotes').textContent = 'ATTACH ALL CAD NOTES';
-  document.getElementById('btnIncludeHeader').style.color  = '';
-  document.getElementById('btnAttachAllNotes').style.color = '';
+  var bh = document.getElementById('btnIncludeHeader');
+  var bn = document.getElementById('btnAttachAllNotes');
+  bh.textContent = 'INCLUDE CAD HEADER IN NARRATIVE';
+  bn.textContent = 'ATTACH ALL CAD NOTES';
+  bh.style.color = '';
+  bn.style.color = '';
+  bh.disabled = false;
+  bn.disabled = false;
+  bh.title = '';
+  bn.title = '';
 }
 
 function startNewReport(incidentId) {
@@ -923,6 +929,23 @@ async function _loadIncidentRef(incidentId) {
 
   _loadedIncData  = r.incident;
   _loadedIncAudit = r.audit || [];
+
+  // Lock CAD attach buttons if another crew member already attached these
+  var caa = r.cadAlreadyAttached || {};
+  var bh = document.getElementById('btnIncludeHeader');
+  var bn = document.getElementById('btnAttachAllNotes');
+  if (caa.header && !_attachedCadHeader) {
+    bh.disabled = true;
+    bh.textContent = 'CAD HEADER: ATTACHED BY ' + (caa.header.by || 'OTHER CREW');
+    bh.style.color = 'var(--muted)';
+    bh.title = 'Already included in ' + (caa.header.reportId || '');
+  }
+  if (caa.notes && !_attachedCadNotes) {
+    bn.disabled = true;
+    bn.textContent = 'CAD NOTES: ATTACHED BY ' + (caa.notes.by || 'OTHER CREW');
+    bn.style.color = 'var(--muted)';
+    bn.title = 'Already attached in ' + (caa.notes.reportId || '');
+  }
 
   var inc   = r.incident;
   var audit = r.audit || [];
