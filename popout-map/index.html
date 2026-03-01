@@ -330,6 +330,10 @@ function renderMap() {
   incidents.forEach(inc => {
     const addr = (inc.scene_address || '').trim();
     if (!addr) return;
+    // Pre-seed geocache from stored E911 coordinates
+    if (inc.addr_lat && inc.addr_lon && !_vmGeoCache.hasOwnProperty(addr)) {
+      _vmGeoCache[addr] = [inc.addr_lat, inc.addr_lon];
+    }
     const geo = _vmGeoCache[addr];
     if (geo) {
       const pri   = inc.priority || '';
@@ -418,14 +422,29 @@ async function _processGeoQueue() {
   if (!_vmGeoQueue.length) return;
   const addr = _vmGeoQueue.shift();
   if (_vmGeoCache.hasOwnProperty(addr)) return;
+  // Raw coordinate string — resolve instantly
+  const coordCheck = addr.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+  if (coordCheck) { _vmGeoCache[addr] = [parseFloat(coordCheck[1]), parseFloat(coordCheck[2])]; renderMap(); return; }
   try {
+    // ── Primary: query E911 GIS address_points ────────────────────────────
+    if (_token) {
+      try {
+        const gisRes = await API.searchAddressPoints(_token, addr, 3);
+        if (gisRes && gisRes.results && gisRes.results.length > 0) {
+          _vmGeoCache[addr] = [gisRes.results[0].lat, gisRes.results[0].lon];
+          renderMap();
+          return;
+        }
+      } catch (_) {}
+    }
+    // ── Fallback: Nominatim ───────────────────────────────────────────────
     const expanded = addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST').replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST').replace(/\s*\/\s*/g, ' & ');
     const query = /oregon|,\s*or\b/i.test(expanded) ? expanded : expanded + ', Oregon';
     const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
       encodeURIComponent(query) + '&limit=1&viewbox=' + MAP_VIEWBOX +
       '&bounded=0&countrycodes=us';
     const res = await fetch(url);
-    if (!res.ok) return;
+    if (!res.ok) { _vmGeoCache[addr] = null; return; }
     const data = await res.json();
     if (data && data.length) {
       _vmGeoCache[addr] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];

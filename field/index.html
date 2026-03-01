@@ -2447,6 +2447,10 @@
       var fillColor = isCur ? '#8b0000' : '#7a4300';
       var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
       var normAddr = addr.toUpperCase().trim();
+      // Pre-seed known-coords from stored E911 coordinates
+      if (inc.addr_lat && inc.addr_lon && !(_FIELD_KNOWN_COORDS && _FIELD_KNOWN_COORDS[normAddr])) {
+        _FIELD_KNOWN_COORDS[normAddr] = [inc.addr_lat, inc.addr_lon];
+      }
       if (_FIELD_KNOWN_COORDS && _FIELD_KNOWN_COORDS[normAddr]) {
         var kc = _FIELD_KNOWN_COORDS[normAddr];
         var mk = addTabLayer(L.circleMarker(kc, { radius: 12, color: color, fillColor: fillColor, fillOpacity: 0.9, weight: 3 }).bindPopup(label));
@@ -2464,29 +2468,47 @@
 
     if (stat) stat.textContent = curInc && curInc.scene_address ? ('SCENE: ' + curInc.scene_address.trim()) : (activeIncs.length ? (activeIncs.length + ' ACTIVE INCIDENTS') : 'NO ACTIVE INCIDENTS');
 
-    // Geocode queue — Nominatim 1 req/1.5s
+    // Geocode queue — GIS-first, Nominatim fallback
     if (geoQueue.length) {
       var idx = 0;
       function _tabGeoNext() {
         if (idx >= geoQueue.length || !_fieldMapTabObj) return;
         var item = geoQueue[idx++];
-        var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
-                         .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
-        if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
-        fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data && data[0] && _fieldMapTabObj) {
-              var lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-              var mk = addTabLayer(L.circleMarker([lat, lon], { radius: 12, color: item.color, fillColor: item.fillColor, fillOpacity: 0.9, weight: 3 }).bindPopup(item.label));
-              if (item.isCur) mk.openPopup();
-              bounds.push([lat, lon]);
-              if (bounds.length > 1) _fieldMapTabObj.fitBounds(bounds, { padding: [30, 30] });
-              else _fieldMapTabObj.setView([lat, lon], 14);
-            }
-            setTimeout(_tabGeoNext, 1500);
-          })
-          .catch(function() { setTimeout(_tabGeoNext, 1500); });
+        function _tabPlacePin(lat, lon) {
+          if (!_fieldMapTabObj) return;
+          var mk = addTabLayer(L.circleMarker([lat, lon], { radius: 12, color: item.color, fillColor: item.fillColor, fillOpacity: 0.9, weight: 3 }).bindPopup(item.label));
+          if (item.isCur) mk.openPopup();
+          bounds.push([lat, lon]);
+          if (bounds.length > 1) _fieldMapTabObj.fitBounds(bounds, { padding: [30, 30] });
+          else _fieldMapTabObj.setView([lat, lon], 14);
+        }
+        function _tabNominatim() {
+          var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
+                           .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
+          if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
+          fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data && data[0]) _tabPlacePin(parseFloat(data[0].lat), parseFloat(data[0].lon));
+              setTimeout(_tabGeoNext, 1500);
+            })
+            .catch(function() { setTimeout(_tabGeoNext, 1500); });
+        }
+        // Try GIS address_points first — faster and more accurate for E911 addresses
+        if (_cadToken) {
+          API.searchAddressPoints(_cadToken, item.addr, 3)
+            .then(function(res) {
+              if (res && res.results && res.results.length > 0) {
+                _tabPlacePin(res.results[0].lat, res.results[0].lon);
+                setTimeout(_tabGeoNext, 200);
+              } else {
+                _tabNominatim();
+              }
+            })
+            .catch(function() { _tabNominatim(); });
+        } else {
+          _tabNominatim();
+        }
       }
       _tabGeoNext();
     }
@@ -6137,8 +6159,11 @@
       var color = isCur ? '#ff4444' : '#ff9900';
       var fillColor = isCur ? '#8b0000' : '#7a4300';
       var label = (isCur ? '<b>SCENE</b>' : '<b>INC ' + esc(String(inc.incident_id).replace(/^[A-Z]*\d{2}-0*/, '')) + '</b>') + '<br>' + esc(addr);
-
       var normAddr = addr.toUpperCase().trim();
+      // Pre-seed known-coords from stored E911 coordinates
+      if (inc.addr_lat && inc.addr_lon && !_FIELD_KNOWN_COORDS[normAddr]) {
+        _FIELD_KNOWN_COORDS[normAddr] = [inc.addr_lat, inc.addr_lon];
+      }
       if (_FIELD_KNOWN_COORDS[normAddr]) {
         var kc = _FIELD_KNOWN_COORDS[normAddr];
         var mk = addLayer(L.circleMarker(kc, {
@@ -6174,31 +6199,49 @@
                    (mappedUnitCount ? 'UNITS: ' + mappedUnitCount : 'NO UNITS WITH KNOWN POSITION');
     if (stat) stat.textContent = statBase;
 
-    // Geocode queued incidents asynchronously (Nominatim rate limit: 1/1.5s)
+    // Geocode queued incidents — GIS-first, Nominatim fallback
     if (geoQueue.length) {
       var idx = 0;
       function _geoNext() {
         if (idx >= geoQueue.length || !_fieldMapObj) return;
         var item = geoQueue[idx++];
-        var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
-                         .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
-        if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
-        fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data && data[0] && _fieldMapObj) {
-              var lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-              var mk = addLayer(L.circleMarker([lat, lon], {
-                radius: 12, color: item.color, fillColor: item.fillColor, fillOpacity: 0.9, weight: 3
-              }).bindPopup(item.label));
-              if (item.isCur) mk.openPopup();
-              bounds.push([lat, lon]);
-              if (bounds.length > 1) _fieldMapObj.fitBounds(bounds, { padding: [30, 30] });
-              else _fieldMapObj.setView([lat, lon], 14);
-            }
-            setTimeout(_geoNext, 1500);
-          })
-          .catch(function(e) { console.warn('[FMAP] geocode error', item.addr, e); setTimeout(_geoNext, 1500); });
+        function _placePin(lat, lon) {
+          if (!_fieldMapObj) return;
+          var mk = addLayer(L.circleMarker([lat, lon], {
+            radius: 12, color: item.color, fillColor: item.fillColor, fillOpacity: 0.9, weight: 3
+          }).bindPopup(item.label));
+          if (item.isCur) mk.openPopup();
+          bounds.push([lat, lon]);
+          if (bounds.length > 1) _fieldMapObj.fitBounds(bounds, { padding: [30, 30] });
+          else _fieldMapObj.setView([lat, lon], 14);
+        }
+        function _tryNominatim() {
+          var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
+                           .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
+          if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
+          fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data && data[0]) _placePin(parseFloat(data[0].lat), parseFloat(data[0].lon));
+              setTimeout(_geoNext, 1500);
+            })
+            .catch(function() { setTimeout(_geoNext, 1500); });
+        }
+        // Try GIS address_points first
+        if (_cadToken) {
+          API.searchAddressPoints(_cadToken, item.addr, 3)
+            .then(function(res) {
+              if (res && res.results && res.results.length > 0) {
+                _placePin(res.results[0].lat, res.results[0].lon);
+                setTimeout(_geoNext, 200);
+              } else {
+                _tryNominatim();
+              }
+            })
+            .catch(function() { _tryNominatim(); });
+        } else {
+          _tryNominatim();
+        }
       }
       _geoNext();
     }

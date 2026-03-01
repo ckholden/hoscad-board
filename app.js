@@ -10238,6 +10238,10 @@ function renderBoardMap() {
   incidents.forEach(inc => {
     const addr = (inc.scene_address || '').trim();
     if (!addr) return;
+    // Pre-seed geocache from stored E911 coordinates (no geocoding roundtrip needed)
+    if (inc.addr_lat && inc.addr_lon && !_bmGeoCache.hasOwnProperty(addr)) {
+      _bmGeoCache[addr] = [inc.addr_lat, inc.addr_lon];
+    }
     const geo = _bmGeoCache[addr];
     if (geo) {
       const pri = inc.priority || '';
@@ -10813,30 +10817,45 @@ async function _processBmGeoQueue() {
   const _coordCheck = addr.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
   if (_coordCheck) { _bmGeoCache[addr] = [parseFloat(_coordCheck[1]), parseFloat(_coordCheck[2])]; renderBoardMap(); return; }
   try {
-    // Strip leading non-numeric facility name prefix before geocoding
+    // Strip leading non-numeric facility name prefix
     // e.g. "SAINT CHARLES BEND 2500 NE NEFF RD" → "2500 NE NEFF RD"
     const hasStreetNum = /\d/.test(addr);
-    let stripped = hasStreetNum ? addr.replace(/^[A-Za-z\s,.'"-]+?(?=\d)/, '').trim() : addr;
-    // Normalize intersection separators: "HWY 97 / SW 61ST" → "HWY 97 & SW 61ST" (Nominatim format)
-    stripped = stripped.replace(/\s*\/\s*/g, ' & ');
-    let geocodeAddr = _expandDirections(stripped);
-    // Extract city name if present — restructure as "<street>, <City>, OR" for better Nominatim accuracy
+    const stripped = hasStreetNum ? addr.replace(/^[A-Za-z\s,.'"-]+?(?=\d)/, '').trim() : addr;
+
+    // ── Primary: query our own E911 GIS address_points table ─────────────────
+    if (TOKEN) {
+      try {
+        const gisRes = await API.searchAddressPoints(TOKEN, stripped, near ? 5 : 3);
+        if (gisRes && gisRes.results && gisRes.results.length > 0) {
+          let best = gisRes.results[0];
+          if (near && gisRes.results.length > 1) {
+            let bestDist = Infinity;
+            for (const r of gisRes.results) {
+              const d = _geoDistSq(near[0], near[1], r.lat, r.lon);
+              if (d < bestDist) { bestDist = d; best = r; }
+            }
+          }
+          _bmGeoCache[addr] = [best.lat, best.lon];
+          renderBoardMap();
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // ── Fallback: Nominatim (for addresses not in GIS table) ─────────────────
+    let geocodeAddr = _expandDirections(stripped.replace(/\s*\/\s*/g, ' & '));
     const KNOWN_CITIES = ['BEND','REDMOND','PRINEVILLE','MADRAS','SISTERS','LA PINE','LAPINE','WARM SPRINGS','CULVER','METOLIUS','POWELL BUTTE','MITCHELL','DAYVILLE','JOHN DAY','BURNS','LAKEVIEW','KLAMATH FALLS'];
-    const cityMatch = KNOWN_CITIES.find(c => {
-      const re = new RegExp('\\b' + c.replace(' ', '\\s+') + '\\b', 'i');
-      return re.test(geocodeAddr);
-    });
+    const cityMatch = KNOWN_CITIES.find(c => new RegExp('\\b' + c.replace(' ', '\\s+') + '\\b', 'i').test(geocodeAddr));
     if (cityMatch) {
       geocodeAddr = geocodeAddr.replace(new RegExp('\\b' + cityMatch.replace(' ', '\\s+') + '\\b', 'i'), '').replace(/[,\s]+$/, '').trim() + ', ' + cityMatch.charAt(0) + cityMatch.slice(1).toLowerCase() + ', OR';
     }
     const query = /oregon|,\s*or\b/i.test(geocodeAddr) ? geocodeAddr : geocodeAddr + ', Oregon';
-    // Fetch multiple results when we have a home coord to pick closest from
     const limit = near ? 5 : 1;
     const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
       encodeURIComponent(query) + '&limit=' + limit + '&viewbox=' + BM_MAP_VIEWBOX +
       '&bounded=' + (bounded || 0) + '&countrycodes=us';
     const res = await fetch(url);
-    if (!res.ok) return;
+    if (!res.ok) { _bmGeoCache[addr] = null; return; }
     const data = await res.json();
     if (data && data.length) {
       let best = data[0];
