@@ -288,6 +288,7 @@
             <option value="AMB">AMB (AMBULATORY)</option>
           </select>
           <input id="mStation" placeholder="HOME STATION (E.G. STA1)" style="flex:1" />
+          <input id="mFleetNumber" placeholder="FLEET / TRUCK # (OPTIONAL)" style="flex:1" maxlength="20" />
         </div>
       </div>
       <div>
@@ -342,6 +343,7 @@
     <h2 id="incTitle" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">INCIDENT <span id="incStatusBadge" style="display:none;font-size:12px;font-weight:900;padding:3px 10px;border-radius:3px;letter-spacing:.08em;vertical-align:middle;"></span></h2>
     <div class="row">
       <div class="pill">UNITS: <span id="incUnits">-</span></div>
+      <span id="incReportsBadgePill" class="pill" style="display:none;cursor:pointer;color:#4fa3e0;" onclick="document.getElementById('incReports').scrollIntoView({behavior:'smooth'})">REPORTS: <span id="incReportsBadgeCount">0</span></span>
       <div class="pill" style="align-items:center;gap:3px;">TYPE:&nbsp;<select id="incTypeSelect" onchange="onIncTypeSelect(this.value)" style="padding:2px 4px;font-size:11px;font-weight:700;background:#0b1018;border:1px solid var(--line);color:var(--yellow);font-family:inherit;"><option value="">—</option></select><input id="incEditCat" type="hidden" value="" /><input id="incEditNature" type="hidden" value="" /><input id="incTypeEdit" type="hidden" value="" /></div>
       <div class="pill" style="align-items:center;gap:3px;">PRI:&nbsp;<select id="incPriorityEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#ff7b72;font-family:inherit;"><option value="">—</option><option value="PRI-1">PRI-1</option><option value="PRI-2">PRI-2</option><option value="PRI-3">PRI-3</option><option value="PRI-4">PRI-4</option><option value="NONE">NONE</option></select></div>
       <div class="pill" style="align-items:center;gap:3px;">LOC:&nbsp;<select id="incLocEdit" style="padding:2px 4px;font-size:11px;font-weight:900;background:#0b1018;border:1px solid var(--line);color:#79c0ff;font-family:inherit;"><option value="">—</option><option value="BLS">BLS</option><option value="ALS">ALS</option><option value="CCT">CCT</option><option value="W/C">W/C</option><option value="STRETCHER">STRETCHER</option></select></div>
@@ -361,6 +363,13 @@
     <div id="incRelated" style="display:none;margin:6px 0 2px;font-size:11px;font-family:monospace;"></div>
     <div id="incSuggestResult" style="display:none;margin:6px 0 2px;"></div>
     <div id="incUpdateNotice" style="display:none;font-size:10px;font-weight:700;color:#3fb950;margin:4px 0;font-family:monospace;letter-spacing:.04em;"></div>
+    <div id="incReports" style="display:none;margin:4px 0 2px;">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:3px;">
+        CREW REPORTS
+        <span id="incReportsCount" style="color:#4fa3e0;font-size:11px;font-weight:700;margin-left:6px;"></span>
+      </div>
+      <div id="incReportsList"></div>
+    </div>
     <div id="incDangerBanner" class="danger-banner" style="display:none;margin-top:10px;"></div>
     <div class="muted" style="margin-top:10px;margin-bottom:6px;">INCIDENT NOTE</div>
     <textarea id="incNote" placeholder="E.G. PT IN WTG RM"></textarea>

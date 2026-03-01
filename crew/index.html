@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>HOSCAD RMS — Crew Portal</title>
+  <style>
+    :root {
+      --bg:      #0b1018;
+      --surface: #161b22;
+      --line:    #21262d;
+      --text:    #c9d1d9;
+      --muted:   #8b949e;
+      --yellow:  #e0b040;
+      --green:   #3fb950;
+      --red:     #f85149;
+      --blue:    #4fa3e0;
+      --orange:  #ffa657;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* ── Login ── */
+    #loginScreen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .login-card h1 {
+      font-size: 15px;
+      letter-spacing: .08em;
+      margin-bottom: 20px;
+      color: var(--blue);
+    }
+    .login-card h1 span { color: var(--muted); font-size: 11px; font-weight: 400; display: block; margin-top: 2px; }
+    .field-group { margin-bottom: 14px; }
+    .field-label { font-size: 10px; color: var(--muted); letter-spacing: .07em; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 3px;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+    textarea { resize: vertical; min-height: 200px; line-height: 1.6; }
+    .btn {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 9px 18px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      cursor: pointer;
+    }
+    .btn:hover { opacity: .88; }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+    .btn-secondary:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-danger { background: var(--red); }
+    .btn-green  { background: var(--green); }
+    .login-err { color: var(--red); font-size: 11px; margin-top: 10px; min-height: 16px; }
+
+    /* ── App shell ── */
+    #appShell { display: none; }
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-title { font-size: 13px; font-weight: 700; letter-spacing: .07em; color: var(--blue); flex: 1; }
+    .topbar-user  { font-size: 11px; color: var(--muted); }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+    .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    .tab-content { display: none; padding: 20px 16px; max-width: 860px; }
+    .tab-content.active { display: block; }
+
+    /* ── Cards / panels ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 11px; color: var(--muted); letter-spacing: .07em; margin-bottom: 12px; }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { font-size: 10px; color: var(--muted); letter-spacing: .06em; text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+    td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .empty-state { color: var(--muted); font-size: 12px; padding: 16px 8px; }
+
+    /* ── Expiry color coding ── */
+    .exp-ok      { color: var(--green); }
+    .exp-warn    { color: var(--yellow); }
+    .exp-expired { color: var(--red); }
+
+    /* ── Status pills ── */
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .05em;
+    }
+    .pill-draft     { background: rgba(224,176,64,.18); color: var(--yellow); }
+    .pill-submitted { background: rgba(63,185,80,.18);  color: var(--green); }
+
+    /* ── Writer ── */
+    #tabWriter { max-width: 100%; }
+    .ref-panel {
+      background: rgba(0,0,0,.35);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: var(--muted);
+      max-height: 220px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+    .ref-panel.collapsed { display: none; }
+    .ref-toggle { font-size: 10px; color: var(--blue); cursor: pointer; margin-top: 6px; display: inline-block; }
+    .ref-note-line { margin-bottom: 4px; line-height: 1.5; color: var(--text); }
+
+    /* ── Inline edit strip ── */
+    .edit-strip {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+    .edit-strip label { font-size: 10px; color: var(--muted); letter-spacing: .06em; display: block; margin-bottom: 4px; }
+    .edit-strip input { margin-bottom: 10px; }
+    .edit-strip .btn-row { display: flex; gap: 8px; }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .row > * { flex: 1; min-width: 120px; }
+
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 4px; padding: 10px 18px; font-size: 12px; font-weight: 700;
+      z-index: 9999; pointer-events: none; opacity: 0; transition: opacity .2s;
+    }
+    .toast.show { opacity: 1; }
+    .toast.ok   { border-color: var(--green); color: var(--green); }
+    .toast.err  { border-color: var(--red);   color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1>HOSCAD RMS<span>CREW PORTAL</span></h1>
+    <div class="field-group">
+      <div class="field-label">CAD ID</div>
+      <input id="loginCadId" type="text" inputmode="numeric" placeholder="E.G. 101" maxlength="6"
+             autocomplete="off" autocorrect="off" autocapitalize="off" />
+    </div>
+    <div class="field-group">
+      <div class="field-label">PIN</div>
+      <input id="loginPin" type="password" inputmode="numeric" placeholder="4–6 DIGIT PIN"
+             maxlength="6" autocomplete="current-password" />
+    </div>
+    <button class="btn" id="btnLogin" style="width:100%;">LOG IN</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     APP SHELL (after login)
+════════════════════════════════════════════════════════════ -->
+<div id="appShell">
+  <div class="topbar">
+    <div class="topbar-title">HOSCAD RMS</div>
+    <div class="topbar-user" id="topbarUser"></div>
+    <button class="btn btn-secondary" style="font-size:10px;padding:5px 10px;" id="btnLogout">LOG OUT</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="profile">MY PROFILE</div>
+    <div class="tab"        data-tab="reports">MY REPORTS</div>
+    <div class="tab"        data-tab="writer"  id="writerTab">WRITE REPORT</div>
+  </div>
+
+  <!-- ── PROFILE TAB ── -->
+  <div class="tab-content active" id="tabProfile">
+    <div class="card">
+      <div class="card-title">PROFILE</div>
+      <div id="profileInfo" style="font-size:13px;line-height:2;"></div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-secondary" style="font-size:11px;" id="btnEditCert">EDIT CERT / LICENSE</button>
+      </div>
+      <div class="edit-strip" id="certEditStrip" style="display:none;">
+        <label>CERT EXPIRY DATE</label>
+        <input type="date" id="editExpiry" />
+        <label>LICENSE NUMBER</label>
+        <input type="text" id="editLicense" placeholder="LICENSE #" maxlength="30" autocomplete="off" />
+        <div class="btn-row">
+          <button class="btn btn-green" id="btnSaveCert">SAVE</button>
+          <button class="btn btn-secondary" id="btnCancelCert">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">RECENT ASSIGNMENTS</div>
+      <div id="assignmentsList"></div>
+    </div>
+  </div>
+
+  <!-- ── REPORTS TAB ── -->
+  <div class="tab-content" id="tabReports">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.05em;">MY REPORTS</div>
+      <button class="btn" style="font-size:11px;padding:7px 14px;" id="btnNewReport">+ NEW REPORT</button>
+    </div>
+    <div id="reportsList"></div>
+  </div>
+
+  <!-- ── WRITER TAB ── -->
+  <div class="tab-content" id="tabWriter">
+    <div id="writerViewMode" style="display:none;">
+      <!-- Read-only view for submitted reports -->
+      <div style="margin-bottom:12px;">
+        <button class="btn btn-secondary" style="font-size:11px;" id="btnBackToReports">← BACK TO MY REPORTS</button>
+      </div>
+      <div class="card">
+        <div class="card-title" id="viewReportTitle">REPORT</div>
+        <div id="viewReportMeta" style="font-size:12px;line-height:2;"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">NARRATIVE</div>
+        <div id="viewReportNarrative" style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--text);"></div>
+      </div>
+    </div>
+
+    <div id="writerEditMode">
+      <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="btn btn-secondary" style="font-size:11px;" id="btnBackToReports2">← BACK TO MY REPORTS</button>
+        <div style="font-size:11px;color:var(--muted);" id="writerTitle">NEW REPORT</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">REPORT DETAILS</div>
+        <div class="row">
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">INCIDENT ID *</label>
+            <div style="display:flex;gap:6px;">
+              <input id="writerIncidentId" placeholder="SC26-0042" autocomplete="off"
+                     autocorrect="off" autocapitalize="characters" style="flex:1;" />
+              <button class="btn btn-secondary" style="font-size:11px;padding:7px 10px;white-space:nowrap;" id="btnLoadInc">LOAD</button>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">REPORT TYPE *</label>
+            <select id="writerReportType">
+              <option value="PCR">PCR</option>
+              <option value="REFUSAL">REFUSAL</option>
+              <option value="EXPOSURE">EXPOSURE</option>
+              <option value="INCIDENT">INCIDENT</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Incident reference panel -->
+        <div id="incRefArea" style="display:none;margin-top:12px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:4px;">
+            INCIDENT REFERENCE
+            <span class="ref-toggle" id="refToggleBtn" onclick="_toggleRefPanel()">▼ COLLAPSE</span>
+          </div>
+          <div id="incRefPanel" class="ref-panel"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">NARRATIVE *</div>
+        <textarea id="writerNarrative" placeholder="PATIENT PRESENTATION, ASSESSMENT, TREATMENT, AND TRANSPORT NARRATIVE..."></textarea>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+          DRAFT SAVES AUTOMATICALLY. SUBMIT TO FINALIZE (IRREVERSIBLE).
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px;">
+        <button class="btn btn-secondary" id="btnSaveDraft">SAVE DRAFT</button>
+        <button class="btn btn-green"     id="btnSubmitReport">SUBMIT REPORT</button>
+        <div style="font-size:11px;color:var(--muted);align-self:center;" id="writerStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// Config
+// ════════════════════════════════════════════════════════════════════════
+const RMS_API_BASE = 'https://vnqiqxffedudfsdoadqg.supabase.co/functions/v1/hoscad';
+const RMS_API_KEY  = 'sb_publishable_FbP38-Tm_9iIV2QHI0Ewdw_TZfEVCJc';
+
+const LS_TOKEN  = 'hoscad_crew_token';
+const LS_CADID  = 'hoscad_crew_cadid';
+const LS_NAME   = 'hoscad_crew_name';
+const LS_CERT   = 'hoscad_crew_cert';
+
+// ════════════════════════════════════════════════════════════════════════
+// State
+// ════════════════════════════════════════════════════════════════════════
+let _token     = '';
+let _cadId     = '';
+let _fullName  = '';
+let _certLevel = '';
+let _editingReportId = null;   // null = new report
+let _refCollapsed    = false;
+
+// ════════════════════════════════════════════════════════════════════════
+// API
+// ════════════════════════════════════════════════════════════════════════
+async function rmsCall(action, ...params) {
+  const body = new URLSearchParams({ action, params: JSON.stringify(params) });
+  try {
+    const res = await fetch(RMS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/x-www-form-urlencoded',
+        'apikey':        RMS_API_KEY,
+        'Authorization': 'Bearer ' + RMS_API_KEY
+      },
+      body: body.toString()
+    });
+    const text = await res.text();
+    try { return JSON.parse(text); } catch(_) { return { ok: false, error: 'INVALID RESPONSE' }; }
+  } catch(e) {
+    return { ok: false, error: 'NETWORK ERROR: ' + (e.message || 'UNKNOWN') };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Utilities
+// ════════════════════════════════════════════════════════════════════════
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(ts) {
+  if (!ts) return '—';
+  try {
+    return new Date(ts).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  } catch(_) { return ts; }
+}
+
+function fmtDateTime(ts) {
+  if (!ts) return '—';
+  try {
+    return new Date(ts).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  } catch(_) { return ts; }
+}
+
+function expiryClass(dateStr) {
+  if (!dateStr) return '';
+  const days = (new Date(dateStr) - Date.now()) / 86400000;
+  if (days < 0)  return 'exp-expired';
+  if (days < 30) return 'exp-warn';
+  return 'exp-ok';
+}
+
+let _toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'toast show ' + (type === 'err' ? 'err' : 'ok');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { el.className = 'toast'; }, 3000);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Auth
+// ════════════════════════════════════════════════════════════════════════
+async function tryRestoreSession() {
+  const savedToken = localStorage.getItem(LS_TOKEN);
+  if (!savedToken) return false;
+  const r = await rmsCall('getOwnProfile', savedToken);
+  if (!r.ok) {
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_CADID);
+    localStorage.removeItem(LS_NAME);
+    localStorage.removeItem(LS_CERT);
+    return false;
+  }
+  _token     = savedToken;
+  _cadId     = r.cadId;
+  _fullName  = r.fullName;
+  _certLevel = r.certLevel;
+  localStorage.setItem(LS_CADID, _cadId);
+  localStorage.setItem(LS_NAME,  _fullName);
+  localStorage.setItem(LS_CERT,  _certLevel);
+  return true;
+}
+
+async function doLogin() {
+  const cadId = document.getElementById('loginCadId').value.trim();
+  const pin   = document.getElementById('loginPin').value.trim();
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  if (!cadId) { errEl.textContent = 'CAD ID REQUIRED.'; return; }
+  if (!pin)   { errEl.textContent = 'PIN REQUIRED.'; return; }
+  errEl.textContent = 'VERIFYING...';
+  const r = await rmsCall('crewPinLogin', cadId, pin);
+  if (!r.ok) { errEl.textContent = r.error || 'LOGIN FAILED.'; return; }
+  if (!r.sessionToken) { errEl.textContent = 'SESSION TOKEN NOT RETURNED. CONTACT ADMIN.'; return; }
+  _token     = r.sessionToken;
+  _cadId     = r.cadId;
+  _fullName  = r.fullName;
+  _certLevel = r.certLevel;
+  localStorage.setItem(LS_TOKEN, _token);
+  localStorage.setItem(LS_CADID, _cadId);
+  localStorage.setItem(LS_NAME,  _fullName);
+  localStorage.setItem(LS_CERT,  _certLevel);
+  showApp();
+}
+
+async function doLogout() {
+  if (_token) await rmsCall('crewLogout', _token).catch(function() {});
+  _token = '';
+  localStorage.removeItem(LS_TOKEN);
+  localStorage.removeItem(LS_CADID);
+  localStorage.removeItem(LS_NAME);
+  localStorage.removeItem(LS_CERT);
+  document.getElementById('appShell').style.display   = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginCadId').value = '';
+  document.getElementById('loginPin').value   = '';
+  document.getElementById('loginErr').textContent = '';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// App shell init
+// ════════════════════════════════════════════════════════════════════════
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display    = 'block';
+  document.getElementById('topbarUser').textContent    = _fullName + ' [' + _cadId + ']';
+  loadProfile();
+  loadReports();
+  // Check URL param for incident deep-link
+  const urlParams = new URLSearchParams(window.location.search);
+  const incParam  = urlParams.get('incident');
+  if (incParam) {
+    switchTab('writer');
+    startNewReport(incParam.toUpperCase());
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Tabs
+// ════════════════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.tab === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(function(c) {
+    c.classList.remove('active');
+  });
+  const target = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
+  if (target) target.classList.add('active');
+}
+
+document.querySelectorAll('.tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    switchTab(tab.dataset.tab);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// PROFILE TAB
+// ════════════════════════════════════════════════════════════════════════
+async function loadProfile() {
+  const r = await rmsCall('getOwnProfile', _token);
+  if (!r.ok) { showToast('PROFILE LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
+
+  const expClass = expiryClass(r.certExpiryDate);
+  document.getElementById('profileInfo').innerHTML =
+    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">NAME</span>' + esc(r.fullName) + '</div>' +
+    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CAD ID</span>' + esc(r.cadId) + '</div>' +
+    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CERT LEVEL</span>' + esc(r.certLevel || '—') + '</div>' +
+    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">CERT EXPIRY</span>' +
+      '<span class="' + expClass + '">' + esc(r.certExpiryDate || '—') + '</span></div>' +
+    '<div><span style="color:var(--muted);font-size:11px;display:inline-block;min-width:140px;">LICENSE #</span>' + esc(r.licenseNumber || '—') + '</div>';
+
+  // Pre-fill edit form
+  document.getElementById('editExpiry').value  = r.certExpiryDate || '';
+  document.getElementById('editLicense').value = r.licenseNumber  || '';
+
+  // Load assignments
+  loadAssignments();
+}
+
+async function loadAssignments() {
+  const r = await rmsCall('getOwnAssignments', _token, 15);
+  const el = document.getElementById('assignmentsList');
+  if (!r.ok || !r.assignments || !r.assignments.length) {
+    el.innerHTML = '<div class="empty-state">NO RECENT ASSIGNMENTS.</div>';
+    return;
+  }
+  el.innerHTML = '<table><thead><tr><th>UNIT</th><th>FLEET #</th><th>ROLE</th><th>LOGGED ON</th><th>LOGGED OFF</th></tr></thead><tbody>' +
+    r.assignments.map(function(a) {
+      return '<tr><td>' + esc(a.unit_id || '—') + '</td><td>' + esc(a.fleet_number || '—') + '</td>' +
+        '<td>' + esc(a.crew_role || '—') + '</td>' +
+        '<td>' + fmtDateTime(a.logged_on_at) + '</td>' +
+        '<td>' + (a.logged_off_at ? fmtDateTime(a.logged_off_at) : '<span style="color:var(--green);">ACTIVE</span>') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+document.getElementById('btnEditCert').addEventListener('click', function() {
+  const strip = document.getElementById('certEditStrip');
+  strip.style.display = strip.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('btnCancelCert').addEventListener('click', function() {
+  document.getElementById('certEditStrip').style.display = 'none';
+});
+
+document.getElementById('btnSaveCert').addEventListener('click', async function() {
+  const expiry  = document.getElementById('editExpiry').value.trim()  || null;
+  const license = document.getElementById('editLicense').value.trim() || null;
+  const r = await rmsCall('updateOwnCertInfo', _token, expiry, license);
+  if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
+  showToast('CERT INFO SAVED.', 'ok');
+  document.getElementById('certEditStrip').style.display = 'none';
+  loadProfile();
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// REPORTS TAB
+// ════════════════════════════════════════════════════════════════════════
+async function loadReports() {
+  const r = await rmsCall('listMyReports', _token, 50);
+  const el = document.getElementById('reportsList');
+  if (!r.ok) { el.innerHTML = '<div class="empty-state">LOAD FAILED: ' + esc(r.error || 'UNKNOWN') + '</div>'; return; }
+  if (!r.reports || !r.reports.length) {
+    el.innerHTML = '<div class="empty-state">NO REPORTS YET. CLICK + NEW REPORT TO WRITE ONE.</div>';
+    return;
+  }
+  el.innerHTML = '<table><thead><tr><th>RPT ID</th><th>INCIDENT</th><th>TYPE</th><th>STATUS</th><th>DATE</th><th></th></tr></thead><tbody>' +
+    r.reports.map(function(rpt) {
+      const pill = '<span class="pill ' + (rpt.status === 'SUBMITTED' ? 'pill-submitted' : 'pill-draft') + '">' + esc(rpt.status) + '</span>';
+      const isSubmitted = rpt.status === 'SUBMITTED';
+      const btn = isSubmitted
+        ? '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_viewReport(\'' + esc(rpt.report_id) + '\')">VIEW</button>'
+        : '<button class="btn btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="_editReport(\'' + esc(rpt.report_id) + '\')">EDIT</button>';
+      return '<tr><td style="color:var(--blue);font-weight:700;">' + esc(rpt.report_id) + '</td>' +
+        '<td>' + esc(rpt.incident_id) + '</td>' +
+        '<td>' + esc(rpt.report_type) + '</td>' +
+        '<td>' + pill + '</td>' +
+        '<td>' + fmtDate(rpt.submitted_at || rpt.created_at) + '</td>' +
+        '<td>' + btn + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+document.getElementById('btnNewReport').addEventListener('click', function() {
+  startNewReport('');
+  switchTab('writer');
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// WRITE / EDIT REPORT
+// ════════════════════════════════════════════════════════════════════════
+function startNewReport(incidentId) {
+  _editingReportId = null;
+  document.getElementById('writerTitle').textContent = 'NEW REPORT';
+  document.getElementById('writerIncidentId').value  = incidentId || '';
+  document.getElementById('writerReportType').value  = 'PCR';
+  document.getElementById('writerNarrative').value   = '';
+  document.getElementById('writerStatus').textContent = '';
+  document.getElementById('writerViewMode').style.display = 'none';
+  document.getElementById('writerEditMode').style.display = '';
+  document.getElementById('incRefArea').style.display = 'none';
+  document.getElementById('writerIncidentId').disabled   = false;
+  document.getElementById('writerReportType').disabled   = false;
+  document.getElementById('btnSaveDraft').style.display   = '';
+  document.getElementById('btnSubmitReport').style.display = '';
+  if (incidentId) _loadIncidentRef(incidentId);
+}
+
+async function _editReport(reportId) {
+  const r = await rmsCall('getReport', _token, reportId);
+  if (!r.ok) { showToast('LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
+  const rpt = r.report;
+  if (rpt.status === 'SUBMITTED') { _viewReport(reportId); return; }
+  _editingReportId = reportId;
+  document.getElementById('writerTitle').textContent = 'EDITING ' + rpt.report_id;
+  document.getElementById('writerIncidentId').value  = rpt.incident_id;
+  document.getElementById('writerReportType').value  = rpt.report_type;
+  document.getElementById('writerNarrative').value   = rpt.narrative || '';
+  document.getElementById('writerStatus').textContent = '';
+  document.getElementById('writerViewMode').style.display = 'none';
+  document.getElementById('writerEditMode').style.display = '';
+  document.getElementById('writerIncidentId').disabled   = true;
+  document.getElementById('writerReportType').disabled   = true;
+  document.getElementById('btnSaveDraft').style.display   = '';
+  document.getElementById('btnSubmitReport').style.display = '';
+  _loadIncidentRef(rpt.incident_id);
+  switchTab('writer');
+}
+
+async function _viewReport(reportId) {
+  const r = await rmsCall('getReport', _token, reportId);
+  if (!r.ok) { showToast('LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
+  const rpt = r.report;
+  document.getElementById('viewReportTitle').textContent = rpt.report_id + ' — ' + rpt.report_type;
+  document.getElementById('viewReportMeta').innerHTML =
+    '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">INCIDENT</span>' + esc(rpt.incident_id) + '</div>' +
+    '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">UNIT</span>' + esc(rpt.unit_id || '—') + '</div>' +
+    '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">FLEET #</span>' + esc(rpt.fleet_number || '—') + '</div>' +
+    '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">STATUS</span><span class="pill pill-submitted">' + esc(rpt.status) + '</span></div>' +
+    '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">SUBMITTED</span>' + fmtDateTime(rpt.submitted_at) + '</div>';
+  document.getElementById('viewReportNarrative').textContent = rpt.narrative || '(No narrative)';
+  document.getElementById('writerEditMode').style.display = 'none';
+  document.getElementById('writerViewMode').style.display = '';
+  switchTab('writer');
+}
+
+// ── Incident reference panel ──
+async function _loadIncidentRef(incidentId) {
+  if (!incidentId) return;
+  const r = await rmsCall('getIncidentForReport', _token, incidentId);
+  if (!r.ok) {
+    document.getElementById('incRefArea').style.display = 'none';
+    return;
+  }
+  const inc  = r.incident;
+  const audit = r.audit || [];
+  let html = '';
+  if (inc.scene_address) html += '<div class="ref-note-line" style="color:var(--blue);font-weight:700;">📍 ' + esc(inc.scene_address) + '</div>';
+  if (inc.incident_type) html += '<div class="ref-note-line">TYPE: ' + esc(inc.incident_type) + (inc.priority ? ' &nbsp;|&nbsp; PRI: ' + esc(inc.priority) : '') + '</div>';
+  if (inc.notes) html += '<div class="ref-note-line" style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px;">' + esc(inc.notes).replace(/\n/g,'<br>') + '</div>';
+  if (audit.length) {
+    html += '<div style="margin-top:8px;font-size:10px;color:var(--muted);letter-spacing:.05em;">LAST ' + audit.length + ' EVENTS:</div>';
+    audit.forEach(function(e) {
+      const aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+      html += '<div class="ref-note-line" style="font-size:11px;">' +
+        '<span style="color:var(--muted);">' + esc(aTime) + '</span> ' +
+        '<span>' + esc(e.actor || '') + '</span></div>';
+    });
+  }
+  document.getElementById('incRefPanel').innerHTML = html || '<span style="color:var(--muted);">No notes available.</span>';
+  document.getElementById('incRefArea').style.display = '';
+}
+
+function _toggleRefPanel() {
+  _refCollapsed = !_refCollapsed;
+  document.getElementById('incRefPanel').classList.toggle('collapsed', _refCollapsed);
+  document.getElementById('refToggleBtn').textContent = _refCollapsed ? '▶ EXPAND' : '▼ COLLAPSE';
+}
+
+document.getElementById('btnLoadInc').addEventListener('click', function() {
+  const incId = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+  if (incId) _loadIncidentRef(incId);
+});
+
+document.getElementById('writerIncidentId').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnLoadInc').click(); }
+});
+
+// ── Save Draft ──
+document.getElementById('btnSaveDraft').addEventListener('click', async function() {
+  const incId     = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+  const rptType   = document.getElementById('writerReportType').value;
+  const narrative = document.getElementById('writerNarrative').value.trim();
+  const statusEl  = document.getElementById('writerStatus');
+
+  if (!incId) { showToast('INCIDENT ID REQUIRED.', 'err'); return; }
+
+  statusEl.textContent = 'SAVING...';
+  let r;
+  if (_editingReportId) {
+    r = await rmsCall('updateReport', _token, _editingReportId, narrative);
+  } else {
+    r = await rmsCall('createReport', _token, incId, rptType, narrative);
+    if (r.ok && r.reportId) {
+      _editingReportId = r.reportId;
+      document.getElementById('writerTitle').textContent = 'EDITING ' + r.reportId;
+      document.getElementById('writerIncidentId').disabled = true;
+      document.getElementById('writerReportType').disabled = true;
+    }
+  }
+
+  if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'err'); statusEl.textContent = ''; return; }
+  statusEl.textContent = 'SAVED ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  showToast('DRAFT SAVED.', 'ok');
+});
+
+// ── Submit ──
+document.getElementById('btnSubmitReport').addEventListener('click', async function() {
+  const narrative = document.getElementById('writerNarrative').value.trim();
+  if (!narrative) { showToast('NARRATIVE IS REQUIRED.', 'err'); return; }
+
+  const confirmed = window.confirm('SUBMIT REPORT?\n\nOnce submitted, the report cannot be edited. This action is irreversible.');
+  if (!confirmed) return;
+
+  let reportId = _editingReportId;
+  if (!reportId) {
+    // Auto-save draft first
+    const incId   = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+    const rptType = document.getElementById('writerReportType').value;
+    if (!incId) { showToast('INCIDENT ID REQUIRED.', 'err'); return; }
+    const cR = await rmsCall('createReport', _token, incId, rptType, narrative);
+    if (!cR.ok) { showToast('CREATE FAILED: ' + (cR.error || 'UNKNOWN'), 'err'); return; }
+    reportId = cR.reportId;
+  } else {
+    // Update narrative before submit
+    await rmsCall('updateReport', _token, reportId, narrative);
+  }
+
+  const r = await rmsCall('submitReport', _token, reportId);
+  if (!r.ok) { showToast('SUBMIT FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
+  showToast('REPORT SUBMITTED: ' + reportId, 'ok');
+  loadReports();
+  _viewReport(reportId);
+});
+
+// ── Back buttons ──
+function _backToReports() {
+  _editingReportId = null;
+  document.getElementById('writerViewMode').style.display = 'none';
+  document.getElementById('writerEditMode').style.display = 'none';
+  switchTab('reports');
+  loadReports();
+}
+
+document.getElementById('btnBackToReports').addEventListener('click', _backToReports);
+document.getElementById('btnBackToReports2').addEventListener('click', _backToReports);
+
+// ════════════════════════════════════════════════════════════════════════
+// Login / logout event bindings
+// ════════════════════════════════════════════════════════════════════════
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('loginPin').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('loginCadId').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('loginPin').focus();
+});
+
+document.getElementById('btnLogout').addEventListener('click', async function() {
+  if (!window.confirm('LOG OUT OF RMS CREW PORTAL?')) return;
+  await doLogout();
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Init — try to restore session on page load
+// ════════════════════════════════════════════════════════════════════════
+(async function init() {
+  const restored = await tryRestoreSession();
+  if (restored) {
+    showApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+})();
+</script>
+</body>
+</html>

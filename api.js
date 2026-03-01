@@ -619,6 +619,43 @@ const API = {
   getPresence(token, incidentId) {
     return this.call('getPresence', token, incidentId);
   },
+
+  // ============================================================
+  // RMS — Crew Report Management
+  // ============================================================
+  crewLogout(crewToken) {
+    return this.call('crewLogout', crewToken);
+  },
+  getOwnProfile(crewToken) {
+    return this.call('getOwnProfile', crewToken);
+  },
+  updateOwnCertInfo(crewToken, certExpiryDate, licenseNumber) {
+    return this.call('updateOwnCertInfo', crewToken, certExpiryDate, licenseNumber);
+  },
+  getOwnAssignments(crewToken, limit) {
+    return this.call('getOwnAssignments', crewToken, limit || 20);
+  },
+  createReport(crewToken, incidentId, reportType, narrative, structuredData) {
+    return this.call('createReport', crewToken, incidentId, reportType, narrative, structuredData || null);
+  },
+  updateReport(crewToken, reportId, narrative, structuredData) {
+    return this.call('updateReport', crewToken, reportId, narrative, structuredData || null);
+  },
+  submitReport(crewToken, reportId) {
+    return this.call('submitReport', crewToken, reportId);
+  },
+  getReport(token, reportId) {
+    return this.call('getReport', token, reportId);
+  },
+  listMyReports(crewToken, limit) {
+    return this.call('listMyReports', crewToken, limit || 50);
+  },
+  listIncidentReports(token, incidentId) {
+    return this.call('listIncidentReports', token, incidentId);
+  },
+  getIncidentForReport(crewToken, incidentId) {
+    return this.call('getIncidentForReport', crewToken, incidentId);
+  },
 };
 
 // Export for module systems (if used)

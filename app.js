@@ -3941,8 +3941,10 @@ function openModal(u, f = false) {
   const s2 = document.getElementById('mCrew2Status'); if (s2) s2.textContent = cm2Id ? '✓' : '';
   const mLevel = document.getElementById('mLevel');
   const mStation = document.getElementById('mStation');
+  const mFleetNumber = document.getElementById('mFleetNumber');
   if (mLevel) mLevel.value = u ? (u.level || '') : '';
   if (mStation) mStation.value = u ? (u.station || '') : '';
+  if (mFleetNumber) mFleetNumber.value = u ? (u.fleet_number || '') : '';
   document.getElementById('modalTitle').textContent = u ? 'EDIT ' + u.unit_id : 'LOGON UNIT';
   document.getElementById('modalFoot').textContent = u ? 'UPDATED: ' + (u.updated_at || '—') + ' BY ' + (u.updated_by || '—') : 'TIP: SET STATUS TO D WITH INCIDENT BLANK TO AUTO-GENERATE.';
   b.dataset.expectedUpdatedAt = u ? (u.updated_at || '') : '';
@@ -4055,6 +4057,7 @@ async function saveModal() {
     })(),
     level: (document.getElementById('mLevel')?.value || '').trim().toUpperCase(),
     station: (document.getElementById('mStation')?.value || '').trim(),
+    fleetNumber: (document.getElementById('mFleetNumber')?.value || '').trim().toUpperCase() || null,
     active: true
   };
 
@@ -5202,6 +5205,39 @@ async function openIncidentFromServer(iId) {
 
   renderIncidentAudit(r.audit || []);
 
+  // Crew reports — async, non-blocking, always runs
+  const _incRptsEl    = document.getElementById('incReports');
+  const _incRptsListEl = document.getElementById('incReportsList');
+  const _incRptsCntEl = document.getElementById('incReportsCount');
+  const _incRptsBadge = document.getElementById('incReportsBadgePill');
+  const _incRptsBadgeCnt = document.getElementById('incReportsBadgeCount');
+  if (_incRptsEl) { _incRptsEl.style.display = 'none'; _incRptsListEl.innerHTML = ''; }
+  if (_incRptsBadge) _incRptsBadge.style.display = 'none';
+  if (TOKEN) {
+    API.listIncidentReports(TOKEN, iId).then(function(rr) {
+      if (!rr.ok || !rr.reports || !rr.reports.length) return;
+      const rpts = rr.reports;
+      if (_incRptsEl) _incRptsEl.style.display = '';
+      if (_incRptsBadge) { _incRptsBadge.style.display = ''; }
+      if (_incRptsBadgeCnt) _incRptsBadgeCnt.textContent = rpts.length;
+      if (_incRptsCntEl) _incRptsCntEl.textContent = rpts.length + ' REPORT(S)';
+      if (_incRptsListEl) {
+        _incRptsListEl.innerHTML = rpts.map(function(rpt) {
+          const rIdE = esc(rpt.report_id);
+          return '<div style="font-size:11px;display:flex;gap:8px;align-items:center;margin-bottom:2px;">' +
+            '<span style="color:#4fa3e0;font-weight:700;">' + rIdE + '</span>' +
+            '<span class="muted">' + esc(rpt.report_type) + '</span>' +
+            '<span>' + esc(rpt.unit_id || '—') + '</span>' +
+            '<span>' + esc(rpt.author_name) + '</span>' +
+            '<span style="color:' + (rpt.status === 'SUBMITTED' ? '#7fffb2' : '#ffd66b') + ';font-size:10px;">' + esc(rpt.status) + '</span>' +
+            '<span class="muted">' + fmtTime(rpt.submitted_at || rpt.created_at) + '</span>' +
+            '<button style="font-size:10px;padding:2px 7px;" class="btn-secondary" onclick="_openReportPopout(\'' + rIdE + '\')">VIEW</button>' +
+            '</div>';
+        }).join('');
+      }
+    }).catch(function() {});
+  }
+
   // Danger flag banner — async, non-blocking
   const _dfAddr = inc.scene_address || '';
   const _dfBanner = document.getElementById('incDangerBanner');
@@ -5230,6 +5266,77 @@ async function openIncidentFromServer(iId) {
 function openIncident(iId) {
   openIncidentFromServer(iId);
 }
+
+// ============================================================
+// Crew report popout (dispatcher read-only view)
+// ============================================================
+
+async function _openReportPopout(reportId) {
+  const r = await API.getReport(TOKEN, reportId);
+  if (!r.ok) { showToast('REPORT NOT FOUND.', 'error'); return; }
+  const w = window.open('', '_blank', 'width=820,height=720');
+  if (!w) { showAlert('ERROR', 'ALLOW POPUPS TO VIEW REPORTS.'); return; }
+  w.document.write(_buildReportHtml(r.report));
+  w.document.close();
+}
+
+function _buildReportHtml(rpt) {
+  const h = function(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  };
+  const fmtTs = function(ts) {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' }); } catch(e) { return ts; }
+  };
+  const statusColor = rpt.status === 'SUBMITTED' ? '#3fb950' : '#ffd66b';
+  const rows = [
+    ['Report ID',    rpt.report_id],
+    ['Report Type',  rpt.report_type],
+    ['Incident',     rpt.incident_id],
+    ['Unit',         rpt.unit_id || '—'],
+    ['Fleet #',      rpt.fleet_number || '—'],
+    ['Author',       rpt.author_name + (rpt.author_cert ? ' [' + rpt.author_cert + ']' : '')],
+    ['CAD ID',       rpt.author_cad_id],
+    ['Status',       rpt.status],
+    ['Created',      fmtTs(rpt.created_at)],
+    ['Submitted',    fmtTs(rpt.submitted_at)],
+  ];
+  let sdHtml = '';
+  if (rpt.structured_data && Object.keys(rpt.structured_data).length) {
+    sdHtml = '<h3 style="margin:18px 0 6px;font-size:13px;letter-spacing:.05em;">STRUCTURED DATA</h3><table style="width:100%;border-collapse:collapse;font-size:12px;">';
+    for (const [k, v] of Object.entries(rpt.structured_data)) {
+      sdHtml += '<tr><td style="padding:3px 8px;border:1px solid #ddd;font-weight:700;white-space:nowrap;">' + h(k) + '</td><td style="padding:3px 8px;border:1px solid #ddd;">' + h(String(v)) + '</td></tr>';
+    }
+    sdHtml += '</table>';
+  }
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + h(rpt.report_id) + ' — HOSCAD RMS</title>' +
+    '<style>body{font-family:monospace;font-size:13px;margin:0;padding:20px;background:#fff;color:#111;}' +
+    'h1{font-size:16px;letter-spacing:.08em;margin:0 0 16px;}h2{font-size:13px;margin:16px 0 6px;}' +
+    'table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:4px 8px;}' +
+    'th{background:#f0f0f0;text-align:left;font-size:11px;letter-spacing:.04em;}' +
+    '.narrative{white-space:pre-wrap;font-family:monospace;font-size:12px;line-height:1.6;' +
+    'background:#f8f8f8;border:1px solid #ddd;padding:12px;margin-top:8px;}' +
+    '.status{font-weight:900;color:' + h(statusColor) + ';}' +
+    '.footer{margin-top:24px;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:8px;}' +
+    '@media print{body{padding:10px;}.no-print{display:none;}}</style></head><body>' +
+    '<h1>HOSCAD RMS — ' + h(rpt.report_type) + ' REPORT</h1>' +
+    '<h2>REPORT INFORMATION</h2>' +
+    '<table><tbody>' +
+    rows.map(function(row) {
+      const val = row[0] === 'Status'
+        ? '<span class="status">' + h(row[1]) + '</span>'
+        : h(row[1]);
+      return '<tr><th style="width:120px;">' + h(row[0]) + '</th><td>' + val + '</td></tr>';
+    }).join('') +
+    '</tbody></table>' +
+    sdHtml +
+    '<h2 style="margin-top:18px;">NARRATIVE</h2>' +
+    '<div class="narrative">' + h(rpt.narrative || '(No narrative)') + '</div>' +
+    '<div class="footer">Generated by HOSCAD RMS &nbsp;|&nbsp; ' + h(fmtTs(new Date().toISOString())) + '</div>' +
+    '</body></html>';
+}
+
+window._openReportPopout = _openReportPopout;
 
 // Agency-level approximate coordinates for proximity scoring in SUGGEST
 // Used when exact geocode is unavailable — coarse but correct directionally

@@ -1514,6 +1514,10 @@
         <div class="field-label">CALLSIGN</div>
         <input id="loginCallsign" type="text" placeholder="ENTER CALLSIGN (E.G. EMS12, CC1)" autocomplete="off" autocorrect="off" autocapitalize="characters" />
       </div>
+      <div class="field">
+        <div class="field-label">FLEET / TRUCK # <span style="font-size:10px;font-weight:400;color:var(--muted);">(OPTIONAL)</span></div>
+        <input id="loginFleetNumber" type="text" placeholder="E.G. 301, MEDIC-7" autocomplete="off" autocorrect="off" autocapitalize="characters" maxlength="20" />
+      </div>
       <div id="crewPinLoginSection">
       <div class="field">
         <div class="field-label">CREW 1 (REQUIRED)</div>
@@ -1698,6 +1702,7 @@
         </div>
         <!-- Field-originated call creation -->
         <button class="field-nc-open-btn" id="fieldNcOpenBtn" onclick="_openFieldNcPanel()" style="display:none;">+ CREATE CALL</button>
+        <a id="btnWriteReport" href="/crew/" target="_blank" style="display:none;font-size:11px;padding:4px 10px;text-decoration:none;" class="btn-secondary">WRITE REPORT</a>
         <div id="fieldNcPanel" class="field-nc-panel" style="display:none;">
           <div class="field-nc-header">
             FIELD-ORIGINATED CALL
@@ -4034,11 +4039,22 @@
     } catch(e) { _setStatus('ERROR: NETWORK FAILURE', '#d43030'); }
   }
 
-  // Show/hide CREATE CALL button based on login state
+  // Show/hide CREATE CALL + WRITE REPORT buttons based on login state
   function _updateFieldNcBtn() {
     var btn = document.getElementById('fieldNcOpenBtn');
-    if (!btn) return;
-    btn.style.display = (_cadToken && _cadCallsign) ? 'block' : 'none';
+    if (btn) btn.style.display = (_cadToken && _cadCallsign) ? 'block' : 'none';
+    var rptBtn = document.getElementById('btnWriteReport');
+    if (rptBtn) {
+      if (_cadToken && _cadCallsign) {
+        rptBtn.style.display = '';
+        // Deep-link to current incident if unit is on one
+        var myU = _mergedUnits ? _mergedUnits[_cadCallsign.toUpperCase()] : null;
+        var incId = myU && myU.incident ? myU.incident : '';
+        rptBtn.href = incId ? '/crew/?incident=' + encodeURIComponent(incId) : '/crew/';
+      } else {
+        rptBtn.style.display = 'none';
+      }
+    }
   }
 
   // Close typeahead when tapping outside
@@ -4560,12 +4576,17 @@
     const isNewUnit = info.ok && !info.everSeen;
     // If the existing note was stamped [TEMP] by a dispatcher LUI command, clear it on real logon
     const hasStaleTemp = info.ok && info.unit && (info.unit.note || '').includes('[TEMP]');
+    const _fleetNum = (function() {
+      const el = document.getElementById('loginFleetNumber');
+      return el ? (el.value || '').trim().toUpperCase() || null : null;
+    })();
     const upsert = await API.upsertUnit(_cadToken, _cadCallsign, {
       active: true,
       ...(isNewUnit ? { status: 'AV' } : {}),
       ...(hasStaleTemp ? { note: '' } : {}),
       ...(_cadUnitInfo ? { unitInfo: _cadUnitInfo } : {}),
-      ...(crewAssignments && crewAssignments.length ? { crewAssignments } : {})
+      ...(crewAssignments && crewAssignments.length ? { crewAssignments } : {}),
+      ...(_fleetNum ? { fleetNumber: _fleetNum } : {})
     });
     if (!upsert.ok) console.warn('[field] Unit upsert failed:', upsert.error);
 
@@ -5680,6 +5701,13 @@
       loginErr.textContent = 'VERIFYING CREW 1...';
       const c1Res = await API.crewPinLogin(c1CadId, c1Pin);
       if (!c1Res.ok) { loginErr.textContent = 'CREW 1: ' + (c1Res.error || 'VERIFICATION FAILED.'); return; }
+      // Save crew session token for RMS portal
+      if (c1Res.sessionToken) {
+        localStorage.setItem('hoscad_crew_token',  c1Res.sessionToken);
+        localStorage.setItem('hoscad_crew_cadid',  c1Res.cadId || '');
+        localStorage.setItem('hoscad_crew_name',   c1Res.fullName || '');
+        localStorage.setItem('hoscad_crew_cert',   c1Res.certLevel || '');
+      }
       // Auto-fill cert from response (user can override)
       const c1CertSel = document.getElementById('loginCrew1Cert');
       if (c1Res.certLevel && !c1CertSel.value) c1CertSel.value = c1Res.certLevel;
