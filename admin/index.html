@@ -99,6 +99,7 @@
     <button class="tab-btn" onclick="switchTab('flags')">FEATURE FLAGS</button>
     <button class="tab-btn" onclick="switchTab('positions')">POSITIONS</button>
     <button class="tab-btn" onclick="switchTab('hazardFlags')" style="color:#f85149;">HAZARD FLAGS</button>
+    <button class="tab-btn" onclick="switchTab('auditLog')">AUDIT LOG</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -782,6 +783,47 @@
     </div>
   </section>
 
+  <!-- AUDIT LOG TAB -->
+  <section id="tabAuditLog" class="tab-section">
+    <h2>AUDIT LOG</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:14px;">Read-only view of all authentication and system events. Immutable — no records can be modified or deleted.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+      <input id="alActorFilter" placeholder="ACTOR..." style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:130px;" maxlength="60" />
+      <select id="alActionFilter" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+        <option value="">ALL ACTIONS</option>
+        <option value="LOGIN">LOGIN</option>
+        <option value="LOGOUT">LOGOUT</option>
+        <option value="LOGIN_FAIL">LOGIN_FAIL</option>
+        <option value="LOCKED">LOCKED</option>
+        <option value="SESSION_RESTORE">SESSION_RESTORE</option>
+        <option value="VIEWER_LOGIN">VIEWER_LOGIN</option>
+        <option value="UNIT_LOGIN">UNIT_LOGIN</option>
+        <option value="PIN_OK">PIN_OK</option>
+        <option value="PIN_FAIL">PIN_FAIL</option>
+        <option value="FLAG_CREATED">FLAG_CREATED</option>
+        <option value="FLAG_DEACTIVATED">FLAG_DEACTIVATED</option>
+        <option value="CONFIG_CHANGE">CONFIG_CHANGE</option>
+        <option value="LOCATION_HISTORY_QUERY">LOCATION_HISTORY_QUERY</option>
+        <option value="UNIVERSAL_QUERY_SELECT">UNIVERSAL_QUERY_SELECT</option>
+      </select>
+      <input type="date" id="alStart" style="padding:4px 6px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+      <span class="muted" style="font-size:10px;">TO</span>
+      <input type="date" id="alEnd" style="padding:4px 6px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+      <button class="btn-good" style="font-size:11px;" onclick="loadAuditLog(0)">LOAD</button>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadAuditLog(0)">REFRESH</button>
+      <span id="alStatus" class="muted" style="font-size:11px;"></span>
+    </div>
+    <table class="admin-table" id="alTable" style="display:none;">
+      <thead><tr><th>TIMESTAMP</th><th>ACTOR</th><th>ACTION</th><th>ROLE</th><th>CAD ID</th><th>DETAILS</th></tr></thead>
+      <tbody id="alBody"></tbody>
+    </table>
+    <div id="alPaging" style="display:none;margin-top:10px;display:flex;gap:8px;align-items:center;">
+      <button id="alPrevBtn" class="btn-secondary" style="font-size:11px;" onclick="loadAuditLog(_alPage-1)" disabled>← PREV</button>
+      <span id="alPageInfo" class="muted" style="font-size:11px;"></span>
+      <button id="alNextBtn" class="btn-secondary" style="font-size:11px;" onclick="loadAuditLog(_alPage+1)">NEXT →</button>
+    </div>
+  </section>
+
   <!-- ROSTER TAB -->
   <section id="tabRoster" class="tab-section">
     <h2>UNIT ROSTER</h2>
@@ -1019,8 +1061,12 @@
     } catch(e) {
       if (syncEl) syncEl.textContent = '—';
     }
-    // Active DC911 unit count is shown on board; approximate from config
-    if (countEl) countEl.textContent = '— (VISIBLE ON BOARD)';
+    // Active DC911 unit count from config state
+    if (countEl && r2.ok && r2.state) {
+      countEl.textContent = (r2.state.unitCount ?? 0) + ' ACTIVE';
+    } else if (countEl) {
+      countEl.textContent = '—';
+    }
   }
 
   async function clearDc911UnitsAdmin() {
@@ -1309,7 +1355,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -1330,6 +1376,7 @@
     if (name === 'issues') loadIssues();
     if (name === 'flags') loadFeatureFlags();
     if (name === 'positions') loadPositions();
+    if (name === 'auditLog') loadAuditLog(0);
   }
 
   // ── Users Tab ─────────────────────────────────────────────
@@ -3260,6 +3307,72 @@
   }
 
   // ── Positions Tab ─────────────────────────────────────────
+  // ── Audit Log Tab ──────────────────────────────────────────
+  let _alPage = 0;
+  const AL_LIMIT = 50;
+
+  const AL_ACTION_COLORS = {
+    LOGIN: '#3fb950', LOGOUT: 'var(--muted)', LOGIN_FAIL: '#ff6b6b', LOCKED: '#ff6b6b',
+    SESSION_RESTORE: '#4fa3e0', VIEWER_LOGIN: '#8b949e', UNIT_LOGIN: '#ffd66b',
+    PIN_OK: '#3fb950', PIN_FAIL: '#ff6b6b',
+    FLAG_CREATED: '#f85149', FLAG_DEACTIVATED: '#8b949e',
+    CONFIG_CHANGE: '#ffd66b', LOCATION_HISTORY_QUERY: '#4fa3e0',
+    UNIVERSAL_QUERY_SELECT: '#4fa3e0',
+  };
+
+  async function loadAuditLog(page) {
+    _alPage = Math.max(0, page || 0);
+    document.getElementById('alStatus').textContent = 'LOADING...';
+    const actor  = (document.getElementById('alActorFilter')?.value || '').trim() || null;
+    const action = document.getElementById('alActionFilter')?.value || null;
+    const startD = document.getElementById('alStart')?.value;
+    const endD   = document.getElementById('alEnd')?.value;
+    const startIso = startD ? new Date(startD).toISOString() : null;
+    const endIso   = endD   ? new Date(endD + 'T23:59:59').toISOString() : null;
+
+    const r = await API.listAuditLog(_token, _alPage, AL_LIMIT, actor, action, startIso, endIso);
+    if (!r.ok) { document.getElementById('alStatus').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+
+    const rows = r.rows || [];
+    const total = r.total || 0;
+    document.getElementById('alStatus').textContent = total + ' EVENT(S)';
+
+    const tbl = document.getElementById('alTable');
+    const body = document.getElementById('alBody');
+    tbl.style.display = rows.length ? '' : 'none';
+
+    body.innerHTML = rows.map(row => {
+      const c = AL_ACTION_COLORS[row.action] || 'var(--fg)';
+      const ts = row.ts ? new Date(row.ts).toLocaleString('en-US',{hour12:false,month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+      let details = '';
+      if (row.details) {
+        try {
+          const d = JSON.parse(row.details);
+          details = Object.entries(d).map(([k,v]) => k + ': ' + String(v).substring(0,60)).join(' | ');
+        } catch(_) { details = String(row.details).substring(0, 120); }
+      }
+      return `<tr>
+        <td style="font-size:11px;white-space:nowrap;">${esc(ts)}</td>
+        <td><strong>${esc(row.username || '—')}</strong>${row.cad_id ? ' <span class="muted" style="font-size:10px;">('+esc(row.cad_id)+')</span>' : ''}</td>
+        <td style="color:${c};font-weight:700;">${esc(row.action || '')}</td>
+        <td style="font-size:11px;">${esc(row.role || '—')}</td>
+        <td style="font-size:11px;">${esc(row.cad_id || '—')}</td>
+        <td style="font-size:10px;color:var(--muted);max-width:240px;word-break:break-word;">${esc(details)}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="muted">NO EVENTS FOUND.</td></tr>';
+
+    // Pagination controls
+    const totalPages = Math.ceil(total / AL_LIMIT);
+    const pagingEl = document.getElementById('alPaging');
+    if (pagingEl) pagingEl.style.display = totalPages > 1 ? 'flex' : 'none';
+    const pageInfo = document.getElementById('alPageInfo');
+    if (pageInfo) pageInfo.textContent = 'PAGE ' + (_alPage + 1) + ' OF ' + totalPages + ' (' + total + ' TOTAL)';
+    const prevBtn = document.getElementById('alPrevBtn');
+    const nextBtn = document.getElementById('alNextBtn');
+    if (prevBtn) prevBtn.disabled = _alPage === 0;
+    if (nextBtn) nextBtn.disabled = _alPage >= totalPages - 1;
+  }
+
   async function loadPositions() {
     const stat = document.getElementById('positionsStatus');
     stat.textContent = 'LOADING...';

@@ -561,6 +561,9 @@ const API = {
   setSystemConfig(token, key, value) {
     return this.call('setSystemConfig', token, key, value);
   },
+  listAuditLog(token, page, limit, actor, action, startIso, endIso) {
+    return this.call('listAuditLog', token, page||0, limit||50, actor||null, action||null, startIso||null, endIso||null);
+  },
 
   // ============================================================
   // Location History
