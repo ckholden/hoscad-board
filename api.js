@@ -549,6 +549,12 @@ const API = {
   resolveIssue(token, id, adminNote) {
     return this.call('resolveIssue', token, id, adminNote || '');
   },
+  updateIssue(token, id, patch) {
+    return this.call('updateIssue', token, id, patch);
+  },
+  getUserActivityReport(token, startIso, endIso, hours) {
+    return this.call('getUserActivityReport', token, startIso || null, endIso || null, hours || 24);
+  },
 
   // ============================================================
   // Location History

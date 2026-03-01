@@ -32,6 +32,16 @@
     .tool-card { background:#0c111a; border:1px solid var(--line); padding:14px; }
     .tool-card h4 { margin:0 0 6px; font-size:12px; color:var(--muted); }
     .tool-card p { margin:0 0 10px; font-size:11px; color:#6a7a8a; }
+    .tools-section-header { color:var(--muted); font-size:10px; letter-spacing:.12em; margin:18px 0 8px; border-bottom:1px solid var(--line); padding-bottom:4px; text-transform:uppercase; font-weight:900; }
+    details.danger-zone { margin-top:18px; }
+    details.danger-zone > summary { color:#ff6b6b; cursor:pointer; font-size:11px; font-weight:700; padding:8px; border:1px solid rgba(255,107,107,.3); background:rgba(255,107,107,.05); list-style:none; }
+    details.danger-zone > summary::-webkit-details-marker { display:none; }
+    details.danger-zone > summary::before { content:'▶ '; }
+    details.danger-zone[open] > summary::before { content:'▼ '; }
+    details.danger-zone > .tools-grid { margin-top:8px; }
+    .issue-badge { background:#e09000; color:#000; border-radius:2px; padding:0 5px; font-size:10px; font-weight:900; margin-left:4px; vertical-align:middle; }
+    .audit-range { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+    .audit-range input[type=date] { padding:3px 6px; font-size:11px; background:#0b1018; border:1px solid var(--line); color:var(--fg); font-family:inherit; }
   </style>
 </head>
 <body>
@@ -85,7 +95,7 @@
     <button class="tab-btn" onclick="switchTab('crew')">CREW</button>
     <button class="tab-btn" onclick="switchTab('scope')">SCOPE</button>
     <button class="tab-btn" onclick="switchTab('dc911')">DC911</button>
-    <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES</button>
+    <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES <span id="issuesBadge" style="display:none;" class="issue-badge"></span></button>
     <button class="tab-btn" onclick="switchTab('flags')">FEATURE FLAGS</button>
     <button class="tab-btn" onclick="switchTab('positions')">POSITIONS</button>
     <button class="tab-btn" onclick="switchTab('hazardFlags')" style="color:#f85149;">HAZARD FLAGS</button>
@@ -104,8 +114,8 @@
     </div>
     <div id="usersStatus" class="admin-status">LOADING...</div>
     <table class="admin-table" id="usersTable">
-      <thead><tr><th>CAD ID</th><th>USERNAME</th><th>FIRST</th><th>LAST</th><th style="text-align:center;">BOARD</th><th style="text-align:center;">FIELD</th><th style="text-align:center;">ADMIN</th><th>ACTIONS</th></tr></thead>
-      <tbody id="usersBody"><tr><td colspan="8" class="muted">LOADING...</td></tr></tbody>
+      <thead><tr><th>CAD ID</th><th>USERNAME</th><th>FIRST</th><th>LAST</th><th>ROLE</th><th style="text-align:center;">BOARD</th><th style="text-align:center;">FIELD</th><th style="text-align:center;">ADMIN</th><th>LAST LOGIN</th><th>ACTIONS</th></tr></thead>
+      <tbody id="usersBody"><tr><td colspan="10" class="muted">LOADING...</td></tr></tbody>
     </table>
   </section>
 
@@ -198,6 +208,13 @@
         <thead><tr><th>UNIT</th><th>DISPATCHES</th><th>D (MIN)</th><th>OS (MIN)</th><th>T (MIN)</th><th>OOS (MIN)</th><th>AV (MIN)</th></tr></thead>
         <tbody id="rptUnitBody"></tbody>
       </table>
+      <div id="rptUserSection" style="display:none; margin-top:16px;">
+        <div class="section-title" style="color:#4fa3e0;">USER ACTIVITY</div>
+        <table class="admin-table" id="rptUserTable">
+          <thead><tr><th>USER</th><th>ROLE</th><th>CAD ID</th><th>SESSIONS</th><th>ON DUTY (MIN)</th><th>INC CREATED</th><th>NOTES</th><th>ACTIONS</th><th>FIRST LOGIN</th><th>LAST ACTIVE</th></tr></thead>
+          <tbody id="rptUserBody"></tbody>
+        </table>
+      </div>
       <div id="rptWallSection" style="display:none; margin-top:16px;">
         <div class="section-title">HOSPITAL WALL TIME BY FACILITY</div>
         <div class="admin-status muted" style="font-size:11px; margin-bottom:6px;">Time from AT HOSPITAL to HANDOFF. Target P90 ≤ 30 min.</div>
@@ -342,69 +359,9 @@
 
   <!-- TOOLS TAB -->
   <section id="tabTools" class="tab-section">
+
+    <h3 class="tools-section-header">COMMUNICATIONS</h3>
     <div class="tools-grid">
-      <div class="tool-card">
-        <h4>PULSEPOINT FEED</h4>
-        <p>Enable or disable PulsePoint data sync on the dispatch board. Board reads this setting on each poll cycle.</p>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span id="ppFeedStatus" style="font-size:12px;font-weight:700;color:#4fa3e0;">CHECKING...</span>
-          <button class="btn-secondary" onclick="togglePpFeed()" id="ppFeedBtn">TOGGLE</button>
-        </div>
-        <div style="font-size:10px;color:#6a7a8a;">Changes take effect on the board's next poll (up to 1 minute).</div>
-      </div>
-      <div class="tool-card">
-        <h4>CLEAR PP UNITS</h4>
-        <p>Remove all PulsePoint-sourced units from the board. Use after toggling PP off or to clean stale units.</p>
-        <button class="btn-danger" onclick="clearPpUnits()">CLEAR PP UNITS</button>
-        <div id="clearPpStatus" class="admin-status"></div>
-      </div>
-      <div class="tool-card">
-        <h4>REBACKFILL CANONICAL ADDRESSES</h4>
-        <p>Re-process all incident addresses through TypeScript normalizeAddress(). Run after a normalization logic change. IT role required.</p>
-        <button class="btn-secondary" onclick="runRebackfillCanonicalAddresses()">RUN REBACKFILL</button>
-        <div id="rebackfillCanonicalResult" class="admin-status"></div>
-      </div>
-      <div class="tool-card">
-        <h4>RUN PURGE</h4>
-        <p>Delete old audit records and closed incidents beyond retention window.</p>
-        <button class="btn-secondary" onclick="runPurge()">RUN PURGE</button>
-        <div id="purgeStatus" class="admin-status"></div>
-      </div>
-      <div class="tool-card">
-        <h4>EXPORT AUDIT CSV</h4>
-        <p>Download audit log as CSV for reporting.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn-secondary" onclick="exportAudit(12)">12H CSV</button>
-          <button class="btn-secondary" onclick="exportAudit(24)">24H CSV</button>
-          <button class="btn-secondary" onclick="exportAudit(168)">7D CSV</button>
-        </div>
-        <div id="exportStatus" class="admin-status"></div>
-      </div>
-      <div class="tool-card">
-        <h4>CLEAR DATA</h4>
-        <p>Permanently clear units, incidents, messages, or sessions data.</p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-          <select id="clearWhat" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
-            <option value="MESSAGES">MESSAGES</option>
-            <option value="SESSIONS">SESSIONS</option>
-            <option value="UNITS">UNITS</option>
-            <option value="INCIDENTS">INCIDENTS</option>
-            <option value="ALL">ALL</option>
-          </select>
-          <button class="btn-danger" onclick="clearData()">CLEAR</button>
-        </div>
-        <div id="clearStatus" class="admin-status"></div>
-      </div>
-      <div class="tool-card" style="grid-column:span 2; border-color:#1a3a1a;">
-        <h4 style="color:#4ade80;">DEMO MODE</h4>
-        <p>Populate the board with realistic demo incidents and unit statuses for demonstrations. All demo data is tagged <code style="font-size:10px;background:#0b1018;padding:1px 4px;">[DEMO]</code> and can be cleared instantly. Does not affect real incidents or active units.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
-          <button class="btn-good" onclick="startDemo()" id="startDemoBtn">▶ START DEMO</button>
-          <button class="btn-danger" onclick="endDemo()" id="endDemoBtn">■ END DEMO / CLEAR</button>
-        </div>
-        <div id="demoStatus" class="admin-status"></div>
-        <div style="font-size:10px;color:#6a7a8a;margin-top:6px;">Creates 5 IFT/discharge scenarios (4 ACTIVE + 1 QUEUED): CCT STEMI transfer, ALS ortho IFT, SNF discharge in transport, respiratory IFT at hospital, queued discharge. Sets 5–8 units across OS/DE/T/TH/BRK/IQ/OOS. Auto-activates units if board is empty.</div>
-      </div>
       <div class="tool-card" style="grid-column:span 2;">
         <h4>BROADCAST MESSAGE</h4>
         <p>Send a system-wide message to all dispatchers on the board. Urgent messages play an alert tone.</p>
@@ -436,6 +393,79 @@
         <div id="bannerStatus" class="admin-status"></div>
       </div>
     </div>
+
+    <h3 class="tools-section-header">INTEGRATION</h3>
+    <div class="tools-grid">
+      <div class="tool-card">
+        <h4>DC911 CADVIEW</h4>
+        <p>Deschutes County 911 CadView integration. Configure sync settings and unit filters.</p>
+        <button class="btn-secondary" style="font-size:11px;" onclick="switchTab('dc911')">OPEN DC911 TAB →</button>
+      </div>
+      <div class="tool-card">
+        <h4>CLEAR PP UNITS</h4>
+        <p>Remove all PulsePoint-sourced units from the board. Use after disabling PP feed or to clear stale data.</p>
+        <button class="btn-danger" onclick="clearPpUnits()">CLEAR PP UNITS</button>
+        <div id="clearPpStatus" class="admin-status"></div>
+      </div>
+    </div>
+
+    <h3 class="tools-section-header">MAINTENANCE</h3>
+    <div class="tools-grid">
+      <div class="tool-card">
+        <h4>REBACKFILL CANONICAL ADDRESSES</h4>
+        <p>Re-process all incident addresses through TypeScript normalizeAddress(). Run after a normalization logic change. IT role required.</p>
+        <button class="btn-secondary" onclick="runRebackfillCanonicalAddresses()">RUN REBACKFILL</button>
+        <div id="rebackfillCanonicalResult" class="admin-status"></div>
+      </div>
+      <div class="tool-card">
+        <h4>RUN PURGE</h4>
+        <p>Delete old audit records and closed incidents beyond retention window.</p>
+        <button class="btn-secondary" onclick="runPurge()">RUN PURGE</button>
+        <div id="purgeStatus" class="admin-status"></div>
+      </div>
+      <div class="tool-card">
+        <h4>EXPORT AUDIT CSV</h4>
+        <p>Download auth audit log as CSV. Select date range then export.</p>
+        <div class="audit-range" style="margin-bottom:6px;">
+          <input type="date" id="auditExportStart" />
+          <span class="muted" style="font-size:10px;">TO</span>
+          <input type="date" id="auditExportEnd" />
+          <button class="btn-secondary" style="font-size:11px;" onclick="exportAuditDateRange()">EXPORT CSV</button>
+        </div>
+        <div id="exportStatus" class="admin-status"></div>
+      </div>
+    </div>
+
+    <details class="danger-zone">
+      <summary>⚠ DANGER ZONE — CLICK TO EXPAND</summary>
+      <div class="tools-grid" style="margin-top:12px;">
+        <div class="tool-card">
+          <h4>CLEAR DATA</h4>
+          <p>Permanently clear units, incidents, messages, or sessions data. Cannot be undone.</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <select id="clearWhat" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+              <option value="MESSAGES">MESSAGES</option>
+              <option value="SESSIONS">SESSIONS</option>
+              <option value="UNITS">UNITS</option>
+              <option value="INCIDENTS">INCIDENTS</option>
+              <option value="ALL">ALL</option>
+            </select>
+            <button class="btn-danger" onclick="clearData()">CLEAR</button>
+          </div>
+          <div id="clearStatus" class="admin-status"></div>
+        </div>
+        <div class="tool-card" style="border-color:#1a3a1a;">
+          <h4 style="color:#4ade80;">DEMO MODE</h4>
+          <p>Populate the board with realistic demo incidents and unit statuses for demonstrations. All demo data is tagged <code style="font-size:10px;background:#0b1018;padding:1px 4px;">[DEMO]</code> and can be cleared instantly.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+            <button class="btn-good" onclick="startDemo()" id="startDemoBtn">▶ START DEMO</button>
+            <button class="btn-danger" onclick="endDemo()" id="endDemoBtn">■ END DEMO / CLEAR</button>
+          </div>
+          <div id="demoStatus" class="admin-status"></div>
+        </div>
+      </div>
+    </details>
+
   </section>
 
   <!-- CREW ROSTER TAB -->
@@ -590,7 +620,46 @@
   </section>
 
   <!-- ISSUES TAB -->
+  <section id="tabIssues" class="tab-section">
+    <div class="admin-actions" style="flex-wrap:wrap;gap:6px;">
+      <select id="issuesFilter" onchange="loadIssues()" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+        <option value="OPEN">OPEN</option>
+        <option value="IN_PROGRESS">IN PROGRESS</option>
+        <option value="WONT_FIX">WON'T FIX</option>
+        <option value="RESOLVED">RESOLVED</option>
+        <option value="ALL">ALL</option>
+      </select>
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadIssues()">REFRESH</button>
+    </div>
+    <div id="issuesStatus" class="admin-status">LOADING...</div>
+    <table class="admin-table" id="issuesTable" style="display:none;">
+      <thead><tr><th>#</th><th>TIME</th><th>REPORTER</th><th>ROLE</th><th>PAGE</th><th>SEV</th><th>DESCRIPTION</th><th>STATUS</th><th>ASSIGNED</th><th>ACTIONS</th></tr></thead>
+      <tbody id="issuesBody"></tbody>
+    </table>
+    <!-- Resolve Panel -->
+    <div id="resolvePanel" style="display:none;margin-top:14px;background:#0c111a;border:1px solid var(--line);padding:14px;">
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px;">RESOLVE ISSUE #<span id="resolveIssueId">—</span></div>
+      <div id="resolveContextBlock" style="display:none;margin-bottom:8px;background:#080d14;border:1px solid var(--line);padding:8px;overflow:auto;max-height:160px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">SYSTEM CONTEXT</div>
+        <pre id="resolveContextPre" style="margin:0;font-size:10px;color:#8b949e;white-space:pre-wrap;"></pre>
+      </div>
+      <input id="resolveNote" placeholder="ADMIN NOTE (OPTIONAL)" maxlength="300" style="width:100%;box-sizing:border-box;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;margin-bottom:8px;" />
+      <div style="display:flex;gap:8px;">
+        <button class="btn-good" style="font-size:11px;" onclick="confirmResolveIssue()">RESOLVE</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="cancelResolveIssue()">CANCEL</button>
+        <span id="resolveStatus" class="muted" style="font-size:11px;"></span>
+      </div>
+    </div>
+  </section>
+
   <!-- FEATURE FLAGS TAB -->
+  <section id="tabFlags" class="tab-section">
+    <h2>FEATURE FLAGS</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Server-side feature toggles. Changes apply to all active sessions on next poll (up to 1 minute). Some flags require a backend deploy to fully activate.</p>
+    <div id="flagsStatus" class="admin-status"></div>
+    <div id="flagsList"></div>
+  </section>
+
   <!-- POSITIONS TAB -->
   <section id="tabPositions" class="tab-section">
     <h2>POSITIONS</h2>
@@ -693,47 +762,6 @@
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="btn-danger" style="font-size:11px;" onclick="submitCreateHazardFlag()">CREATE FLAG</button>
         <span id="hfCreateStatus" class="muted" style="font-size:11px;"></span>
-      </div>
-    </div>
-  </section>
-
-  <section id="tabFlags" class="tab-section">
-    <h2>FEATURE FLAGS</h2>
-    <p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Toggle system features on or off without a code deploy. Changes take effect on next board refresh. Requires SUPV/MGR/IT role to modify.</p>
-    <div id="flagsStatus" style="color:var(--muted);font-size:11px;margin-bottom:12px;min-height:18px;"></div>
-    <div id="flagsList" style="max-width:480px;"></div>
-  </section>
-
-  <section id="tabIssues" class="tab-section">
-    <h2>ISSUE REPORTS</h2>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-      <select id="issuesFilter" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" onchange="loadIssues()">
-        <option value="OPEN" selected>OPEN ISSUES</option>
-        <option value="RESOLVED">RESOLVED</option>
-        <option value="ALL">ALL</option>
-      </select>
-      <button class="btn-secondary" style="font-size:11px;" onclick="loadIssues()">REFRESH</button>
-    </div>
-    <div id="issuesStatus" class="muted" style="font-size:12px;margin-bottom:8px;"></div>
-    <table class="admin-table" id="issuesTable" style="display:none;">
-      <thead><tr><th>#</th><th>SUBMITTED</th><th>REPORTER</th><th>ROLE</th><th>PAGE</th><th>SEV</th><th>DESCRIPTION</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
-      <tbody id="issuesBody"></tbody>
-    </table>
-    <!-- Resolve panel -->
-    <div id="resolvePanel" style="display:none;margin-top:14px;background:#0c111a;border:1px solid var(--line);padding:14px;">
-      <div style="font-weight:700;font-size:12px;margin-bottom:8px;">RESOLVE ISSUE #<span id="resolveIssueId">—</span></div>
-      <div id="resolveContextBlock" style="display:none;margin-bottom:10px;">
-        <div class="muted" style="font-size:10px;margin-bottom:3px;">AUTO-CAPTURED CONTEXT</div>
-        <pre id="resolveContextPre" style="margin:0;padding:6px 8px;background:#111;border:1px solid var(--line);font-size:10px;color:#8b949e;white-space:pre-wrap;word-break:break-all;font-family:monospace;max-height:160px;overflow-y:auto;"></pre>
-      </div>
-      <div style="margin-bottom:8px;">
-        <div class="muted" style="font-size:10px;margin-bottom:3px;">ADMIN NOTE (OPTIONAL)</div>
-        <input id="resolveNote" placeholder="E.G. FIXED IN V146, DUPLICATE, WONT FIX..." style="width:100%;box-sizing:border-box;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" maxlength="200" />
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-good" style="font-size:11px;" onclick="confirmResolveIssue()">MARK RESOLVED</button>
-        <button class="btn-secondary" style="font-size:11px;" onclick="cancelResolveIssue()">CANCEL</button>
-        <div id="resolveStatus" class="muted" style="font-size:11px;padding-top:4px;"></div>
       </div>
     </div>
   </section>
@@ -879,6 +907,7 @@
           document.getElementById('adminPanel').style.display = 'block';
           document.getElementById('rolePill').textContent = _role + ': ' + res2.actor;
           loadUsers();
+          checkIssueBadge();
         } else { err.textContent = 'ERROR: ' + ((chg && chg.error) || 'COULD NOT CHANGE PASSWORD'); }
         return;
       }
@@ -893,6 +922,7 @@
     document.getElementById('adminPanel').style.display = 'block';
     document.getElementById('rolePill').textContent = _role + ': ' + res.actor;
     loadUsers();
+    checkIssueBadge();
   }
 
   async function adminLogout() {
@@ -998,6 +1028,7 @@
     field_self_assign: { label: 'Field Self-Assign', desc: 'Allow field crews to self-assign to queued calls without dispatcher approval' },
     incident_export:   { label: 'Incident Export', desc: 'Enable EXPORT button and REPORT INC command on incident modal' },
     crew_pin_login:    { label: 'Crew PIN Login', desc: 'Enable field app PIN-based crew member login' },
+    pp_feed_enabled:   { label: 'PulsePoint Feed', desc: 'Show PulsePoint mutual aid units on the dispatch board. Applies to all dispatchers on next poll.' },
   };
 
   async function loadFeatureFlags() {
@@ -1051,6 +1082,54 @@
   let _resolveTargetId = null;
   let _issueContexts   = {}; // id → context JSON string (avoids embedding raw JSON in onclick attr)
 
+  const ISSUE_STATUS_COLORS = {
+    OPEN: '#ffd66b', IN_PROGRESS: '#4fa3e0', WONT_FIX: '#8b949e', RESOLVED: '#7fffb2'
+  };
+
+  async function checkIssueBadge() {
+    const badge = document.getElementById('issuesBadge');
+    if (!badge || !_token) return;
+    const r = await API.listIssues(_token, 'OPEN');
+    if (!r.ok) return;
+    const n = (r.issues || []).length;
+    if (n > 0) {
+      badge.textContent = n;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  async function claimIssue(id) {
+    const r = await API.updateIssue(_token, id, { assign: true });
+    if (!r.ok) { showToast('ERROR: ' + (r.error || 'FAILED'), 'error'); return; }
+    showToast('ISSUE #' + id + ' CLAIMED.');
+    loadIssues(); checkIssueBadge();
+  }
+
+  async function wontFixIssue(id) {
+    const ok = await showConfirm("WON'T FIX", "MARK ISSUE #" + id + " AS WON'T FIX?");
+    if (!ok) return;
+    const r = await API.updateIssue(_token, id, { status: 'WONT_FIX' });
+    if (!r.ok) { showToast('ERROR: ' + (r.error || 'FAILED'), 'error'); return; }
+    showToast("ISSUE #" + id + " → WON'T FIX.");
+    loadIssues(); checkIssueBadge();
+  }
+
+  async function reopenIssue(id) {
+    const r = await API.updateIssue(_token, id, { status: 'OPEN', assign: false });
+    if (!r.ok) { showToast('ERROR: ' + (r.error || 'FAILED'), 'error'); return; }
+    showToast('ISSUE #' + id + ' REOPENED.');
+    loadIssues(); checkIssueBadge();
+  }
+
+  async function unassignIssue(id) {
+    const r = await API.updateIssue(_token, id, { assign: false, status: 'OPEN' });
+    if (!r.ok) { showToast('ERROR: ' + (r.error || 'FAILED'), 'error'); return; }
+    showToast('ISSUE #' + id + ' UNASSIGNED.');
+    loadIssues(); checkIssueBadge();
+  }
+
   async function loadIssues() {
     const filter = (document.getElementById('issuesFilter') || {}).value || 'OPEN';
     const stat   = document.getElementById('issuesStatus');
@@ -1071,13 +1150,28 @@
       _issueContexts[iss.id] = iss.context || ''; // store context by id — avoid embedding raw JSON in onclick
       const ts  = iss.submitted_at ? fmtTime(iss.submitted_at) : '—';
       const sc  = sevColor[iss.severity] || '#8b949e';
+      const statusColor = ISSUE_STATUS_COLORS[iss.status] || '#8b949e';
       const res = iss.status === 'RESOLVED'
         ? '<span style="color:#7fffb2;font-size:10px;">RESOLVED ' + fmtTime(iss.resolved_at) + ' BY ' + esc(iss.resolved_by) + '</span>' +
           (iss.admin_note ? '<br><span style="color:#8b949e;font-size:10px;">' + esc(iss.admin_note) + '</span>' : '')
         : '';
-      const btn = iss.status === 'OPEN'
-        ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="openResolvePanel(' + iss.id + ')">RESOLVE</button>'
-        : '';
+      let btn = '';
+      if (iss.status === 'OPEN') {
+        btn = '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="claimIssue(' + iss.id + ')">CLAIM</button> ' +
+              '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="openResolvePanel(' + iss.id + ')">RESOLVE</button> ' +
+              "<button class='btn-secondary' style='font-size:10px;padding:2px 8px;' onclick=\"wontFixIssue(" + iss.id + ")\">WON'T FIX</button>";
+      } else if (iss.status === 'IN_PROGRESS') {
+        btn = '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="openResolvePanel(' + iss.id + ')">RESOLVE</button> ' +
+              "<button class='btn-secondary' style='font-size:10px;padding:2px 8px;' onclick=\"wontFixIssue(" + iss.id + ")\">WON'T FIX</button> " +
+              '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="unassignIssue(' + iss.id + ')">UNASSIGN</button>';
+      } else {
+        btn = '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="reopenIssue(' + iss.id + ')">REOPEN</button>';
+      }
+      const statusLabel = iss.status === 'RESOLVED' ? res
+        : '<span style="color:' + statusColor + ';font-weight:900;">' + esc(iss.status.replace('_',' ')) + '</span>';
+      const assigned = iss.assigned_to
+        ? '<span style="color:#4fa3e0;font-size:11px;">' + esc(iss.assigned_to) + '</span>'
+        : '<span class="muted">—</span>';
       return '<tr>' +
         '<td style="font-family:monospace;">' + iss.id + '</td>' +
         '<td>' + ts + '</td>' +
@@ -1085,11 +1179,12 @@
         '<td>' + esc(iss.reporter_role) + '</td>' +
         '<td>' + esc(iss.page) + '</td>' +
         '<td style="color:' + sc + ';font-weight:900;">' + esc(iss.severity) + '</td>' +
-        '<td style="max-width:260px;word-break:break-word;white-space:pre-wrap;">' + esc(iss.description) + '</td>' +
-        '<td>' + (iss.status === 'RESOLVED' ? res : '<span style="color:#ffd66b;">OPEN</span>') + '</td>' +
+        '<td style="max-width:220px;word-break:break-word;white-space:pre-wrap;">' + esc(iss.description) + '</td>' +
+        '<td>' + statusLabel + '</td>' +
+        '<td>' + assigned + '</td>' +
         '<td>' + btn + '</td>' +
         '</tr>';
-    }).join('') : '<tr><td colspan="9" class="muted">NO ISSUES FOUND.</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="muted">NO ISSUES FOUND.</td></tr>';
 
     if (tbl) tbl.style.display = '';
   }
@@ -1130,17 +1225,18 @@
     const note = (document.getElementById('resolveNote').value || '').trim().toUpperCase();
     const stat = document.getElementById('resolveStatus');
     stat.textContent = 'SAVING...';
-    const r = await API.resolveIssue(_token, _resolveTargetId, note);
+    const r = await API.updateIssue(_token, _resolveTargetId, { status: 'RESOLVED', admin_note: note });
     if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
     cancelResolveIssue();
     showToast('ISSUE RESOLVED.');
     loadIssues();
+    checkIssueBadge();
   }
 
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -1149,13 +1245,13 @@
     if (name === 'users') loadUsers();
     if (name === 'units') loadUnits();
     if (name === 'sessions') loadSessions();
-    if (name === 'tools') initPpFeedStatus();
     if (name === 'reports') loadReports();
     if (name === 'types') loadTypeCodeTab();
     if (name === 'destinations') loadDestinations();
     if (name === 'addresses') loadAddresses();
     if (name === 'roster') loadRoster();
     if (name === 'crew') { loadCrew(); initCrewHistoryDates(); }
+    if (name === 'tools') _initAuditExportDates();
     if (name === 'scope') loadScopeTab();
     if (name === 'dc911') loadDc911Config();
     if (name === 'issues') loadIssues();
@@ -1171,27 +1267,46 @@
     const users = r.users || [];
     document.getElementById('usersStatus').textContent = users.length + ' USER(S)';
     const body = document.getElementById('usersBody');
-    if (!users.length) { body.innerHTML = '<tr><td colspan="8" class="muted">NO USERS.</td></tr>'; return; }
+    if (!users.length) { body.innerHTML = '<tr><td colspan="10" class="muted">NO USERS.</td></tr>'; return; }
+    // Build role options from positions meta
+    const roleOpts = _positionsMeta.filter(p => p.is_active !== false)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+      .map(p => `<option value="${esc(p.position_id)}">${esc(p.label || p.position_id)}</option>`)
+      .join('');
     body.innerHTML = users.map(u => {
       const cadId = u.cad_id || u.cadId || '';
       const mustChangeBadge = u.mustChangePassword
         ? ' <span title="Password change required on next login" style="color:#ffd66b;font-size:10px;cursor:help;">&#9888; MUST CHANGE PW</span>'
         : '';
+      const lockBadge = (u.loginFailCount || 0) >= 3
+        ? ' <span title="Account has failed login attempts" style="color:#ff6b6b;font-size:11px;">&#128274;</span>'
+        : '';
       const canBoard = u.canBoard || u.can_board || false;
       const canField = u.canField || u.can_field || false;
       const canAdmin = u.canAdmin || u.can_admin || false;
+      const currentRole = u.role || '';
+      const roleSelect = roleOpts
+        ? `<select style="padding:2px 4px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" onchange="setUserRole('${esc(u.username)}',this.value)">
+            ${_positionsMeta.filter(p => p.is_active !== false)
+              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+              .map(p => `<option value="${esc(p.position_id)}"${p.position_id === currentRole ? ' selected' : ''}>${esc(p.label || p.position_id)}</option>`)
+              .join('')}
+           </select>`
+        : `<span style="font-size:11px;color:#8b949e;">${esc(currentRole)}</span>`;
       return `
       <tr>
         <td>${cadId
           ? `<span style="color:#4fa3e0;font-size:11px;font-weight:700;letter-spacing:0.5px;">${esc(cadId)}</span>`
           : `<button class="btn-secondary" style="font-size:10px;padding:2px 7px;" onclick="generateCadId('${esc(u.username)}')">GEN ID</button>`
         }</td>
-        <td><strong>${esc(u.username)}</strong>${mustChangeBadge}</td>
+        <td><strong>${esc(u.username)}</strong>${mustChangeBadge}${lockBadge}</td>
         <td>${esc(u.firstName || u.first_name || '')}</td>
         <td>${esc(u.lastName || u.last_name || '')}</td>
+        <td>${roleSelect}</td>
         <td style="text-align:center;"><input type="checkbox" ${canBoard ? 'checked' : ''} onchange="togglePriv('${esc(u.username)}','canBoard',this.checked)" /></td>
         <td style="text-align:center;"><input type="checkbox" ${canField ? 'checked' : ''} onchange="togglePriv('${esc(u.username)}','canField',this.checked)" /></td>
         <td style="text-align:center;"><input type="checkbox" ${canAdmin ? 'checked' : ''} onchange="togglePriv('${esc(u.username)}','canAdmin',this.checked)" /></td>
+        <td class="muted" style="font-size:11px;">${u.lastLogin ? fmtTime(u.lastLogin) : '—'}</td>
         <td>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <input class="pw-input" data-user="${esc(u.username)}" placeholder="NEW PASSWORD" style="padding:3px 6px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;width:120px;" />
@@ -1278,6 +1393,16 @@
     } else {
       showToast('ERROR: ' + ((r && r.error) || 'UNKNOWN'), 'error');
       loadUsers();
+    }
+  }
+
+  async function setUserRole(username, role) {
+    const r = await API.updateUserPrivileges(_token, username, { role });
+    if (!r.ok) {
+      showToast('ROLE UPDATE FAILED: ' + (r.error || 'UNKNOWN'), 'error');
+      loadUsers();
+    } else {
+      showToast(username.toUpperCase() + ' ROLE → ' + role);
     }
   }
 
@@ -1779,6 +1904,41 @@
     showToast('AUDIT CSV DOWNLOADED.', 'success');
   }
 
+  function _initAuditExportDates() {
+    const startEl = document.getElementById('auditExportStart');
+    const endEl   = document.getElementById('auditExportEnd');
+    if (!startEl || !endEl || startEl.value) return;
+    const now  = new Date();
+    const past = new Date(now.getTime() - 7 * 24 * 3600000);
+    endEl.value   = now.toISOString().slice(0, 10);
+    startEl.value = past.toISOString().slice(0, 10);
+  }
+
+  async function exportAuditDateRange() {
+    const startEl = document.getElementById('auditExportStart');
+    const endEl   = document.getElementById('auditExportEnd');
+    const start   = startEl ? startEl.value : '';
+    const end     = endEl   ? endEl.value   : '';
+    if (!start || !end) { showToast('SELECT START AND END DATE.', 'warn'); return; }
+    const ms   = new Date(end + 'T23:59:59Z').getTime() - new Date(start + 'T00:00:00Z').getTime();
+    const hours = Math.ceil(ms / 3_600_000);
+    document.getElementById('exportStatus').textContent = 'EXPORTING...';
+    const r = await API.exportAuditCsv(_token, hours);
+    if (!r.ok) { document.getElementById('exportStatus').textContent = 'ERROR: ' + r.error; return; }
+    const csv = r.csv || '';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hoscad-audit-' + start + '-to-' + end + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('exportStatus').textContent = 'EXPORTED.';
+    showToast('AUDIT CSV DOWNLOADED.', 'success');
+  }
+
   // ── Reports Tab ───────────────────────────────────────────
   const KPI_TARGETS = { 'D\u2192DE': 5, 'DE\u2192OS': 10, 'OS\u2192T': 30, 'T\u2192AV': 20 };
   let _reportData = null;
@@ -1862,10 +2022,15 @@
     }
     document.getElementById('reportsStatus').textContent = 'LOADING...';
     document.getElementById('reportsContent').style.display = 'none';
-    const r = await API.getShiftReport(_token, hrs, startIso, endIso);
+    // Fetch shift report and user activity in parallel
+    const [r, actR] = await Promise.all([
+      API.getShiftReport(_token, hrs, startIso, endIso),
+      API.getUserActivityReport(_token, startIso, endIso, hrs)
+    ]);
     if (!r.ok) { document.getElementById('reportsStatus').textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
     _reportData = r;
     renderReports(r);
+    if (actR && actR.ok) renderActivityReport(actR);
   }
 
   function renderReports(rpt) {
@@ -2081,6 +2246,32 @@
     } else if (queueSection) {
       queueSection.style.display = 'none';
     }
+  }
+
+  function renderActivityReport(actR) {
+    const section = document.getElementById('rptUserSection');
+    const tbody   = document.getElementById('rptUserBody');
+    if (!section || !tbody) return;
+    const users = actR.users || [];
+    if (!users.length) {
+      section.style.display = 'none';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      return '<tr>' +
+        '<td style="font-weight:700;">' + esc(u.username) + '</td>' +
+        '<td style="color:#8b949e;">' + esc(u.role || '—') + '</td>' +
+        '<td style="color:#4fa3e0;font-size:11px;">' + esc(u.cadId || '—') + '</td>' +
+        '<td style="text-align:center;">' + (u.sessions || 0) + '</td>' +
+        '<td style="text-align:center;">' + (u.totalMinutes || 0) + '</td>' +
+        '<td style="text-align:center;">' + (u.incidentsCreated || 0) + '</td>' +
+        '<td style="text-align:center;">' + (u.notesAppended || 0) + '</td>' +
+        '<td style="text-align:center;">' + (u.actionsTotal || 0) + '</td>' +
+        '<td class="muted" style="font-size:11px;">' + (u.firstLogin ? fmtTime(u.firstLogin) : '—') + '</td>' +
+        '<td class="muted" style="font-size:11px;">' + (u.lastActive ? fmtTime(u.lastActive) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    section.style.display = '';
   }
 
   // Resolve clinical metadata (clinical_group, service_level, clinical_severity) for an incident_type string
@@ -3009,6 +3200,7 @@
       document.getElementById('adminPanel').style.display  = 'block';
       document.getElementById('rolePill').textContent = _role + ': ' + (cadActor || 'CAD SESSION');
       loadUsers();
+      checkIssueBadge();
     }
   });
 
