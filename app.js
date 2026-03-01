@@ -7109,9 +7109,9 @@ async function _execCmd(tx) {
       const _qncUnitObj = (STATE && STATE.units || []).find(u => String(u.unit_id || '').toUpperCase() === _qncUnit);
       if (_qncUnitObj) {
         if (!_qncRest) { showAlert('ERROR', 'USAGE: ' + _qncUnit + ' NC <ADDRESS>[; NOTES]'); return; }
-        const _qncParts = _qncRest.split(';').map(p => p.trim().toUpperCase());
-        const _qncAddr  = _qncParts[0] || '';
-        const _qncNote  = _qncParts.slice(1).filter(Boolean).join(' ');
+        const _qncSep  = _qncRest.search(/[;,]/);
+        const _qncAddr = (_qncSep >= 0 ? _qncRest.substring(0, _qncSep) : _qncRest).trim().toUpperCase();
+        const _qncNote = (_qncSep >= 0 ? _qncRest.substring(_qncSep + 1) : '').trim().toUpperCase();
         if (!_qncAddr) { showAlert('ERROR', 'USAGE: ' + _qncUnit + ' NC <ADDRESS>[; NOTES]'); return; }
         setLive(true, 'LIVE • FIELD CREATE');
         const _qncR = await API.createFieldIncident(TOKEN, _qncUnit, _qncAddr, _qncNote, '');
