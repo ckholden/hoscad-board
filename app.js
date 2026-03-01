@@ -5100,7 +5100,13 @@ async function openIncidentFromServer(iId) {
   }
 
   const incSceneEl = document.getElementById('incSceneAddress');
-  if (incSceneEl) incSceneEl.value = (inc.scene_address || '').toUpperCase();
+  if (incSceneEl) {
+    incSceneEl.value = (inc.scene_address || '').toUpperCase();
+    incSceneEl.dataset.orig = (inc.scene_address || '').toUpperCase();
+  }
+  // Hide UPDATE button when modal opens (only show after user edits the field)
+  const _upBtn = document.getElementById('btnUpdateScene');
+  if (_upBtn) _upBtn.style.display = 'none';
   AddrHistory.attach('incSceneAddress', 'addrHistList2');
   // Load location flags banner non-blocking — does NOT affect scene_address
   if (inc.scene_address) _renderIncLocationFlags(CURRENT_INCIDENT_ID, inc.scene_address);
@@ -5490,6 +5496,40 @@ async function saveIncidentNote() {
   }
 
   showConfirm('ERROR', 'NO CHANGES DETECTED. UPDATE TYPE, NOTE, LOCATION, PRIORITY, OR LEVEL OF CARE.', () => { });
+}
+
+// Show UPDATE button when user edits the scene address field
+function _incSceneChanged() {
+  const el = document.getElementById('incSceneAddress');
+  const btn = document.getElementById('btnUpdateScene');
+  if (!el || !btn || !CURRENT_INCIDENT_ID) return;
+  const cur = (el.value || '').trim().toUpperCase();
+  // Compare against what was loaded; stored on the element as data-orig
+  const orig = (el.dataset.orig || '').trim().toUpperCase();
+  btn.style.display = (cur && cur !== orig) ? 'inline-block' : 'none';
+}
+
+// Dedicated UPDATE LOCATION button handler
+async function _updateIncidentScene() {
+  const el = document.getElementById('incSceneAddress');
+  const btn = document.getElementById('btnUpdateScene');
+  if (!el || !CURRENT_INCIDENT_ID) return;
+  const newScene = el.value.trim().toUpperCase();
+  if (!newScene) { showToast('ENTER A LOCATION FIRST.', 'warn'); return; }
+  const ok = await showConfirmAsync('UPDATE LOCATION?', 'CHANGE SCENE ADDRESS TO:\n' + newScene);
+  if (!ok) return;
+  setLive(true, 'LIVE • UPDATE LOCATION');
+  const r = await API.updateIncident(TOKEN, CURRENT_INCIDENT_ID, undefined, '', undefined, newScene, undefined, undefined);
+  setLive(false);
+  if (!r.ok) return showErr(r);
+  if (btn) btn.style.display = 'none';
+  el.dataset.orig = newScene;
+  AddrHistory.push(newScene);
+  _geoVerifyAddress(newScene);
+  _renderIncLocationFlags(CURRENT_INCIDENT_ID, newScene);
+  showToast('LOCATION UPDATED', 'ok');
+  refresh();
+  _refreshIncidentModal(CURRENT_INCIDENT_ID);
 }
 
 function renderIncidentAudit(aR) {
