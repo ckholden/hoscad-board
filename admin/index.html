@@ -317,6 +317,21 @@
       <thead><tr><th>CODE</th><th>DISPLAY NAME</th><th>DIVERSION</th><th>ACTIONS</th></tr></thead>
       <tbody id="destsBody"><tr><td colspan="4" class="muted">LOADING...</td></tr></tbody>
     </table>
+
+    <div style="margin-top:24px;">
+      <div class="section-title" style="margin-top:0;">DIVERSION HISTORY</div>
+      <div class="admin-actions" style="margin-bottom:8px;">
+        <select id="divHistFilter" style="font-size:11px;padding:4px 8px;background:#0c111a;color:var(--fg);border:1px solid var(--line);" onchange="loadDiversionHistory()">
+          <option value="">ALL DESTINATIONS</option>
+        </select>
+        <button class="btn-secondary" style="font-size:11px;" onclick="loadDiversionHistory()">REFRESH</button>
+      </div>
+      <div id="divHistStatus" class="admin-status"></div>
+      <table class="admin-table" id="divHistTable">
+        <thead><tr><th>DESTINATION</th><th>ACTION</th><th>REASON</th><th>BY</th><th>TIMESTAMP</th></tr></thead>
+        <tbody id="divHistBody"><tr><td colspan="5" class="muted">LOAD DESTINATIONS TO SEE HISTORY.</td></tr></tbody>
+      </table>
+    </div>
   </section>
 
   <!-- ADDRESSES TAB -->
@@ -2820,6 +2835,35 @@
           </div>
         </td>
       </tr>`).join('');
+
+    // Populate diversion history filter dropdown
+    const sel = document.getElementById('divHistFilter');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">ALL DESTINATIONS</option>' +
+      dests.map(d => `<option value="${esc(d.code)}"${prev===d.code?' selected':''}>${esc(d.code)} — ${esc(d.name)}</option>`).join('');
+    loadDiversionHistory();
+  }
+
+  async function loadDiversionHistory() {
+    const sel = document.getElementById('divHistFilter');
+    const destCode = sel ? sel.value : '';
+    document.getElementById('divHistStatus').textContent = 'LOADING...';
+    const r = await API.getDiversionHistory(_token, destCode||null, 50);
+    if (!r.ok) { document.getElementById('divHistStatus').textContent = 'ERROR: ' + r.error; return; }
+    const rows = r.history || [];
+    document.getElementById('divHistStatus').textContent = rows.length + ' RECORD(S)' + (destCode ? ' FOR ' + destCode : '');
+    const body = document.getElementById('divHistBody');
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="muted">NO DIVERSION HISTORY.</td></tr>'; return; }
+    body.innerHTML = rows.map(h => {
+      const isSet = h.action === 'SET';
+      return `<tr>
+        <td><strong>${esc(h.dest_code)}</strong></td>
+        <td style="color:${isSet?'#ff6b6b':'#7fffb2'};font-weight:700;">${esc(h.action)}</td>
+        <td class="muted">${h.reason ? esc(h.reason) : '—'}</td>
+        <td>${esc(h.actor)}${h.role?'<span class="muted" style="font-size:10px;"> ('+esc(h.role)+')</span>':''}</td>
+        <td class="muted">${fmtTime(h.ts)}</td>
+      </tr>`;
+    }).join('');
   }
 
   async function toggleDiversion(code, currentlyDiverted) {

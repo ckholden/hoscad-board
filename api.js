@@ -397,8 +397,12 @@ const API = {
     return this.call('getUnitReport', token, unitId, hours);
   },
 
-  setDiversion(token, destCode, active) {
-    return this.call('setDiversion', token, destCode, active);
+  setDiversion(token, destCode, active, reason) {
+    return this.call('setDiversion', token, destCode, active, reason||null);
+  },
+
+  getDiversionHistory(token, destCode, limit) {
+    return this.call('getDiversionHistory', token, destCode||null, limit||50);
   },
 
   saveIncTypeTaxonomy(token, taxonomyJson) {
