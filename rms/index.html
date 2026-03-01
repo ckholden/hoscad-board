@@ -326,7 +326,15 @@
       </div>
       <div class="card">
         <div class="card-title">NARRATIVE</div>
-        <div id="viewReportNarrative" style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--text);"></div>
+        <pre id="viewReportNarrative" style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--text);margin:0;font-family:inherit;"></pre>
+      </div>
+      <div class="card" id="viewCadHeaderCard" style="display:none;">
+        <div class="card-title">CAD INCIDENT HEADER</div>
+        <pre id="viewCadHeaderContent" style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:var(--text);margin:0;font-family:monospace;"></pre>
+      </div>
+      <div class="card" id="viewCadNotesCard" style="display:none;">
+        <div class="card-title">CAD INCIDENT NOTES</div>
+        <pre id="viewCadNotesContent" style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:var(--text);margin:0;font-family:monospace;"></pre>
       </div>
       <div class="card">
         <div class="card-title">FOLLOW-UP NOTES</div>
@@ -393,6 +401,7 @@
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:30px;">
         <button class="btn btn-secondary" id="btnSaveDraft">SAVE DRAFT</button>
         <button class="btn btn-green"     id="btnSubmitReport">SUBMIT REPORT</button>
+        <button class="btn btn-secondary" id="btnCancelReport" style="margin-left:auto;">CANCEL</button>
         <div style="font-size:11px;color:var(--muted);align-self:center;" id="writerStatus"></div>
       </div>
     </div>
@@ -492,8 +501,10 @@ let _certLevel = '';
 let _editingReportId  = null;   // null = new report
 let _viewingReportId  = null;   // reportId currently in view mode
 let _refCollapsed     = false;
-let _loadedIncData    = null;   // holds incident data for INCLUDE CAD HEADER
-let _loadedIncAudit   = null;   // holds audit array for ATTACH ALL CAD NOTES
+let _loadedIncData    = null;   // holds incident data from getIncidentForReport
+let _loadedIncAudit   = null;   // holds audit array (unused now, kept for compat)
+let _attachedCadHeader = null;  // CAD header text stored separately (not in textarea)
+let _attachedCadNotes  = null;  // Full incident_note text stored separately (not in textarea)
 
 // ════════════════════════════════════════════════════════════════════════
 // API
@@ -789,9 +800,20 @@ document.getElementById('btnNewReport').addEventListener('click', function() {
 // ════════════════════════════════════════════════════════════════════════
 // WRITE / EDIT REPORT
 // ════════════════════════════════════════════════════════════════════════
+function _resetAttachments() {
+  _attachedCadHeader = null;
+  _attachedCadNotes  = null;
+  document.getElementById('btnIncludeHeader').textContent  = 'INCLUDE CAD HEADER IN NARRATIVE';
+  document.getElementById('btnAttachAllNotes').textContent = 'ATTACH ALL CAD NOTES';
+  document.getElementById('btnIncludeHeader').style.color  = '';
+  document.getElementById('btnAttachAllNotes').style.color = '';
+}
+
 function startNewReport(incidentId) {
   _editingReportId = null;
   _loadedIncData   = null;
+  _loadedIncAudit  = null;
+  _resetAttachments();
   document.getElementById('writerTitle').textContent = 'NEW REPORT';
   document.getElementById('writerIncidentId').value  = incidentId || '';
   document.getElementById('writerReportType').value  = 'PCR';
@@ -814,6 +836,20 @@ async function _editReport(reportId) {
   if (rpt.status === 'SUBMITTED') { _viewReport(reportId); return; }
   _editingReportId = reportId;
   _loadedIncData   = null;
+  _loadedIncAudit  = null;
+  _resetAttachments();
+  // Restore any previously saved attachments from structured_data
+  var sd = rpt.structured_data || {};
+  if (sd.cadHeader) {
+    _attachedCadHeader = sd.cadHeader;
+    document.getElementById('btnIncludeHeader').textContent = '✓ CAD HEADER ATTACHED';
+    document.getElementById('btnIncludeHeader').style.color = 'var(--green)';
+  }
+  if (sd.cadNotes) {
+    _attachedCadNotes = sd.cadNotes;
+    document.getElementById('btnAttachAllNotes').textContent = '✓ CAD NOTES ATTACHED';
+    document.getElementById('btnAttachAllNotes').style.color = 'var(--green)';
+  }
   document.getElementById('writerTitle').textContent = 'EDITING ' + rpt.report_id;
   document.getElementById('writerIncidentId').value  = rpt.incident_id;
   document.getElementById('writerReportType').value  = rpt.report_type;
@@ -843,6 +879,22 @@ async function _viewReport(reportId) {
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">STATUS</span><span class="pill pill-submitted">' + esc(rpt.status) + '</span></div>' +
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">SUBMITTED</span>' + fmtDateTime(rpt.submitted_at) + '</div>';
   document.getElementById('viewReportNarrative').textContent = rpt.narrative || '(No narrative)';
+  // CAD attached sections
+  var sd = rpt.structured_data || {};
+  var hdrCard  = document.getElementById('viewCadHeaderCard');
+  var notesCard = document.getElementById('viewCadNotesCard');
+  if (sd.cadHeader) {
+    document.getElementById('viewCadHeaderContent').textContent = sd.cadHeader;
+    hdrCard.style.display = '';
+  } else {
+    hdrCard.style.display = 'none';
+  }
+  if (sd.cadNotes) {
+    document.getElementById('viewCadNotesContent').textContent = sd.cadNotes;
+    notesCard.style.display = '';
+  } else {
+    notesCard.style.display = 'none';
+  }
   // Render addenda from getReport response (already fetched)
   _renderAddenda(rpt.addenda || []);
   document.getElementById('addendumInput').value = '';
@@ -904,9 +956,18 @@ function _toggleRefPanel() {
 // ── INCLUDE CAD HEADER ──
 document.getElementById('btnIncludeHeader').addEventListener('click', function() {
   if (!_loadedIncData) { showToast('LOAD AN INCIDENT FIRST.', 'err'); return; }
+  // Toggle: if already attached, detach
+  if (_attachedCadHeader) {
+    _attachedCadHeader = null;
+    this.textContent = 'INCLUDE CAD HEADER IN NARRATIVE';
+    this.style.color = '';
+    showToast('CAD HEADER DETACHED.', 'ok');
+    return;
+  }
   var inc  = _loadedIncData;
   var incId = document.getElementById('writerIncidentId').value.trim().toUpperCase() || (inc.incident_id || '');
-  var lines = [
+  // Build header text and store as attachment (not in textarea)
+  var headerText = [
     '=== CAD INCIDENT REFERENCE ===',
     'INCIDENT:  ' + incId,
     'DATE:      ' + fmtDateTime(inc.created_at),
@@ -914,47 +975,44 @@ document.getElementById('btnIncludeHeader').addEventListener('click', function()
     'PRIORITY:  ' + (inc.priority || '—'),
     'ADDRESS:   ' + (inc.scene_address || '—'),
     'STATUS:    ' + (inc.status || '—'),
-    '================================',
-    ''
+    '================================'
   ].join('\n');
-  var ta = document.getElementById('writerNarrative');
-  ta.value = lines + ta.value;
-  ta.focus();
-  showToast('CAD HEADER INSERTED.', 'ok');
+  _attachedCadHeader = headerText;
+  this.textContent = '✓ CAD HEADER ATTACHED';
+  this.style.color = 'var(--green)';
+  showToast('CAD HEADER ATTACHED TO REPORT.', 'ok');
 });
 
 // ── ATTACH ALL CAD NOTES ──
 document.getElementById('btnAttachAllNotes').addEventListener('click', function() {
   if (!_loadedIncData) { showToast('LOAD AN INCIDENT FIRST.', 'err'); return; }
-  var inc   = _loadedIncData;
-  var audit = _loadedIncAudit || [];
-  var incId = document.getElementById('writerIncidentId').value.trim().toUpperCase() || (inc.incident_id || '');
-
-  var lines = [
-    '--- CAD INCIDENT NOTES ---',
-    inc.incident_note ? inc.incident_note.trim() : '(no notes recorded)',
-    ''
-  ];
-  if (audit.length) {
-    lines.push('--- AUDIT TRAIL ---');
-    audit.slice().reverse().forEach(function(e) {
-      var aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '??:??';
-      lines.push(aTime + '  ' + (e.actor || ''));
-    });
-    lines.push('-------------------');
+  // Toggle: if already attached, detach
+  if (_attachedCadNotes) {
+    _attachedCadNotes = null;
+    this.textContent = 'ATTACH ALL CAD NOTES';
+    this.style.color = '';
+    showToast('CAD NOTES DETACHED.', 'ok');
+    return;
   }
-  lines.push('');
-
-  var ta = document.getElementById('writerNarrative');
-  ta.value = ta.value.trimEnd() + (ta.value.trim() ? '\n\n' : '') + lines.join('\n');
-  ta.scrollTop = ta.scrollHeight;
-  ta.focus();
-  showToast('CAD NOTES ATTACHED.', 'ok');
+  var inc  = _loadedIncData;
+  // incident_note contains the full formatted audit trail preserved from dispatch
+  var notesText = inc.incident_note ? inc.incident_note.trim() : '(no notes recorded)';
+  _attachedCadNotes = notesText;
+  this.textContent = '✓ CAD NOTES ATTACHED';
+  this.style.color = 'var(--green)';
+  showToast('CAD NOTES ATTACHED TO REPORT.', 'ok');
 });
 
 document.getElementById('btnLoadInc').addEventListener('click', function() {
-  var incId = document.getElementById('writerIncidentId').value.trim().toUpperCase();
+  var incIdEl = document.getElementById('writerIncidentId');
+  var incId = incIdEl.value.trim().toUpperCase();
   if (!incId) { showToast('ENTER AN INCIDENT ID FIRST.', 'err'); return; }
+  // Auto-expand 1–4 digit numeric input to full SC{year}-XXXX format
+  if (/^\d{1,4}$/.test(incId)) {
+    var yr = new Date().getFullYear().toString().slice(-2);
+    incId = 'SC' + yr + '-' + incId.padStart(4, '0');
+    incIdEl.value = incId;
+  }
   _loadIncidentRef(incId);
 });
 
@@ -972,11 +1030,14 @@ document.getElementById('btnSaveDraft').addEventListener('click', async function
   if (!incId) { showToast('INCIDENT ID REQUIRED.', 'err'); return; }
 
   statusEl.textContent = 'SAVING...';
+  var sd = (_attachedCadHeader || _attachedCadNotes)
+    ? { cadHeader: _attachedCadHeader || null, cadNotes: _attachedCadNotes || null }
+    : null;
   var r;
   if (_editingReportId) {
-    r = await rmsCall('updateReport', _token, _editingReportId, narrative);
+    r = await rmsCall('updateReport', _token, _editingReportId, narrative, sd);
   } else {
-    r = await rmsCall('createReport', _token, incId, rptType, narrative);
+    r = await rmsCall('createReport', _token, incId, rptType, narrative, sd);
     if (r.ok && r.reportId) {
       _editingReportId = r.reportId;
       document.getElementById('writerTitle').textContent = 'EDITING ' + r.reportId;
@@ -998,18 +1059,21 @@ document.getElementById('btnSubmitReport').addEventListener('click', async funct
   var confirmed = window.confirm('SUBMIT REPORT?\n\nOnce submitted, the report cannot be edited. This action is irreversible.');
   if (!confirmed) return;
 
+  var sd2 = (_attachedCadHeader || _attachedCadNotes)
+    ? { cadHeader: _attachedCadHeader || null, cadNotes: _attachedCadNotes || null }
+    : null;
   var reportId = _editingReportId;
   if (!reportId) {
     // Auto-save draft first
     var incId   = document.getElementById('writerIncidentId').value.trim().toUpperCase();
     var rptType = document.getElementById('writerReportType').value;
     if (!incId) { showToast('INCIDENT ID REQUIRED.', 'err'); return; }
-    var cR = await rmsCall('createReport', _token, incId, rptType, narrative);
+    var cR = await rmsCall('createReport', _token, incId, rptType, narrative, sd2);
     if (!cR.ok) { showToast('CREATE FAILED: ' + (cR.error || 'UNKNOWN'), 'err'); return; }
     reportId = cR.reportId;
   } else {
-    // Update narrative before submit
-    await rmsCall('updateReport', _token, reportId, narrative);
+    // Update narrative + attachments before submit
+    await rmsCall('updateReport', _token, reportId, narrative, sd2);
   }
 
   var r = await rmsCall('submitReport', _token, reportId);
@@ -1025,6 +1089,7 @@ function _backToReports() {
   _viewingReportId = null;
   _loadedIncData   = null;
   _loadedIncAudit  = null;
+  _resetAttachments();
   document.getElementById('writerViewMode').style.display = 'none';
   document.getElementById('writerEditMode').style.display = 'none';
   switchTab('reports');
@@ -1033,6 +1098,19 @@ function _backToReports() {
 
 document.getElementById('btnBackToReports').addEventListener('click', _backToReports);
 document.getElementById('btnBackToReports2').addEventListener('click', _backToReports);
+
+document.getElementById('btnCancelReport').addEventListener('click', function() {
+  if (_editingReportId) {
+    // Has a saved draft — go back without confirmation
+    _backToReports();
+  } else {
+    // Unsaved new report — confirm discard
+    if (!document.getElementById('writerNarrative').value.trim() ||
+        window.confirm('DISCARD UNSAVED REPORT?\n\nNo draft has been saved yet.')) {
+      _backToReports();
+    }
+  }
+});
 
 // ── Addenda helpers ──
 function _renderAddenda(addenda) {
@@ -1089,7 +1167,8 @@ document.getElementById('btnPrintReport').addEventListener('click', async functi
       }).join('')
     : '<p style="color:#888;font-size:12px;">(No follow-up notes)</p>';
 
-  w.document.write(_buildRmsReportHtml(rpt, addendaHtml));
+  var sd = rpt.structured_data || {};
+  w.document.write(_buildRmsReportHtml(rpt, addendaHtml, sd.cadHeader || null, sd.cadNotes || null));
   w.document.close();
   setTimeout(function() { try { w.print(); } catch(e) {} }, 400);
 });
@@ -1098,7 +1177,7 @@ function escPrint(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function _buildRmsReportHtml(rpt, addendaHtml) {
+function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes) {
   function fmtDt(ts) {
     return ts ? new Date(ts).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
   }
@@ -1129,6 +1208,8 @@ function _buildRmsReportHtml(rpt, addendaHtml) {
     '</table>' +
     '<div class="section-hdr">NARRATIVE</div>' +
     '<div class="narrative">' + escPrint(rpt.narrative || '(No narrative)') + '</div>' +
+    (cadHeader ? '<div class="section-hdr">CAD INCIDENT HEADER</div><div class="narrative">' + escPrint(cadHeader) + '</div>' : '') +
+    (cadNotes  ? '<div class="section-hdr">CAD INCIDENT NOTES</div><div class="narrative">' + escPrint(cadNotes)  + '</div>' : '') +
     '<div class="section-hdr">ADDENDA / FOLLOW-UP NOTES</div>' +
     addendaHtml +
     '<div class="footer">Generated ' + new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'}) + ' — HOSCAD RMS — FOR OFFICIAL USE ONLY</div>' +
