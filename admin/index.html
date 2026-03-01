@@ -126,8 +126,8 @@
     </div>
     <div id="unitsStatus" class="admin-status">LOADING...</div>
     <table class="admin-table" id="unitsTable">
-      <thead><tr><th>UNIT</th><th>DISPLAY</th><th>STATUS</th><th>DESTINATION</th><th>UPDATED</th><th>ACTIONS</th></tr></thead>
-      <tbody id="unitsBody"><tr><td colspan="6" class="muted">LOADING...</td></tr></tbody>
+      <thead><tr><th>UNIT</th><th>DISPLAY</th><th>STATUS</th><th>INCIDENT</th><th>CREW</th><th>DESTINATION</th><th>UPDATED</th><th>ACTIONS</th></tr></thead>
+      <tbody id="unitsBody"><tr><td colspan="8" class="muted">LOADING...</td></tr></tbody>
     </table>
   </section>
 
@@ -669,7 +669,7 @@
       <span id="positionsStatus" class="muted" style="font-size:11px;"></span>
     </div>
     <table class="admin-table" id="positionsTable">
-      <thead><tr><th>ID</th><th>LABEL</th><th>ORDER</th><th>DISPATCHER</th><th>ADMIN</th><th>CAN RESET</th><th>ACTIVE</th><th>ACTIONS</th></tr></thead>
+      <thead><tr><th>ID</th><th>LABEL</th><th>ORDER</th><th>DISPATCHER</th><th>ADMIN</th><th>CAN RESET</th><th>ACTIVE</th><th>USERS</th><th>ACTIONS</th></tr></thead>
       <tbody id="positionsBody"></tbody>
     </table>
     <div id="createPositionForm" style="display:none;margin-top:16px;padding:12px;border:1px solid var(--line);background:#0b1018;">
@@ -739,7 +739,11 @@
         <button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="prefillFlagAddr()" title="Copy search address into form">USE SEARCH ADDR</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-        <input id="hfNewAddr" placeholder="ADDRESS *" style="flex:2;min-width:200px;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="200" autocomplete="off" />
+        <div style="flex:2;min-width:200px;position:relative;">
+          <input id="hfNewAddr" placeholder="ADDRESS * (type for GIS suggestions)" style="width:100%;box-sizing:border-box;padding:4px 8px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;text-transform:uppercase;" maxlength="200" autocomplete="off"
+            oninput="_hfAddrInputChanged()" onkeydown="_hfAddrKeydown(event)" onblur="setTimeout(()=>_hfAddrHideDrop(),200)" />
+          <div id="hfAddrDrop" style="display:none;position:absolute;z-index:200;top:100%;left:0;right:0;background:#1a2233;border:1px solid var(--line);max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);"></div>
+        </div>
         <select id="hfNewCat" style="flex:1;min-width:180px;padding:4px 8px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:uppercase;">
           <option value="">SELECT CATEGORY *</option>
           <option value="VIOLENCE-THREATS">VIOLENCE-THREATS</option>
@@ -1554,6 +1558,17 @@
   }
 
   // ── Units Tab ─────────────────────────────────────────────
+  function _parseCrewFromUnitInfo(ui) {
+    if (!ui) return '—';
+    const names = [];
+    ui.split('|').forEach(p => {
+      if (/^CM[12]:/.test(p) && !/^CM[12]ID:/.test(p)) {
+        names.push(p.replace(/^CM[12]:/, '').replace(/\s*\([^)]+\)$/, '').trim());
+      }
+    });
+    return names.length ? names.join(' / ') : '—';
+  }
+
   async function loadUnits() {
     document.getElementById('unitsStatus').textContent = 'LOADING...';
     const r = await API.getState(_token);
@@ -1561,12 +1576,18 @@
     const units = (r.units || []).filter(u => u.active);
     document.getElementById('unitsStatus').textContent = units.length + ' ACTIVE UNIT(S)';
     const body = document.getElementById('unitsBody');
-    if (!units.length) { body.innerHTML = '<tr><td colspan="6" class="muted">NO ACTIVE UNITS.</td></tr>'; return; }
-    body.innerHTML = units.map(u => `
-      <tr>
+    if (!units.length) { body.innerHTML = '<tr><td colspan="8" class="muted">NO ACTIVE UNITS.</td></tr>'; return; }
+    body.innerHTML = units.map(u => {
+      const incCell = u.incident
+        ? `<span style="color:var(--yellow);font-weight:700;">${esc(u.incident)}</span>`
+        : '<span class="muted">—</span>';
+      const crewCell = esc(_parseCrewFromUnitInfo(u.unit_info));
+      return `<tr>
         <td><strong>${esc(u.unit_id)}</strong></td>
         <td>${esc(u.display_name || '')}</td>
         <td><span class="status-badge status-badge-${esc(u.status)}">${esc(u.status)}</span></td>
+        <td>${incCell}</td>
+        <td style="font-size:11px;">${crewCell}</td>
         <td>${esc(u.destination || '—')}</td>
         <td class="muted">${esc(u.updated_at ? fmtTime(u.updated_at) : '—')}</td>
         <td>
@@ -1575,7 +1596,8 @@
             <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="logoffUnit('${esc(u.unit_id)}', '${esc(u.updated_at || '')}')">LOGOFF</button>
           </div>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   async function logoffUnit(unitId, expectedUpdatedAt) {
@@ -3082,6 +3104,64 @@
     loadHazardFlags();
   }
 
+  // ── Hazard Flags GIS Address Typeahead ──────────────────────
+  let _hfAddrTimer = null;
+  let _hfAddrDropIdx = -1;
+
+  function _hfAddrInputChanged() {
+    if (_hfAddrTimer) clearTimeout(_hfAddrTimer);
+    _hfAddrTimer = setTimeout(_hfAddrSearch, 200);
+  }
+
+  async function _hfAddrSearch() {
+    const inp = document.getElementById('hfNewAddr');
+    const drop = document.getElementById('hfAddrDrop');
+    if (!inp || !drop) return;
+    const q = (inp.value || '').trim();
+    if (q.length < 3) { drop.style.display = 'none'; return; }
+    const r = await API.searchAddressPoints(_token, q, 8).catch(() => null);
+    // Verify input hasn't changed since we fired the request
+    if ((document.getElementById('hfNewAddr')?.value || '').trim() !== q) return;
+    if (!r?.ok || !r.results?.length) { drop.style.display = 'none'; return; }
+    drop.innerHTML = r.results.map((a, i) =>
+      `<div class="hf-addr-opt" data-idx="${i}" onclick="_hfAddrSelect('${esc(a.address || '')}')" style="padding:5px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--line);">${esc(a.address || '')}</div>`
+    ).join('');
+    drop.style.display = '';
+    _hfAddrDropIdx = -1;
+  }
+
+  function _hfAddrSelect(addr) {
+    const inp = document.getElementById('hfNewAddr');
+    if (inp) { inp.value = addr.toUpperCase(); }
+    _hfAddrHideDrop();
+  }
+
+  function _hfAddrHideDrop() {
+    const drop = document.getElementById('hfAddrDrop');
+    if (drop) drop.style.display = 'none';
+    _hfAddrDropIdx = -1;
+  }
+
+  function _hfAddrKeydown(e) {
+    const drop = document.getElementById('hfAddrDrop');
+    if (!drop || drop.style.display === 'none') return;
+    const opts = drop.querySelectorAll('.hf-addr-opt');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _hfAddrDropIdx = Math.min(_hfAddrDropIdx + 1, opts.length - 1);
+      opts.forEach((o, i) => o.style.background = i === _hfAddrDropIdx ? 'rgba(79,163,224,.2)' : '');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _hfAddrDropIdx = Math.max(_hfAddrDropIdx - 1, -1);
+      opts.forEach((o, i) => o.style.background = i === _hfAddrDropIdx ? 'rgba(79,163,224,.2)' : '');
+    } else if (e.key === 'Enter' && _hfAddrDropIdx >= 0) {
+      e.preventDefault();
+      opts[_hfAddrDropIdx]?.click();
+    } else if (e.key === 'Escape') {
+      _hfAddrHideDrop();
+    }
+  }
+
   let _hfDeactivateTargetId = null;
 
   function deactivateFlagPrompt(flagId) {
@@ -3114,13 +3194,26 @@
   async function loadPositions() {
     const stat = document.getElementById('positionsStatus');
     stat.textContent = 'LOADING...';
-    const r = await API.call('listPositions', _token);
+    const [r, ur] = await Promise.all([
+      API.call('listPositions', _token),
+      API.call('listUsersAdmin', _token).catch(() => ({ ok: false }))
+    ]);
     if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
     const positions = r.positions || [];
     stat.textContent = positions.length + ' POSITION(S)';
+    // Count users per role for the USERS column
+    const userCountByRole = {};
+    if (ur.ok) {
+      (ur.users || []).forEach(u => {
+        const rr = (u.role || '').toUpperCase();
+        userCountByRole[rr] = (userCountByRole[rr] || 0) + 1;
+      });
+    }
     const body = document.getElementById('positionsBody');
-    body.innerHTML = positions.map(p => `
-      <tr>
+    body.innerHTML = positions.map(p => {
+      const cnt = userCountByRole[p.position_id] || 0;
+      const cntStyle = cnt > 0 ? 'font-weight:700;color:var(--fg);' : 'color:var(--muted);';
+      return `<tr>
         <td><strong>${p.position_id}</strong></td>
         <td><input value="${p.label || ''}" style="width:160px;padding:2px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" onblur="savePositionField('${p.position_id}','label',this.value)" /></td>
         <td><input type="number" value="${p.display_order || 0}" style="width:60px;padding:2px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" onblur="savePositionField('${p.position_id}','display_order',Number(this.value))" /></td>
@@ -3130,8 +3223,10 @@
         <td style="text-align:center;">
           <input type="checkbox" ${p.is_active ? 'checked' : ''} onchange="savePositionField('${p.position_id}','is_active',this.checked)" />
         </td>
+        <td style="text-align:center;${cntStyle}">${cnt}</td>
         <td></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   async function savePositionField(positionId, field, value) {
