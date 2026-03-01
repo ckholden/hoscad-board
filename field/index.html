@@ -5835,6 +5835,13 @@
   window._qmsSelectTarget = _qmsSelectTarget;
   window._qmsSend      = _qmsSend;
 
+  // Field NC panel
+  window._openFieldNcPanel    = _openFieldNcPanel;
+  window._closeFieldNcPanel   = _closeFieldNcPanel;
+  window._onFieldNcAddrInput  = _onFieldNcAddrInput;
+  window._onFieldNcAddrKeydown = _onFieldNcAddrKeydown;
+  window._submitFieldNc       = _submitFieldNc;
+
   // Status buttons — TH requires confirm, AV prompts for note, others fire on click
   document.querySelectorAll('.field-status-btn').forEach(function(btn) {
     const statusCode = btn.dataset.status;
