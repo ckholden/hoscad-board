@@ -499,7 +499,7 @@
   <!-- CREW ROSTER TAB -->
   <section id="tabCrew" class="tab-section">
     <div class="admin-actions">
-      <div class="inline-form">
+      <div class="inline-form" style="flex-wrap:wrap;gap:6px;">
         <input id="newCrewName" placeholder="FULL NAME" style="width:160px;" maxlength="80" />
         <select id="newCrewCert" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
           <option value="EMT">EMT</option>
@@ -508,14 +508,30 @@
           <option value="RN">RN</option>
           <option value="OTHER">OTHER</option>
         </select>
+        <input id="newCrewExpiry" type="date" title="Cert expiry date (optional)" style="padding:4px 8px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+        <input id="newCrewLicense" placeholder="LICENSE # (OPTIONAL)" style="width:130px;font-size:11px;" maxlength="30" />
         <button class="btn-good" style="font-size:11px;" onclick="createCrewMember()">+ NEW CREW</button>
       </div>
       <button class="btn-secondary" style="font-size:11px;" onclick="loadCrew()">REFRESH</button>
     </div>
+    <!-- Inline cert edit form -->
+    <div id="crewCertEditRow" style="display:none;margin-bottom:10px;background:#0c111a;border:1px solid var(--line);padding:10px 12px;">
+      <div class="muted" style="font-size:10px;margin-bottom:6px;">EDIT CERT INFO — <strong id="crewCertEditName"></strong></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <div><div class="muted" style="font-size:10px;margin-bottom:2px;">EXPIRY DATE</div>
+          <input id="crewCertEditExpiry" type="date" style="padding:4px 8px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" /></div>
+        <div><div class="muted" style="font-size:10px;margin-bottom:2px;">LICENSE #</div>
+          <input id="crewCertEditLicense" placeholder="LICENSE NUMBER" style="width:150px;font-size:11px;" maxlength="30" /></div>
+        <div style="margin-top:14px;display:flex;gap:6px;">
+          <button class="btn-good" style="font-size:11px;" onclick="saveCrewCertEdit()">SAVE</button>
+          <button class="btn-secondary" style="font-size:11px;" onclick="closeCrewCertEdit()">CANCEL</button>
+        </div>
+      </div>
+    </div>
     <div id="crewStatus" class="admin-status">LOADING...</div>
     <table class="admin-table" id="crewTable">
-      <thead><tr><th>CAD ID</th><th>NAME</th><th>CERT</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
-      <tbody id="crewBody"><tr><td colspan="5" class="muted">NO CREW MEMBERS.</td></tr></tbody>
+      <thead><tr><th>CAD ID</th><th>NAME</th><th>CERT</th><th>EXPIRY</th><th>LICENSE</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+      <tbody id="crewBody"><tr><td colspan="7" class="muted">NO CREW MEMBERS.</td></tr></tbody>
     </table>
 
     <!-- CREW HISTORY -->
@@ -1552,19 +1568,35 @@
     fromEl.value = past.toISOString().slice(0, 10);
   }
 
+  let _crewRosterData = [];
+  let _crewEditCadId  = null;
+
+  function _crewExpiryCell(dateStr) {
+    if (!dateStr) return '<span class="muted">—</span>';
+    const d = new Date(dateStr + 'T00:00:00');
+    const daysLeft = Math.ceil((d - Date.now()) / 86400000);
+    if (daysLeft < 0)   return `<span style="color:#ff6b6b;font-weight:700;" title="EXPIRED">${esc(dateStr)} <span style="font-size:10px;">EXPIRED</span></span>`;
+    if (daysLeft <= 30) return `<span style="color:#ff6b6b;" title="${daysLeft} days">${esc(dateStr)} <span style="font-size:10px;">(${daysLeft}d)</span></span>`;
+    if (daysLeft <= 90) return `<span style="color:#ffd66b;" title="${daysLeft} days">${esc(dateStr)} <span style="font-size:10px;">(${daysLeft}d)</span></span>`;
+    return `<span style="color:#7fffb2;">${esc(dateStr)}</span>`;
+  }
+
   async function loadCrew() {
     document.getElementById('crewStatus').textContent = 'LOADING...';
     const r = await API.listCrewRoster(_token);
     if (!r.ok) { document.getElementById('crewStatus').textContent = 'ERROR: ' + r.error; return; }
     const crew = r.crew || [];
+    _crewRosterData = crew;
     document.getElementById('crewStatus').textContent = crew.length + ' CREW MEMBER(S)';
     const body = document.getElementById('crewBody');
-    if (!crew.length) { body.innerHTML = '<tr><td colspan="5" class="muted">NO CREW MEMBERS.</td></tr>'; return; }
+    if (!crew.length) { body.innerHTML = '<tr><td colspan="7" class="muted">NO CREW MEMBERS.</td></tr>'; return; }
     body.innerHTML = crew.map(c => `
       <tr>
         <td><span style="color:#4fa3e0;font-size:11px;font-weight:700;">${esc(c.cad_id)}</span></td>
         <td><strong>${esc(c.full_name)}</strong></td>
         <td>${esc(c.cert_level)}</td>
+        <td>${_crewExpiryCell(c.cert_expiry_date)}</td>
+        <td class="muted">${c.license_number ? esc(c.license_number) : '—'}</td>
         <td>${c.is_active
           ? '<span style="color:#7fffb2;font-size:11px;font-weight:700;">ACTIVE</span>'
           : '<span style="color:#6a7a8a;font-size:11px;">INACTIVE</span>'}</td>
@@ -1572,21 +1604,55 @@
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <input class="crew-pin-input" inputmode="numeric" data-cad="${esc(c.cad_id)}" placeholder="NEW PIN (4+ DIGITS)" style="padding:3px 6px;font-size:11px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;width:130px;" />
             <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="resetCrewPin('${esc(c.cad_id)}', this)">RESET PIN</button>
-            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="toggleCrewActive('${esc(c.cad_id)}', ${!c.is_active}, '${esc(c.full_name)}', '${esc(c.cert_level)}')">${c.is_active ? 'DISABLE' : 'ENABLE'}</button>
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="openCrewCertEdit('${esc(c.cad_id)}')">EDIT CERT</button>
+            <button class="btn-secondary" style="font-size:10px;padding:3px 8px;" onclick="toggleCrewActive('${esc(c.cad_id)}', ${!c.is_active})">${c.is_active ? 'DISABLE' : 'ENABLE'}</button>
             <button class="btn-danger" style="font-size:10px;padding:3px 8px;" onclick="deleteCrewMember('${esc(c.cad_id)}', '${esc(c.full_name)}')">DELETE</button>
           </div>
         </td>
       </tr>`).join('');
   }
 
+  function openCrewCertEdit(cadId) {
+    const c = _crewRosterData.find(x => x.cad_id === cadId);
+    if (!c) return;
+    _crewEditCadId = cadId;
+    document.getElementById('crewCertEditName').textContent = c.full_name + ' (CAD ' + cadId + ')';
+    document.getElementById('crewCertEditExpiry').value  = c.cert_expiry_date || '';
+    document.getElementById('crewCertEditLicense').value = c.license_number   || '';
+    const row = document.getElementById('crewCertEditRow');
+    row.style.display = '';
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closeCrewCertEdit() {
+    document.getElementById('crewCertEditRow').style.display = 'none';
+    _crewEditCadId = null;
+  }
+
+  async function saveCrewCertEdit() {
+    const c = _crewRosterData.find(x => x.cad_id === _crewEditCadId);
+    if (!c) return;
+    const expiry  = document.getElementById('crewCertEditExpiry').value  || null;
+    const license = (document.getElementById('crewCertEditLicense').value || '').trim().toUpperCase() || null;
+    const r = await API.updateCrewMember(_token, _crewEditCadId, c.full_name, c.cert_level, c.is_active, expiry, license);
+    if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
+    showToast('CERT INFO UPDATED: ' + c.full_name, 'success');
+    closeCrewCertEdit();
+    loadCrew();
+  }
+
   async function createCrewMember() {
-    const fn = document.getElementById('newCrewName').value.trim();
-    const cert = document.getElementById('newCrewCert').value;
+    const fn      = document.getElementById('newCrewName').value.trim();
+    const cert    = document.getElementById('newCrewCert').value;
+    const expiry  = document.getElementById('newCrewExpiry').value  || null;
+    const license = (document.getElementById('newCrewLicense').value || '').trim().toUpperCase() || null;
     if (!fn) { showToast('ENTER CREW MEMBER NAME.', 'warn'); return; }
-    const r = await API.addCrewMember(_token, fn, cert);
+    const r = await API.addCrewMember(_token, fn, cert, expiry, license);
     if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
     showToast('CREW ADDED: ' + r.cadId + ' / ' + r.fullName + ' / DEFAULT PIN: ' + r.defaultPin, 'success', 8000);
     document.getElementById('newCrewName').value = '';
+    document.getElementById('newCrewExpiry').value = '';
+    document.getElementById('newCrewLicense').value = '';
     loadCrew();
   }
 
@@ -1603,13 +1669,16 @@
     if (input) input.value = '';
   }
 
-  async function toggleCrewActive(cadId, newActive, fullName, certLevel) {
+  async function toggleCrewActive(cadId, newActive) {
+    const c = _crewRosterData.find(x => x.cad_id === cadId);
+    if (!c) return;
     const label = newActive ? 'ENABLE' : 'DISABLE';
-    const ok = await showConfirm(label + ' CREW MEMBER', label + ' ' + fullName + ' (' + cadId + ')?');
+    const ok = await showConfirm(label + ' CREW MEMBER', label + ' ' + c.full_name + ' (' + cadId + ')?');
     if (!ok) return;
-    const r = await API.updateCrewMember(_token, cadId, fullName, certLevel, newActive);
+    const r = await API.updateCrewMember(_token, cadId, c.full_name, c.cert_level, newActive,
+      c.cert_expiry_date || null, c.license_number || null);
     if (!r.ok) { showToast('ERROR: ' + r.error, 'error'); return; }
-    showToast(label + 'D: ' + fullName, 'success');
+    showToast(label + 'D: ' + c.full_name, 'success');
     loadCrew();
   }
 

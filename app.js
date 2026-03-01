@@ -3098,6 +3098,8 @@ function renderBoard() {
     }
     // Filter DC911 units if feed is disabled
     if (u.source && u.source.startsWith('DC911:') && !_isDc911Enabled()) return false;
+    // Filter PulsePoint units if feed is disabled
+    if (u.source && u.source.startsWith('PP:') && !_isPpFeedEnabled()) return false;
     const h = (u.unit_id + ' ' + (u.display_name || '') + ' ' + (u.note || '') + ' ' + (u.destination || '') + ' ' + (u.incident || '')).toUpperCase();
     if (q && !h.includes(q)) return false;
     if (ACTIVE_INCIDENT_FILTER && String(u.incident || '') !== ACTIVE_INCIDENT_FILTER) return false;
@@ -3369,6 +3371,8 @@ function renderBoardDiff() {
     }
     // Filter DC911 units if feed is disabled
     if (u.source && u.source.startsWith('DC911:') && !_isDc911Enabled()) return false;
+    // Filter PulsePoint units if feed is disabled
+    if (u.source && u.source.startsWith('PP:') && !_isPpFeedEnabled()) return false;
     const h = (u.unit_id + ' ' + (u.display_name || '') + ' ' + (u.note || '') + ' ' + (u.destination || '') + ' ' + (u.incident || '')).toUpperCase();
     if (q && !h.includes(q)) return false;
     if (ACTIVE_INCIDENT_FILTER && String(u.incident || '') !== ACTIVE_INCIDENT_FILTER) return false;
@@ -9913,6 +9917,10 @@ function updateLfnSyncBadge() {
 
 function _isDc911Enabled() {
   return localStorage.getItem('hoscad_dc911_enabled') !== 'false';
+}
+
+function _isPpFeedEnabled() {
+  return !!((STATE && STATE.featureFlags) || {}).pp_feed_enabled;
 }
 
 function toggleDc911() {

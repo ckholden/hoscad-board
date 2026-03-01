@@ -358,8 +358,14 @@ const API = {
   changeCrewPin(cadId, currentPin, newPin) { return this.call('changeCrewPin', cadId, currentPin, newPin); },
   lookupCrewByCadId(token, cadId) { return this.call('lookupCrewByCadId', token, cadId); },
   listCrewRoster(token) { return this.call('listCrewRoster', token); },
-  addCrewMember(token, fullName, certLevel) { return this.call('addCrewMember', token, fullName, certLevel); },
-  updateCrewMember(token, cadId, fullName, certLevel, isActive) { return this.call('updateCrewMember', token, cadId, fullName, certLevel, isActive); },
+  addCrewMember(token, fullName, certLevel, certExpiryDate, licenseNumber) {
+    return this.call('addCrewMember', token, fullName, certLevel, certExpiryDate||null, licenseNumber||null);
+  },
+  updateCrewMember(token, cadId, fullName, certLevel, isActive, certExpiryDate, licenseNumber) {
+    return this.call('updateCrewMember', token, cadId, fullName, certLevel, isActive,
+      certExpiryDate !== undefined ? certExpiryDate : null,
+      licenseNumber  !== undefined ? licenseNumber  : null);
+  },
   deleteCrewMember(token, cadId) { return this.call('deleteCrewMember', token, cadId); },
   adminSetCrewPin(token, cadId, pin) { return this.call('adminSetCrewPin', token, cadId, pin); },
 
