@@ -7102,7 +7102,7 @@ async function _execCmd(tx) {
   // Supports any address format: GIS addresses, intersections (HWY 97/61ST),
   // directional refs (SB HWY 97, NB US 20 MM 143), etc.
   {
-    const _qnc = mU.match(/^([A-Z][A-Z0-9]*)\s+NC(?:\s+(.*))?$/);
+    const _qnc = tx.trim().toUpperCase().match(/^([A-Z][A-Z0-9]*)\s+NC(?:\s+(.*))?$/);
     if (_qnc) {
       const _qncUnit = _qnc[1];
       const _qncRest = (_qnc[2] || '').trim();
