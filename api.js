@@ -555,6 +555,12 @@ const API = {
   getUserActivityReport(token, startIso, endIso, hours) {
     return this.call('getUserActivityReport', token, startIso || null, endIso || null, hours || 24);
   },
+  getSystemConfig(token) {
+    return this.call('getSystemConfig', token);
+  },
+  setSystemConfig(token, key, value) {
+    return this.call('setSystemConfig', token, key, value);
+  },
 
   // ============================================================
   // Location History

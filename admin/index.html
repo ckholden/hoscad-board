@@ -360,6 +360,18 @@
   <!-- TOOLS TAB -->
   <section id="tabTools" class="tab-section">
 
+    <h3 class="tools-section-header">SYSTEM CONFIGURATION</h3>
+    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-bottom:16px;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <button class="btn-secondary" style="font-size:11px;" onclick="loadSystemConfig()">REFRESH</button>
+        <span id="sysConfigStatus" class="muted" style="font-size:11px;">Click REFRESH to load.</span>
+      </div>
+      <table class="admin-table" id="sysConfigTable" style="display:none;">
+        <thead><tr><th>KEY</th><th>VALUE</th><th>LAST CHANGED</th><th>BY</th><th></th></tr></thead>
+        <tbody id="sysConfigBody"></tbody>
+      </table>
+    </div>
+
     <h3 class="tools-section-header">COMMUNICATIONS</h3>
     <div class="tools-grid">
       <div class="tool-card" style="grid-column:span 2;">
@@ -1026,6 +1038,63 @@
   }
 
   // ── Feature Flags Tab ──────────────────────────────────────
+  // ── System Config ─────────────────────────────────────────────
+  const SYS_CONFIG_META = {
+    agency_name:         { label: 'Agency Name',                  itOnly: false },
+    agency_code:         { label: 'Agency Code',                  itOnly: true  },
+    report_footer:       { label: 'Report Footer Text',           itOnly: false },
+    shift_duration_hrs:  { label: 'Shift Duration (hours)',       itOnly: false },
+    kpi_d_de_target:     { label: 'KPI D→DE Target (min)',        itOnly: true  },
+    kpi_de_os_target:    { label: 'KPI DE→OS Target (min)',       itOnly: true  },
+    kpi_os_t_target:     { label: 'KPI OS→T Target (min)',        itOnly: true  },
+    kpi_t_av_target:     { label: 'KPI T→AV Target (min)',        itOnly: true  },
+    purge_audit_days:    { label: 'Purge: Audit Retention (days)',     itOnly: true  },
+    purge_incident_days: { label: 'Purge: Incident Retention (days)', itOnly: true  },
+  };
+
+  async function loadSystemConfig() {
+    const stat = document.getElementById('sysConfigStatus');
+    const tbl  = document.getElementById('sysConfigTable');
+    stat.textContent = 'LOADING...';
+    const r = await API.getSystemConfig(_token);
+    if (!r.ok) { stat.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    const rows = r.config || [];
+    const isIT = (_role || '').toUpperCase() === 'IT';
+    stat.textContent = rows.length + ' KEY(S)';
+    tbl.style.display = '';
+    const body = document.getElementById('sysConfigBody');
+    // Only show keys we have labels for
+    const known = rows.filter(row => SYS_CONFIG_META[row.key]);
+    body.innerHTML = known.map(row => {
+      const meta = SYS_CONFIG_META[row.key];
+      const canEdit = !meta.itOnly || isIT;
+      const inputEl = canEdit
+        ? `<input id="scv_${esc(row.key)}" value="${esc(row.value || '')}" style="padding:3px 6px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:180px;" maxlength="200" />`
+        : `<span style="color:var(--fg);">${esc(row.value || '')}</span>`;
+      const saveBtn = canEdit
+        ? `<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="saveSystemConfig('${esc(row.key)}')">SAVE</button>`
+        : `<span class="muted" style="font-size:10px;">IT ONLY</span>`;
+      const updAt = row.updated_at ? new Date(row.updated_at).toLocaleString() : '—';
+      return `<tr>
+        <td><strong>${esc(meta.label)}</strong><br><span class="muted" style="font-size:10px;">${esc(row.key)}</span></td>
+        <td>${inputEl}</td>
+        <td class="muted" style="font-size:11px;">${esc(updAt)}</td>
+        <td class="muted" style="font-size:11px;">${esc(row.updated_by || '—')}</td>
+        <td>${saveBtn}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function saveSystemConfig(key) {
+    const inp = document.getElementById('scv_' + key);
+    if (!inp) return;
+    const value = inp.value.trim();
+    const r = await API.setSystemConfig(_token, key, value);
+    if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
+    showToast('CONFIG SAVED: ' + key, 'success');
+    loadSystemConfig();
+  }
+
   const FLAG_LABELS = {
     dc911_enabled:     { label: 'DC911 Integration', desc: 'Show DC911/Deschutes County CAD units on board' },
     map_enabled:       { label: 'Board Map', desc: 'Enable the MAP toolbar button and incident map overlay' },
