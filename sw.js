@@ -19,7 +19,7 @@ const APP_SHELL = [
   './viewer/',
   './popout-inc/',
   './popout-map/',
-  './crew/',
+  './rms/',
   './icons/favicon.ico',
   './icons/icon-32.png',
   './icons/icon-192.png',
