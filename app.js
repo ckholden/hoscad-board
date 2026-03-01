@@ -7096,6 +7096,41 @@ async function _execCmd(tx) {
     return;
   }
 
+  // Quick field-dispatch: EMS1 NC SB 97/6ST; MVC NOTES
+  // Format: <UNIT_ID> NC <scene address>[; optional free-text note]
+  // Creates an ACTIVE incident, puts unit ON SCENE, auto-opens incident modal.
+  // Supports any address format: GIS addresses, intersections (HWY 97/61ST),
+  // directional refs (SB HWY 97, NB US 20 MM 143), etc.
+  {
+    const _qnc = mU.match(/^([A-Z][A-Z0-9]*)\s+NC(?:\s+(.*))?$/);
+    if (_qnc) {
+      const _qncUnit = _qnc[1];
+      const _qncRest = (_qnc[2] || '').trim();
+      const _qncUnitObj = (STATE && STATE.units || []).find(u => String(u.unit_id || '').toUpperCase() === _qncUnit);
+      if (_qncUnitObj) {
+        if (!_qncRest) { showAlert('ERROR', 'USAGE: ' + _qncUnit + ' NC <ADDRESS>[; NOTES]'); return; }
+        const _qncParts = _qncRest.split(';').map(p => p.trim().toUpperCase());
+        const _qncAddr  = _qncParts[0] || '';
+        const _qncNote  = _qncParts.slice(1).filter(Boolean).join(' ');
+        if (!_qncAddr) { showAlert('ERROR', 'USAGE: ' + _qncUnit + ' NC <ADDRESS>[; NOTES]'); return; }
+        setLive(true, 'LIVE • FIELD CREATE');
+        const _qncR = await API.createFieldIncident(TOKEN, _qncUnit, _qncAddr, _qncNote, '');
+        setLive(false);
+        if (!_qncR.ok) return showErr(_qncR);
+        showToast(_qncUnit + ' ON SCENE — ' + _qncR.incidentId + ' CREATED', 'ok', 5000);
+        AddrHistory.push(_qncAddr);
+        refresh();
+        // Auto-open incident modal and bind CLI context
+        await openIncidentFromServer(_qncR.incidentId);
+        CLI_CONTEXT.incidentId  = _qncR.incidentId;
+        CLI_CONTEXT.activatedAt = new Date();
+        CLI_CONTEXT.activatedBy = ACTOR;
+        _updateContextBanner();
+        return;
+      }
+    }
+  }
+
   // NC - New incident in queue
   if (mU.startsWith('NC ') || mU === 'NC') {
     const ncRaw = tx.substring(2).trim();

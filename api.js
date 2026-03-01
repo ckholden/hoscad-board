@@ -567,6 +567,9 @@ const API = {
   searchIncidentsFull(token, query, limit) {
     return this.call('searchIncidentsFull', token, query, limit || 10);
   },
+  createFieldIncident(token, unitId, sceneAddress, notes, incidentType) {
+    return this.call('createFieldIncident', token, unitId, sceneAddress || '', notes || '', incidentType || '');
+  },
 
   // ============================================================
   // Address Flags

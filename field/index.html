@@ -625,6 +625,60 @@
     }
     .field-loc-panel .loc-clr-btn { border-color: rgba(255,100,100,.35); background: rgba(255,100,100,.1); color: #ff8888; }
     .field-loc-panel .loc-close-btn { border-color: #333; background: transparent; color: #666; }
+    /* Field-originated call creation panel */
+    .field-nc-open-btn {
+      display: block; width: calc(100% - 24px); margin: 6px 12px;
+      padding: 8px; background: rgba(63,185,80,.14);
+      border: 1px solid rgba(63,185,80,.45); color: #3fb950;
+      font-family: inherit; font-size: 12px; font-weight: 900;
+      letter-spacing: .08em; cursor: pointer; border-radius: 3px;
+      touch-action: manipulation;
+    }
+    .field-nc-panel {
+      background: #080d14; border-top: 2px solid #3fb950;
+      border-bottom: 1px solid #1a2236; padding: 10px 14px;
+    }
+    .field-nc-header {
+      font-size: 10px; font-weight: 900; color: #3fb950;
+      letter-spacing: .1em; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .field-nc-close { cursor: pointer; color: #556; font-size: 16px; padding: 2px 4px; }
+    .field-nc-label { font-size: 9px; font-weight: 700; color: #557; letter-spacing: .07em; margin: 8px 0 3px; text-transform: uppercase; }
+    .field-nc-input {
+      width: 100%; box-sizing: border-box; padding: 8px 10px;
+      font-size: 13px; font-family: inherit; font-weight: 700;
+      background: #0b1018; border: 1px solid #1e2b3e; color: #e2e8f0;
+      text-transform: uppercase; letter-spacing: .04em; border-radius: 2px;
+    }
+    .field-nc-input:focus { outline: none; border-color: rgba(91,163,230,.6); }
+    .field-nc-btns { display: flex; gap: 8px; margin-top: 10px; }
+    .field-nc-submit {
+      flex: 1; padding: 10px; background: rgba(63,185,80,.2);
+      border: 1px solid rgba(63,185,80,.5); color: #3fb950;
+      font-family: inherit; font-size: 12px; font-weight: 900;
+      letter-spacing: .07em; cursor: pointer; border-radius: 2px;
+      touch-action: manipulation;
+    }
+    .field-nc-cancel {
+      padding: 10px 16px; background: transparent;
+      border: 1px solid #1e2b3e; color: #556;
+      font-family: inherit; font-size: 11px; cursor: pointer; border-radius: 2px;
+      touch-action: manipulation;
+    }
+    .field-nc-status { font-size: 11px; margin-top: 6px; min-height: 16px; }
+    .field-nc-ta {
+      position: absolute; left: 0; right: 0; z-index: 200;
+      background: #0d1420; border: 1px solid rgba(91,163,230,.6);
+      box-shadow: 0 8px 24px rgba(0,0,0,.9); max-height: 180px; overflow-y: auto;
+    }
+    .field-nc-ta-row {
+      padding: 9px 12px; cursor: pointer; border-bottom: 1px solid #131a24;
+      border-left: 3px solid transparent; touch-action: manipulation;
+    }
+    .field-nc-ta-row.ta-active, .field-nc-ta-row:active { background: rgba(91,163,230,.12); border-left-color: #4fa3e0; }
+    .field-nc-ta-main { font-size: 13px; font-weight: 700; color: #e2e8f0; font-family: monospace; }
+    .field-nc-ta-sub  { font-size: 10px; color: #556; margin-top: 2px; }
     .field-status-secondary .field-status-btn {
       min-height: 56px;
       font-size: 12px;
@@ -1641,6 +1695,32 @@
           <button onclick="setFieldLoc()">SET</button>
           <button class="loc-clr-btn" onclick="clearFieldLoc()">CLR</button>
           <button class="loc-close-btn" onclick="closeFieldLocPanel()">&#x2715;</button>
+        </div>
+        <!-- Field-originated call creation -->
+        <button class="field-nc-open-btn" id="fieldNcOpenBtn" onclick="_openFieldNcPanel()" style="display:none;">+ CREATE CALL</button>
+        <div id="fieldNcPanel" class="field-nc-panel" style="display:none;">
+          <div class="field-nc-header">
+            FIELD-ORIGINATED CALL
+            <span class="field-nc-close" onclick="_closeFieldNcPanel()">&#x2715;</span>
+          </div>
+          <div class="field-nc-label">SCENE ADDRESS *</div>
+          <div style="position:relative;">
+            <input id="fieldNcAddr" class="field-nc-input" placeholder="ADDRESS OR LOCATION..."
+                   maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
+                   oninput="_onFieldNcAddrInput(this.value)" onkeydown="_onFieldNcAddrKeydown(event)" />
+            <div id="fieldNcTypeahead" class="field-nc-ta" style="display:none;"></div>
+          </div>
+          <div class="field-nc-label">CALL TYPE (optional — dispatch will update)</div>
+          <input id="fieldNcType" class="field-nc-input" placeholder="e.g. MVC, UNK MEDICAL, FIRE..."
+                 maxlength="100" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+          <div class="field-nc-label">NOTE (optional)</div>
+          <input id="fieldNcNote" class="field-nc-input" placeholder="REQ ADDTL UNITS, PT UNSTABLE..."
+                 maxlength="300" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" />
+          <div class="field-nc-btns">
+            <button class="field-nc-submit" onclick="_submitFieldNc()">CREATE CALL</button>
+            <button class="field-nc-cancel" onclick="_closeFieldNcPanel()">CANCEL</button>
+          </div>
+          <div id="fieldNcStatus" class="field-nc-status"></div>
         </div>
         <!-- Command console — primary home after login -->
         <div class="cmd-feed" id="cmdFeed" style="flex:1;max-height:none;">
@@ -3843,6 +3923,136 @@
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════════
+  // FIELD NC — Create Call (field-originated incident)
+  // ════════════════════════════════════════════════════════════════════════════
+  var _fieldNcAddrTimer = null;
+  var _fieldNcSelAddr   = null;
+
+  function _openFieldNcPanel() {
+    document.getElementById('fieldNcPanel').style.display = 'block';
+    document.getElementById('fieldNcOpenBtn').style.display = 'none';
+    setTimeout(function() {
+      var inp = document.getElementById('fieldNcAddr');
+      if (inp) inp.focus();
+    }, 80);
+  }
+
+  function _closeFieldNcPanel() {
+    document.getElementById('fieldNcPanel').style.display = 'none';
+    document.getElementById('fieldNcOpenBtn').style.display = 'block';
+    var addr = document.getElementById('fieldNcAddr');
+    var type = document.getElementById('fieldNcType');
+    var note = document.getElementById('fieldNcNote');
+    var stat = document.getElementById('fieldNcStatus');
+    if (addr) addr.value = '';
+    if (type) type.value = '';
+    if (note) note.value = '';
+    if (stat) stat.textContent = '';
+    _fieldNcSelAddr = null;
+    _closeFieldNcTa();
+  }
+
+  function _closeFieldNcTa() {
+    var ta = document.getElementById('fieldNcTypeahead');
+    if (ta) ta.style.display = 'none';
+  }
+
+  function _onFieldNcAddrInput(val) {
+    _fieldNcSelAddr = null;
+    clearTimeout(_fieldNcAddrTimer);
+    if (!val || val.length < 3) { _closeFieldNcTa(); return; }
+    _fieldNcAddrTimer = setTimeout(function() { _runFieldNcTypeahead(val); }, 250);
+  }
+
+  function _onFieldNcAddrKeydown(e) {
+    var ta   = document.getElementById('fieldNcTypeahead');
+    if (!ta || ta.style.display === 'none') return;
+    var rows = ta.querySelectorAll('.field-nc-ta-row');
+    var cur  = ta.querySelector('.field-nc-ta-row.ta-active');
+    var idx  = cur ? [].indexOf.call(rows, cur) : -1;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      var next = rows[Math.min(idx + 1, rows.length - 1)];
+      if (cur) cur.classList.remove('ta-active');
+      if (next) next.classList.add('ta-active');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      var prev = rows[Math.max(idx - 1, 0)];
+      if (cur) cur.classList.remove('ta-active');
+      if (prev) prev.classList.add('ta-active');
+    } else if (e.key === 'Enter') {
+      if (cur) { e.preventDefault(); cur.click(); }
+    } else if (e.key === 'Escape') {
+      _closeFieldNcTa();
+    }
+  }
+
+  function _runFieldNcTypeahead(val) {
+    if (!_cadToken || val.length < 3) { _closeFieldNcTa(); return; }
+    var captured = val.trim().toUpperCase();
+    API.searchAddressPoints(_cadToken, val, 8).then(function(r) {
+      var cur = ((document.getElementById('fieldNcAddr') || {}).value || '').trim().toUpperCase();
+      if (cur !== captured || !r || !r.ok || !r.results || !r.results.length) { _closeFieldNcTa(); return; }
+      var ta = document.getElementById('fieldNcTypeahead');
+      if (!ta) return;
+      ta.innerHTML = r.results.map(function(res, i) {
+        var sub = [res.city, res.county ? res.county + ' Co.' : ''].filter(Boolean).join(' · ');
+        return '<div class="field-nc-ta-row' + (i === 0 ? ' ta-active' : '') + '" ' +
+          'onclick="_selectFieldNcAddr(' + JSON.stringify(res.full_address) + ')">' +
+          '<div class="field-nc-ta-main">' + res.full_address + '</div>' +
+          (sub ? '<div class="field-nc-ta-sub">' + sub + '</div>' : '') +
+          '</div>';
+      }).join('');
+      ta.style.display = 'block';
+    }).catch(function() { _closeFieldNcTa(); });
+  }
+
+  function _selectFieldNcAddr(fullAddr) {
+    var inp = document.getElementById('fieldNcAddr');
+    if (inp) inp.value = fullAddr;
+    _fieldNcSelAddr = fullAddr;
+    _closeFieldNcTa();
+  }
+
+  async function _submitFieldNc() {
+    var addr    = ((document.getElementById('fieldNcAddr') || {}).value || '').trim().toUpperCase();
+    var type    = ((document.getElementById('fieldNcType') || {}).value || '').trim().toUpperCase();
+    var note    = ((document.getElementById('fieldNcNote') || {}).value || '').trim().toUpperCase();
+    var statusEl = document.getElementById('fieldNcStatus');
+    function _setStatus(msg, color) {
+      if (statusEl) { statusEl.style.color = color || '#3fb950'; statusEl.textContent = msg; }
+    }
+    if (!addr) { _setStatus('SCENE ADDRESS REQUIRED.', '#d43030'); return; }
+    if (!_cadToken || !_cadCallsign) { _setStatus('NOT LOGGED IN.', '#d43030'); return; }
+    _setStatus('CREATING CALL...');
+    try {
+      var r = await API.createFieldIncident(_cadToken, _cadCallsign, addr, note, type);
+      if (!r.ok) { _setStatus('ERROR: ' + (r.error || 'UNKNOWN'), '#d43030'); return; }
+      feedSys('CALL CREATED: ' + r.incidentId + ' — YOU ARE ON SCENE AT ' + addr);
+      _closeFieldNcPanel();
+    } catch(e) { _setStatus('ERROR: NETWORK FAILURE', '#d43030'); }
+  }
+
+  // Show/hide CREATE CALL button based on login state
+  function _updateFieldNcBtn() {
+    var btn = document.getElementById('fieldNcOpenBtn');
+    if (!btn) return;
+    btn.style.display = (_cadToken && _cadCallsign) ? 'block' : 'none';
+  }
+
+  // Close typeahead when tapping outside
+  document.addEventListener('touchstart', function(e) {
+    var ta  = document.getElementById('fieldNcTypeahead');
+    var inp = document.getElementById('fieldNcAddr');
+    if (ta && inp && !ta.contains(e.target) && e.target !== inp) _closeFieldNcTa();
+  });
+  document.addEventListener('mousedown', function(e) {
+    var ta  = document.getElementById('fieldNcTypeahead');
+    var inp = document.getElementById('fieldNcAddr');
+    if (ta && inp && !ta.contains(e.target) && e.target !== inp) _closeFieldNcTa();
+  });
+
   // LOC PANEL — slide-up location input
   // ════════════════════════════════════════════════════════════════════════════
   function toggleFieldLocPanel() {
@@ -4303,6 +4513,7 @@
     var feed = document.getElementById('cmdFeed');
     if (feed) feed.innerHTML = '<div class="cmd-feed-line"><span class="cmd-sys">SESSION ENDED. LOGGED OUT.</span></div>';
     _updatePersistStrip(); // Hide strip on logout
+    _updateFieldNcBtn();   // Hide CREATE CALL button on logout
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -4362,6 +4573,7 @@
     // DB status — the first poll will immediately set the correct badge.
     if (isNewUnit) updateStatusBadge('AV');
     _updatePersistStrip(); // Show strip immediately after login
+    _updateFieldNcBtn();   // Show CREATE CALL button for logged-in field units
     loadAddresses();
 
     // Notification permission is requested via the WAKE button (must be a direct user gesture on iOS)
