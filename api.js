@@ -656,6 +656,28 @@ const API = {
   getIncidentForReport(crewToken, incidentId) {
     return this.call('getIncidentForReport', crewToken, incidentId);
   },
+  getRecentIncidents(crewToken, limit) {
+    return this.call('getRecentIncidents', crewToken, limit || 25);
+  },
+  addReportAddendum(crewToken, reportId, note) {
+    return this.call('addReportAddendum', crewToken, reportId, note);
+  },
+  listReportAddenda(crewToken, reportId) {
+    return this.call('listReportAddenda', crewToken, reportId);
+  },
+
+  // ============================================================
+  // RMS Admin Actions
+  // ============================================================
+  adminListReports(token, query, status, reportType, dateFrom, dateTo) {
+    return this.call('adminListReports', token, query||null, status||null, reportType||null, dateFrom||null, dateTo||null);
+  },
+  adminDeleteReport(token, reportId) {
+    return this.call('adminDeleteReport', token, reportId);
+  },
+  adminReopenReport(token, reportId, adminNote) {
+    return this.call('adminReopenReport', token, reportId, adminNote||null);
+  },
 };
 
 // Export for module systems (if used)

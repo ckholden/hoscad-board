@@ -298,8 +298,8 @@
     </div>
 
     <div class="card">
-      <div class="card-title">RECENT ASSIGNMENTS</div>
-      <div id="assignmentsList"></div>
+      <div class="card-title">RECENT INCIDENTS <span style="font-size:10px;color:var(--muted);font-weight:400;">(LAST 45 DAYS)</span></div>
+      <div id="recentIncidentsList"><div class="empty-state">LOADING...</div></div>
     </div>
   </div>
 
@@ -316,8 +316,9 @@
   <div class="tab-content" id="tabWriter">
     <div id="writerViewMode" style="display:none;">
       <!-- Read-only view for submitted reports -->
-      <div style="margin-bottom:12px;">
+      <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button class="btn btn-secondary" style="font-size:11px;" id="btnBackToReports">← BACK TO MY REPORTS</button>
+        <button class="btn btn-secondary" style="font-size:11px;" id="btnPrintReport">PRINT / EXPORT</button>
       </div>
       <div class="card">
         <div class="card-title" id="viewReportTitle">REPORT</div>
@@ -326,6 +327,16 @@
       <div class="card">
         <div class="card-title">NARRATIVE</div>
         <div id="viewReportNarrative" style="white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--text);"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">FOLLOW-UP NOTES</div>
+        <div id="viewAddendaList" style="margin-bottom:14px;"></div>
+        <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:6px;">ADD FOLLOW-UP NOTE</div>
+        <textarea id="addendumInput" rows="3" placeholder="ENTER FOLLOW-UP NOTE..." style="width:100%;min-height:70px;"></textarea>
+        <div style="margin-top:8px;">
+          <button class="btn btn-secondary" style="font-size:11px;" id="btnSaveAddendum">SAVE NOTE</button>
+          <span style="font-size:11px;color:var(--muted);margin-left:10px;" id="addendumStatus"></span>
+        </div>
       </div>
     </div>
 
@@ -359,10 +370,13 @@
 
         <!-- Incident reference panel -->
         <div id="incRefArea" style="display:none;margin-top:12px;">
-          <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;">
             <span>INCIDENT REFERENCE</span>
             <span class="ref-toggle" id="refToggleBtn" onclick="_toggleRefPanel()">▼ COLLAPSE</span>
-            <button class="btn btn-secondary" id="btnIncludeHeader" style="font-size:10px;padding:3px 9px;margin-left:auto;">INCLUDE CAD HEADER IN NARRATIVE</button>
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button class="btn btn-secondary" id="btnIncludeHeader" style="font-size:10px;padding:3px 9px;">INCLUDE CAD HEADER IN NARRATIVE</button>
+              <button class="btn btn-secondary" id="btnAttachAllNotes" style="font-size:10px;padding:3px 9px;">ATTACH ALL CAD NOTES</button>
+            </div>
           </div>
           <div id="incRefPanel" class="ref-panel"></div>
         </div>
@@ -475,9 +489,11 @@ let _token     = '';
 let _cadId     = '';
 let _fullName  = '';
 let _certLevel = '';
-let _editingReportId = null;   // null = new report
-let _refCollapsed    = false;
-let _loadedIncData   = null;   // holds incident data for INCLUDE CAD HEADER
+let _editingReportId  = null;   // null = new report
+let _viewingReportId  = null;   // reportId currently in view mode
+let _refCollapsed     = false;
+let _loadedIncData    = null;   // holds incident data for INCLUDE CAD HEADER
+let _loadedIncAudit   = null;   // holds audit array for ATTACH ALL CAD NOTES
 
 // ════════════════════════════════════════════════════════════════════════
 // API
@@ -663,74 +679,56 @@ async function loadProfile() {
   document.getElementById('editExpiry').value  = r.certExpiryDate || '';
   document.getElementById('editLicense').value = r.licenseNumber  || '';
 
-  // Load assignments
-  loadAssignments();
+  // Load recent incidents for profile tab
+  loadRecentIncidents();
 }
 
-async function loadAssignments() {
-  var r = await rmsCall('getOwnAssignments', _token, 15);
-  var el = document.getElementById('assignmentsList');
-  if (!r.ok || !r.assignments || !r.assignments.length) {
-    el.innerHTML = '<div class="empty-state">NO RECENT ASSIGNMENTS.</div>';
-    return;
-  }
-
-  var rows = r.assignments.map(function(a, i) {
-    var unitId    = a.unit_id     || '';
-    var loggedOn  = a.logged_on_at  || '';
-    var loggedOff = a.logged_off_at || '';
-    var isActive  = !loggedOff;
-    return (
-      '<tr>' +
-        '<td style="color:var(--blue);font-weight:700;">' + esc(unitId) + '</td>' +
-        '<td>' + esc(a.fleet_number || '—') + '</td>' +
-        '<td>' + esc(a.crew_role || '—') + '</td>' +
-        '<td>' + fmtDateTime(loggedOn) + '</td>' +
-        '<td>' + (isActive ? '<span style="color:var(--green);">ACTIVE</span>' : fmtDateTime(loggedOff)) + '</td>' +
-        '<td><button class="expand-btn" onclick="_toggleAssignInc(this,\'' + esc(unitId) + '\',\'' + esc(loggedOn) + '\',\'' + esc(loggedOff) + '\',' + i + ')">INCIDENTS ▼</button></td>' +
-      '</tr>' +
-      '<tr class="inc-sub-row" id="assignInc-' + i + '" style="display:none;">' +
-        '<td colspan="6"><div class="inc-chips" id="assignIncChips-' + i + '"><span style="color:var(--muted);font-size:11px;">Loading...</span></div></td>' +
-      '</tr>'
-    );
-  }).join('');
-
-  el.innerHTML = '<table><thead><tr><th>UNIT</th><th>FLEET #</th><th>ROLE</th><th>LOGGED ON</th><th>LOGGED OFF</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
-}
-
-window._toggleAssignInc = async function(btn, unitId, loggedOn, loggedOff, idx) {
-  var subRow  = document.getElementById('assignInc-' + idx);
-  var chipDiv = document.getElementById('assignIncChips-' + idx);
-  var open    = subRow.style.display !== 'none';
-
-  if (open) {
-    subRow.style.display = 'none';
-    btn.textContent = 'INCIDENTS ▼';
-    return;
-  }
-
-  subRow.style.display = '';
-  btn.textContent = 'INCIDENTS ▲';
-  chipDiv.innerHTML = '<span style="color:var(--muted);font-size:11px;">LOADING...</span>';
-
-  var r = await rmsCall('getAssignmentIncidents', _token, unitId, loggedOn, loggedOff || null);
+async function loadRecentIncidents() {
+  var el = document.getElementById('recentIncidentsList');
+  el.innerHTML = '<div class="empty-state">LOADING...</div>';
+  var r = await rmsCall('getRecentIncidents', _token, 25);
   if (!r.ok) {
-    chipDiv.innerHTML = '<span style="color:var(--red);font-size:11px;">FAILED: ' + esc(r.error || 'UNKNOWN') + '</span>';
+    el.innerHTML = '<div class="empty-state" style="color:var(--red);">LOAD FAILED: ' + esc(r.error || 'UNKNOWN') + '</div>';
     return;
   }
   if (!r.incidents || !r.incidents.length) {
-    chipDiv.innerHTML = '<span style="color:var(--muted);font-size:11px;">NO INCIDENTS FOUND FOR THIS SHIFT.</span>';
+    el.innerHTML = '<div class="empty-state">NO INCIDENTS IN THE LAST 45 DAYS.</div>';
     return;
   }
-  chipDiv.innerHTML = r.incidents.map(function(inc) {
-    return '<div class="inc-chip">' +
-      '<span class="chip-id">' + esc(inc.incident_id) + '</span>' +
-      '<span class="chip-type">' + esc(inc.incident_type || '?') + '</span>' +
-      (inc.scene_address ? '<span class="chip-addr" title="' + esc(inc.scene_address) + '">' + esc(inc.scene_address) + '</span>' : '') +
-      '<button class="chip-btn" onclick="_writeReportForInc(\'' + esc(inc.incident_id) + '\')">WRITE REPORT</button>' +
-      '</div>';
+
+  var rows = r.incidents.map(function(inc) {
+    var statusColor = inc.status === 'CLOSED' ? 'color:var(--muted)' : 'color:var(--green)';
+    var rpt = inc.existingReport;
+    var reportBtn = '';
+    if (!rpt) {
+      reportBtn = '<button class="btn" style="font-size:10px;padding:3px 9px;background:var(--blue);" onclick="_writeReportForInc(\'' + esc(inc.incident_id) + '\')">WRITE REPORT</button>';
+    } else if (rpt.status === 'DRAFT') {
+      reportBtn = '<button class="btn" style="font-size:10px;padding:3px 9px;background:var(--yellow);color:#000;" onclick="_editReport(\'' + esc(rpt.report_id) + '\')">EDIT DRAFT</button>';
+    } else {
+      reportBtn = '<button class="btn btn-secondary" style="font-size:10px;padding:3px 9px;color:var(--green);border-color:var(--green);" onclick="_viewReport(\'' + esc(rpt.report_id) + '\')">VIEW REPORT</button>';
+    }
+    // Multi-author badge
+    var totalReports = inc.reportCount || 0;
+    var countBadge = '';
+    if (totalReports > 1 || (totalReports === 1 && !rpt)) {
+      var others = (inc.allReports || []).filter(function(ar) { return !rpt || ar.report_id !== rpt.report_id; });
+      var othersHtml = others.map(function(ar) {
+        return esc(ar.report_id) + ' · ' + esc(ar.author_name || '?') + ' · ' + esc(ar.report_type) + ' · ' + esc(ar.status);
+      }).join('<br>');
+      countBadge = ' &nbsp;<span style="font-size:10px;color:var(--muted);" title="' + esc(totalReports + ' REPORT(S): ' + others.map(function(ar){return ar.report_id;}).join(', ')) + '">' + totalReports + ' RPT(S)</span>';
+    }
+    return '<tr>' +
+      '<td style="color:var(--blue);font-weight:700;">' + esc(inc.incident_id) + '</td>' +
+      '<td style="font-size:11px;">' + esc(inc.incident_type || '—') + '</td>' +
+      '<td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(inc.scene_address || '') + '">' + esc(inc.scene_address || '—') + '</td>' +
+      '<td style="font-size:11px;">' + fmtDate(inc.created_at) + '</td>' +
+      '<td style="' + statusColor + ';font-size:11px;">' + esc(inc.status || '—') + '</td>' +
+      '<td style="white-space:nowrap;">' + reportBtn + countBadge + '</td>' +
+    '</tr>';
   }).join('');
-};
+
+  el.innerHTML = '<table><thead><tr><th>INC #</th><th>TYPE</th><th>ADDRESS</th><th>DATE</th><th>STATUS</th><th>REPORT</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
 
 window._writeReportForInc = function(incidentId) {
   startNewReport(incidentId);
@@ -835,6 +833,7 @@ async function _viewReport(reportId) {
   var r = await rmsCall('getReport', _token, reportId);
   if (!r.ok) { showToast('LOAD FAILED: ' + (r.error || 'UNKNOWN'), 'err'); return; }
   var rpt = r.report;
+  _viewingReportId = rpt.report_id;
   document.getElementById('viewReportTitle').textContent = rpt.report_id + ' — ' + rpt.report_type;
   document.getElementById('viewReportMeta').innerHTML =
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">INCIDENT</span>' + esc(rpt.incident_id) + '</div>' +
@@ -844,15 +843,22 @@ async function _viewReport(reportId) {
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">STATUS</span><span class="pill pill-submitted">' + esc(rpt.status) + '</span></div>' +
     '<div><span style="color:var(--muted);min-width:140px;display:inline-block;">SUBMITTED</span>' + fmtDateTime(rpt.submitted_at) + '</div>';
   document.getElementById('viewReportNarrative').textContent = rpt.narrative || '(No narrative)';
+  // Render addenda from getReport response (already fetched)
+  _renderAddenda(rpt.addenda || []);
+  document.getElementById('addendumInput').value = '';
+  document.getElementById('addendumStatus').textContent = '';
   document.getElementById('writerEditMode').style.display = 'none';
   document.getElementById('writerViewMode').style.display = '';
+  // Store full report on print button for later
+  document.getElementById('btnPrintReport')._rptData = rpt;
   switchTab('writer');
 }
 
 // ── Incident reference panel ──
 async function _loadIncidentRef(incidentId) {
   if (!incidentId) return;
-  _loadedIncData = null;
+  _loadedIncData  = null;
+  _loadedIncAudit = null;
   document.getElementById('incRefPanel').innerHTML = '<span style="color:var(--muted);">LOADING...</span>';
   document.getElementById('incRefArea').style.display = '';
 
@@ -863,7 +869,8 @@ async function _loadIncidentRef(incidentId) {
     return;
   }
 
-  _loadedIncData = r.incident;
+  _loadedIncData  = r.incident;
+  _loadedIncAudit = r.audit || [];
 
   var inc   = r.incident;
   var audit = r.audit || [];
@@ -914,6 +921,35 @@ document.getElementById('btnIncludeHeader').addEventListener('click', function()
   ta.value = lines + ta.value;
   ta.focus();
   showToast('CAD HEADER INSERTED.', 'ok');
+});
+
+// ── ATTACH ALL CAD NOTES ──
+document.getElementById('btnAttachAllNotes').addEventListener('click', function() {
+  if (!_loadedIncData) { showToast('LOAD AN INCIDENT FIRST.', 'err'); return; }
+  var inc   = _loadedIncData;
+  var audit = _loadedIncAudit || [];
+  var incId = document.getElementById('writerIncidentId').value.trim().toUpperCase() || (inc.incident_id || '');
+
+  var lines = [
+    '--- CAD INCIDENT NOTES ---',
+    inc.incident_note ? inc.incident_note.trim() : '(no notes recorded)',
+    ''
+  ];
+  if (audit.length) {
+    lines.push('--- AUDIT TRAIL ---');
+    audit.slice().reverse().forEach(function(e) {
+      var aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '??:??';
+      lines.push(aTime + '  ' + (e.actor || ''));
+    });
+    lines.push('-------------------');
+  }
+  lines.push('');
+
+  var ta = document.getElementById('writerNarrative');
+  ta.value = ta.value.trimEnd() + (ta.value.trim() ? '\n\n' : '') + lines.join('\n');
+  ta.scrollTop = ta.scrollHeight;
+  ta.focus();
+  showToast('CAD NOTES ATTACHED.', 'ok');
 });
 
 document.getElementById('btnLoadInc').addEventListener('click', function() {
@@ -986,7 +1022,9 @@ document.getElementById('btnSubmitReport').addEventListener('click', async funct
 // ── Back buttons ──
 function _backToReports() {
   _editingReportId = null;
+  _viewingReportId = null;
   _loadedIncData   = null;
+  _loadedIncAudit  = null;
   document.getElementById('writerViewMode').style.display = 'none';
   document.getElementById('writerEditMode').style.display = 'none';
   switchTab('reports');
@@ -995,6 +1033,107 @@ function _backToReports() {
 
 document.getElementById('btnBackToReports').addEventListener('click', _backToReports);
 document.getElementById('btnBackToReports2').addEventListener('click', _backToReports);
+
+// ── Addenda helpers ──
+function _renderAddenda(addenda) {
+  var el = document.getElementById('viewAddendaList');
+  if (!addenda || !addenda.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;">(No follow-up notes yet.)</div>';
+    return;
+  }
+  el.innerHTML = addenda.map(function(a) {
+    var ts = a.created_at ? new Date(a.created_at).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '';
+    return '<div style="border-left:2px solid var(--line);padding-left:10px;margin-bottom:12px;">' +
+      '<div style="font-size:10px;color:var(--muted);margin-bottom:3px;">' + esc(ts) + ' — ' + esc(a.author_name || '') + '</div>' +
+      '<div style="font-size:12px;line-height:1.6;white-space:pre-wrap;">' + esc(a.note || '') + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+async function _loadAddenda(reportId) {
+  var r = await rmsCall('listReportAddenda', _token, reportId);
+  if (r.ok) _renderAddenda(r.addenda || []);
+}
+
+document.getElementById('btnSaveAddendum').addEventListener('click', async function() {
+  var note = (document.getElementById('addendumInput').value || '').trim();
+  var statEl = document.getElementById('addendumStatus');
+  if (!note) { showToast('NOTE CANNOT BE EMPTY.', 'err'); return; }
+  if (!_viewingReportId) { showToast('NO REPORT LOADED.', 'err'); return; }
+  statEl.textContent = 'SAVING...';
+  var r = await rmsCall('addReportAddendum', _token, _viewingReportId, note);
+  if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'err'); statEl.textContent = ''; return; }
+  showToast('NOTE SAVED.', 'ok');
+  statEl.textContent = '';
+  document.getElementById('addendumInput').value = '';
+  _loadAddenda(_viewingReportId);
+});
+
+// ── Print / Export ──
+document.getElementById('btnPrintReport').addEventListener('click', async function() {
+  var reportId = _viewingReportId;
+  if (!reportId) { showToast('NO REPORT LOADED.', 'err'); return; }
+  var r = await rmsCall('getReport', _token, reportId);
+  if (!r.ok) { showToast('FAILED TO LOAD REPORT.', 'err'); return; }
+  var rpt      = r.report;
+  var addenda  = rpt.addenda || [];
+  var w = window.open('', '_blank', 'width=820,height=700,scrollbars=yes');
+  if (!w) { showToast('ALLOW POPUPS TO PRINT.', 'err'); return; }
+  var addendaHtml = addenda.length
+    ? addenda.map(function(a) {
+        var aTs = a.created_at ? new Date(a.created_at).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '';
+        return '<div style="margin-bottom:12px;border-left:3px solid #ccc;padding-left:10px;">' +
+          '<div style="font-size:11px;color:#555;margin-bottom:4px;">' + escPrint(aTs) + ' — ' + escPrint(a.author_name || '') + '</div>' +
+          '<pre style="font-family:monospace;font-size:12px;white-space:pre-wrap;margin:0;">' + escPrint(a.note || '') + '</pre>' +
+          '</div>';
+      }).join('')
+    : '<p style="color:#888;font-size:12px;">(No follow-up notes)</p>';
+
+  w.document.write(_buildRmsReportHtml(rpt, addendaHtml));
+  w.document.close();
+  setTimeout(function() { try { w.print(); } catch(e) {} }, 400);
+});
+
+function escPrint(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _buildRmsReportHtml(rpt, addendaHtml) {
+  function fmtDt(ts) {
+    return ts ? new Date(ts).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+  }
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"/>' +
+    '<title>HOSCAD — ' + escPrint(rpt.report_id) + '</title>' +
+    '<style>' +
+    'body{font-family:"Courier New",monospace;background:#fff;color:#111;padding:30px;font-size:13px;}' +
+    'h1{font-size:16px;letter-spacing:.06em;margin:0 0 2px;}' +
+    '.meta-table{width:100%;border-collapse:collapse;margin:14px 0;}' +
+    '.meta-table td{padding:5px 10px;border:1px solid #ddd;vertical-align:top;}' +
+    '.meta-table td:first-child{font-weight:700;width:140px;background:#f5f5f5;}' +
+    '.narrative{white-space:pre-wrap;font-family:"Courier New",monospace;font-size:12px;line-height:1.7;border:1px solid #ccc;padding:14px;background:#fafafa;margin:14px 0;}' +
+    '.section-hdr{font-size:11px;font-weight:700;letter-spacing:.06em;border-bottom:1px solid #ddd;padding-bottom:4px;margin:18px 0 10px;}' +
+    '.footer{font-size:10px;color:#999;margin-top:20px;border-top:1px solid #eee;padding-top:8px;}' +
+    '@media print{body{padding:10px;}}' +
+    '</style></head><body>' +
+    '<h1>HOSCAD — CREW REPORT</h1>' +
+    '<div style="font-size:11px;color:#888;margin-bottom:10px;">FOR OFFICIAL USE ONLY — CONFIDENTIAL</div>' +
+    '<table class="meta-table">' +
+    '<tr><td>RPT ID</td><td>' + escPrint(rpt.report_id) + '</td></tr>' +
+    '<tr><td>INCIDENT</td><td>' + escPrint(rpt.incident_id) + '</td></tr>' +
+    '<tr><td>TYPE</td><td>' + escPrint(rpt.report_type) + '</td></tr>' +
+    '<tr><td>AUTHOR</td><td>' + escPrint(rpt.author_name || '—') + (rpt.author_cert ? ' (' + escPrint(rpt.author_cert) + ')' : '') + '</td></tr>' +
+    '<tr><td>UNIT</td><td>' + escPrint(rpt.unit_id || '—') + (rpt.fleet_number ? ' (FLEET #' + escPrint(rpt.fleet_number) + ')' : '') + '</td></tr>' +
+    '<tr><td>STATUS</td><td>' + escPrint(rpt.status) + '</td></tr>' +
+    '<tr><td>CREATED</td><td>' + fmtDt(rpt.created_at) + '</td></tr>' +
+    '<tr><td>SUBMITTED</td><td>' + fmtDt(rpt.submitted_at) + '</td></tr>' +
+    '</table>' +
+    '<div class="section-hdr">NARRATIVE</div>' +
+    '<div class="narrative">' + escPrint(rpt.narrative || '(No narrative)') + '</div>' +
+    '<div class="section-hdr">ADDENDA / FOLLOW-UP NOTES</div>' +
+    addendaHtml +
+    '<div class="footer">Generated ' + new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'}) + ' — HOSCAD RMS — FOR OFFICIAL USE ONLY</div>' +
+    '</body></html>';
+}
 
 // window-expose functions called from innerHTML onclick
 window._editReport      = _editReport;

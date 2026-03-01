@@ -100,6 +100,7 @@
     <button class="tab-btn" onclick="switchTab('positions')">POSITIONS</button>
     <button class="tab-btn" onclick="switchTab('hazardFlags')" style="color:#f85149;">HAZARD FLAGS</button>
     <button class="tab-btn" onclick="switchTab('auditLog')">AUDIT LOG</button>
+    <button class="tab-btn" onclick="switchTab('rmsReports')" style="color:#4fa3e0;">RMS REPORTS</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -855,6 +856,33 @@
     </div>
   </section>
 
+  <!-- RMS REPORTS TAB -->
+  <section id="tabRmsReports" class="tab-section">
+    <h2>RMS REPORTS</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:14px;">View, reopen, and delete crew reports. DELETE requires MGR/IT. REOPEN returns a submitted report to DRAFT for editing.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+      <input id="rmsRptQuery" placeholder="RPT ID / INCIDENT / AUTHOR..." style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:200px;" />
+      <select id="rmsRptStatus" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+        <option value="">ALL STATUS</option>
+        <option value="DRAFT">DRAFT</option>
+        <option value="SUBMITTED">SUBMITTED</option>
+      </select>
+      <select id="rmsRptType" style="padding:4px 8px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+        <option value="">ALL TYPES</option>
+        <option value="PCR">PCR</option>
+        <option value="REFUSAL">REFUSAL</option>
+        <option value="EXPOSURE">EXPOSURE</option>
+        <option value="INCIDENT">INCIDENT</option>
+      </select>
+      <input type="date" id="rmsRptFrom" style="padding:4px 6px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+      <span class="muted" style="font-size:10px;">TO</span>
+      <input type="date" id="rmsRptTo" style="padding:4px 6px;font-size:12px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+      <button class="btn-good" style="font-size:11px;" onclick="loadRmsReports()">SEARCH</button>
+      <span id="rmsRptStatus2" class="muted" style="font-size:11px;"></span>
+    </div>
+    <div id="rmsReportsTable"></div>
+  </section>
+
   <!-- ROSTER TAB -->
   <section id="tabRoster" class="tab-section">
     <h2>UNIT ROSTER</h2>
@@ -1386,7 +1414,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog','rmsReports'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -1408,6 +1436,7 @@
     if (name === 'flags') loadFeatureFlags();
     if (name === 'positions') loadPositions();
     if (name === 'auditLog') loadAuditLog(0);
+    if (name === 'rmsReports') loadRmsReports();
   }
 
   // ── Users Tab ─────────────────────────────────────────────
@@ -3484,6 +3513,139 @@
     const nextBtn = document.getElementById('alNextBtn');
     if (prevBtn) prevBtn.disabled = _alPage === 0;
     if (nextBtn) nextBtn.disabled = _alPage >= totalPages - 1;
+  }
+
+  // ── RMS Reports Tab ───────────────────────────────────────
+  async function loadRmsReports() {
+    const statEl = document.getElementById('rmsRptStatus2');
+    statEl.textContent = 'LOADING...';
+    const q    = (document.getElementById('rmsRptQuery')?.value   || '').trim();
+    const st   = document.getElementById('rmsRptStatus')?.value   || null;
+    const ty   = document.getElementById('rmsRptType')?.value     || null;
+    const from = document.getElementById('rmsRptFrom')?.value     || null;
+    const to   = document.getElementById('rmsRptTo')?.value       || null;
+
+    const r = await API.adminListReports(_token, q||null, st, ty, from, to);
+    if (!r.ok) { statEl.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+
+    const reports = r.reports || [];
+    statEl.textContent = reports.length + ' REPORT(S)';
+    const container = document.getElementById('rmsReportsTable');
+
+    if (!reports.length) {
+      container.innerHTML = '<div class="muted" style="padding:12px;">NO REPORTS MATCH YOUR SEARCH.</div>';
+      return;
+    }
+
+    const canDelete = _positionsMeta.some(p => p.position_id === _role && p.can_reset);
+    container.innerHTML = '<table class="admin-table"><thead><tr>' +
+      '<th>RPT ID</th><th>INCIDENT</th><th>AUTHOR</th><th>UNIT</th><th>TYPE</th><th>STATUS</th><th>DATE</th><th>ACTIONS</th>' +
+      '</tr></thead><tbody>' +
+      reports.map(rpt => {
+        const statusColor = rpt.status === 'SUBMITTED'
+          ? 'color:#3fb950;font-weight:700;'
+          : 'color:#e0b040;font-weight:700;';
+        const dateStr = rpt.submitted_at || rpt.created_at;
+        const fmtDt = dateStr
+          ? new Date(dateStr).toLocaleString('en-US',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})
+          : '—';
+        const reopenBtn = rpt.status === 'SUBMITTED'
+          ? `<button class="btn-secondary" style="font-size:10px;padding:2px 7px;" onclick="_adminReopenReport('${esc(rpt.report_id)}')">REOPEN</button> `
+          : '';
+        const deleteBtn = canDelete
+          ? `<button class="btn-danger" style="font-size:10px;padding:2px 7px;" onclick="_adminDeleteReport('${esc(rpt.report_id)}')">DELETE</button>`
+          : '';
+        return `<tr id="rmsRptRow-${esc(rpt.report_id)}">
+          <td style="color:#4fa3e0;font-weight:700;">${esc(rpt.report_id)}</td>
+          <td>${esc(rpt.incident_id)}</td>
+          <td>${esc(rpt.author_name || '—')}</td>
+          <td style="font-size:11px;">${esc(rpt.unit_id || '—')}</td>
+          <td style="font-size:11px;">${esc(rpt.report_type)}</td>
+          <td style="${statusColor}">${esc(rpt.status)}</td>
+          <td style="font-size:11px;">${fmtDt}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn-secondary" style="font-size:10px;padding:2px 7px;" onclick="_adminViewReport('${esc(rpt.report_id)}')">VIEW</button>
+            ${reopenBtn}${deleteBtn}
+          </td>
+        </tr>`;
+      }).join('') +
+      '</tbody></table>';
+  }
+
+  window._adminViewReport = async function(reportId) {
+    const r = await API.getReport(_token, reportId);
+    if (!r.ok) { showToast('REPORT NOT FOUND: ' + (r.error || ''), 'error'); return; }
+    const rpt = r.report;
+    const addenda = rpt.addenda || [];
+    const w = window.open('', '_blank', 'width=820,height=700,scrollbars=yes');
+    if (!w) { alert('ALLOW POPUPS TO VIEW REPORTS.'); return; }
+    const addendaHtml = addenda.length
+      ? addenda.map(a => {
+          const aTs = a.created_at ? new Date(a.created_at).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '';
+          return `<div style="margin-bottom:12px;border-left:3px solid #ccc;padding-left:10px;">
+            <div style="font-size:11px;color:#555;margin-bottom:4px;">${aTs} — ${escHtml(a.author_name || '')}</div>
+            <pre style="font-family:monospace;font-size:12px;white-space:pre-wrap;margin:0;">${escHtml(a.note || '')}</pre>
+          </div>`;
+        }).join('')
+      : '<p style="color:#888;font-size:12px;">(No addenda)</p>';
+    w.document.write(_buildAdminReportHtml(rpt, addendaHtml));
+    w.document.close();
+  };
+
+  window._adminReopenReport = async function(reportId) {
+    const note = window.prompt('OPTIONAL NOTE (will be added as addendum):\n\nLeave blank or click OK to reopen without a note.', '');
+    if (note === null) return; // cancelled
+    const r = await API.adminReopenReport(_token, reportId, note.trim() || null);
+    if (!r.ok) { showToast('REOPEN FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
+    showToast('REPORT REOPENED — CREW CAN NOW EDIT AND RESUBMIT.');
+    loadRmsReports();
+  };
+
+  window._adminDeleteReport = async function(reportId) {
+    if (!window.confirm('DELETE REPORT ' + reportId + '?\n\nThis permanently removes the report and all addenda. This cannot be undone.')) return;
+    const r = await API.adminDeleteReport(_token, reportId);
+    if (!r.ok) { showToast('DELETE FAILED: ' + (r.error || 'UNKNOWN'), 'error'); return; }
+    showToast('REPORT DELETED: ' + reportId);
+    const row = document.getElementById('rmsRptRow-' + reportId);
+    if (row) { row.style.opacity = '0'; row.style.transition = 'opacity .3s'; setTimeout(() => row.remove(), 300); }
+    else loadRmsReports();
+  };
+
+  function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function _buildAdminReportHtml(rpt, addendaHtml) {
+    const fmtDt = ts => ts ? new Date(ts).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+    <title>HOSCAD — ${escHtml(rpt.report_id)}</title>
+    <style>
+      body{font-family:'Courier New',monospace;background:#fff;color:#111;padding:30px;font-size:13px;}
+      h1{font-size:16px;letter-spacing:.06em;margin:0 0 2px;}
+      .meta-table{width:100%;border-collapse:collapse;margin:14px 0;}
+      .meta-table td{padding:5px 10px;border:1px solid #ddd;vertical-align:top;}
+      .meta-table td:first-child{font-weight:700;width:140px;background:#f5f5f5;}
+      .narrative{white-space:pre-wrap;font-family:'Courier New',monospace;font-size:12px;line-height:1.7;border:1px solid #ccc;padding:14px;background:#fafafa;margin:14px 0;}
+      .section-hdr{font-size:11px;font-weight:700;letter-spacing:.06em;border-bottom:1px solid #ddd;padding-bottom:4px;margin:18px 0 10px;}
+      .footer{font-size:10px;color:#999;margin-top:20px;border-top:1px solid #eee;padding-top:8px;}
+      @media print{body{padding:10px;}}
+    </style></head><body>
+    <h1>HOSCAD — CREW REPORT</h1>
+    <div style="font-size:11px;color:#888;margin-bottom:10px;">FOR OFFICIAL USE ONLY — CONFIDENTIAL</div>
+    <table class="meta-table">
+      <tr><td>RPT ID</td><td>${escHtml(rpt.report_id)}</td></tr>
+      <tr><td>INCIDENT</td><td>${escHtml(rpt.incident_id)}</td></tr>
+      <tr><td>TYPE</td><td>${escHtml(rpt.report_type)}</td></tr>
+      <tr><td>AUTHOR</td><td>${escHtml(rpt.author_name || '—')}</td></tr>
+      <tr><td>UNIT</td><td>${escHtml(rpt.unit_id || '—')}${rpt.fleet_number ? ' (FLEET #' + escHtml(rpt.fleet_number) + ')' : ''}</td></tr>
+      <tr><td>STATUS</td><td>${escHtml(rpt.status)}</td></tr>
+      <tr><td>CREATED</td><td>${fmtDt(rpt.created_at)}</td></tr>
+      <tr><td>SUBMITTED</td><td>${fmtDt(rpt.submitted_at)}</td></tr>
+    </table>
+    <div class="section-hdr">NARRATIVE</div>
+    <div class="narrative">${escHtml(rpt.narrative || '(No narrative)')}</div>
+    <div class="section-hdr">ADDENDA / FOLLOW-UP NOTES</div>
+    ${addendaHtml}
+    <div class="footer">Generated ${new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'})} — HOSCAD RMS — FOR OFFICIAL USE ONLY</div>
+    </body></html>`;
   }
 
   async function loadPositions() {
