@@ -7096,13 +7096,14 @@ async function _execCmd(tx) {
     return;
   }
 
-  // Quick field-dispatch: EMS1 NC SB 97/6ST; MVC NOTES
-  // Format: <UNIT_ID> NC <scene address>[; optional free-text note]
-  // Creates an ACTIVE incident, puts unit ON SCENE, auto-opens incident modal.
-  // Supports any address format: GIS addresses, intersections (HWY 97/61ST),
-  // directional refs (SB HWY 97, NB US 20 MM 143), etc.
+  // Quick field-dispatch: EMS1 NC SB 97/6ST; MVC NOTES  (or NC EMS1 SB 97/6ST; ...)
+  // Both "UNIT NC ADDR" and "NC UNIT ADDR" are accepted.
+  // Requires ; or , delimiter to separate address from notes.
   {
-    const _qnc = tx.trim().toUpperCase().match(/^([A-Z][A-Z0-9]*)\s+NC(?:\s+(.*))?$/);
+    const _txU = tx.trim().toUpperCase();
+    // Match UNIT NC ADDR or NC UNIT ADDR — extract unit and the rest of the line
+    const _qnc = _txU.match(/^([A-Z][A-Z0-9]*)\s+NC(?:\s+(.*))?$/) ||
+                 _txU.match(/^NC\s+([A-Z][A-Z0-9]*)(?:\s+(.*))?$/);
     if (_qnc) {
       const _qncUnit = _qnc[1];
       const _qncRest = (_qnc[2] || '').trim();

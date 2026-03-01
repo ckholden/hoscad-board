@@ -367,11 +367,19 @@
     <tr><td>COPY &lt;INC&gt;</td><td>Duplicate an incident into a new QUEUED call — copies destination, type, scene address, and priority. Strips all bracket tags from note. Opens new call immediately for review. e.g. <code>COPY 0023</code></td></tr>
     <tr><td>COPY</td><td>Duplicate currently-open incident (no ID needed when panel is open)</td></tr>
     <tr><td>HOLD &lt;DEST&gt;; &lt;HH:MM&gt;; [NOTE]; [TYPE]; [PRIORITY]</td><td>Schedule a call for later — creates QUEUED incident with a clock badge showing target time. Row is dimmed until time arrives; board alerts when ready. 24-hour time. e.g. <code>HOLD SCMC; 16:30; DIALYSIS TRANSPORT; EMS-ROUTINE</code></td></tr>
-    <tr><td>R &lt;INC&gt;</td><td>Review incident + full audit history<br>e.g. R 0023 or R 26-0023</td></tr>
+    <tr><td>R &lt;INC&gt;</td><td>Open incident panel <strong>and bind CLI context</strong> — bare commands (U, CLOSE, HT, FLAG, LH, etc.) then use this incident automatically without typing the ID each time<br>e.g. R 0023 or R SC26-0023</td></tr>
+    <tr><td>R</td><td>Refresh the currently-open incident modal (re-fetches from server)</td></tr>
+    <tr><td>EXIT</td><td>Release CLI context — returns to GLOBAL mode. Context also clears automatically when the incident closes.</td></tr>
     <tr><td>U &lt;INC&gt; &lt;NOTE&gt;</td><td>Append note to incident (e.g. U 0023 PT STABLE IN WTRM)</td></tr>
     <tr><td>U &lt;NOTE&gt;</td><td>Append note to currently-open incident — no ID needed when panel is open</td></tr>
     <tr><td>CB &lt;INC&gt; &lt;PHONE&gt;</td><td>Set/update callback number on incident (e.g. CB 0023 5415551234) — replaces old CB</td></tr>
     <tr><td>CB &lt;PHONE&gt;</td><td>Set callback on currently-open incident</td></tr>
+    <tr><td>LH &lt;ADDRESS&gt;</td><td>Location profile — shows safety flags, location notes, and full incident history for an address. e.g. <code>LH 1234 NE MAIN ST</code></td></tr>
+    <tr><td>LH</td><td>Location profile for the current context incident's scene address (no address needed when R is bound)</td></tr>
+    <tr><td>HT [&lt;INC&gt;]</td><td>Hot call broadcast — sends an urgent message to all dispatchers with incident details (type, priority, address). e.g. <code>HT 0023</code> or bare <code>HT</code> in context</td></tr>
+    <tr><td>FLAG &lt;ADDR&gt;; &lt;CATEGORY&gt;; &lt;DESC&gt;</td><td>Create a safety/hazard flag for an address. Category options: VIOLENCE-THREATS, WEAPONS-HISTORY, AGGRESSIVE-ANIMAL, HAZARDOUS-MATERIALS, KNOWN-MENTAL-HEALTH-RISK, LAW-ENFORCEMENT-SENSITIVE, ACCESS-CODE-SECURE-ENTRY, CONTACT-PHONE, OTHER</td></tr>
+    <tr><td>ILINK &lt;INC1&gt; &lt;INC2&gt;</td><td>Link two incidents together — creates a bidirectional relationship shown in each incident's detail panel. e.g. <code>ILINK 0023 0024</code></td></tr>
+    <tr><td>IUNLINK &lt;INC1&gt; &lt;INC2&gt;</td><td>Remove a link between two incidents</td></tr>
     <tr><td>PRIORITY &lt;INC&gt; &lt;PRI-N&gt;</td><td>Update incident priority (e.g. PRIORITY 0023 PRI-1)</td></tr>
     <tr><td>CLOSE &lt;INC&gt;</td><td>Close incident — shows disposition picker (TRANSPORTED, CANCELLED, CANCELLED ON SCENE, MUTUAL AID, NO TRANSPORT, PATIENT REFUSAL, STANDBY). Stores code as <code>[DISP:CODE]</code> badge visible on board, viewer, and incident queue.</td></tr>
     <tr><td>CLOSE</td><td>Dismiss the open incident panel (no changes)</td></tr>
@@ -380,6 +388,17 @@
     <tr><td>REL &lt;INC&gt; &lt;TARGET&gt;</td><td>Link incidents together. TARGET can be a PulsePoint ID (e.g. <code>REL 0023 PP12345</code>) or another HOSCAD incident (e.g. <code>REL 0023 0024</code>). Linked incidents show a REL badge and appear in each other's detail panel.</td></tr>
     <tr><td>SUGGEST &lt;INC&gt;</td><td>Recommend available units for incident</td></tr>
   </table>
+
+  <h3>Dispatcher Field-Create Command</h3>
+  <div class="note">
+    <strong>&lt;UNIT&gt; NC &lt;ADDRESS&gt;[; NOTES]</strong> — When a field unit self-reports on scene, create the call without opening the NC form. Creates an ACTIVE incident, puts the unit ON SCENE immediately, and auto-opens the incident panel with CLI context bound.<br>
+    The <strong>;</strong> or <strong>,</strong> separator is <strong>required</strong> to distinguish address from notes. Without a separator, everything is treated as the address.<br><br>
+    <strong>NC &lt;UNIT&gt; &lt;ADDRESS&gt;[; NOTES]</strong> — Alternate syntax (UNIT and NC are interchangeable in either order).<br><br>
+    Examples:<br>
+    <code>AMALS1 NC SB HWY 97/61ST; MVC REQ ADDTL</code><br>
+    <code>NC AMALS1 7945 SW RIDGE LN; UNKNOWN MEDICAL</code><br>
+    <code>EMS2 NC 1234 NE MAIN ST</code> — address only, no note
+  </div>
 
   <h3>NC Command — Incident Type &amp; Flags</h3>
   <div class="note">
@@ -502,7 +521,7 @@
     <tr><td>REFRESH</td><td>Force reload board data (clears all row/state caches)</td></tr>
     <tr><td>WHO</td><td>Show dispatchers currently logged in (with last-seen time)</td></tr>
     <tr><td>INCQ</td><td>Incident queue quick view — shows all queued + active incidents in a popup modal</td></tr>
-    <tr><td>! &lt;TEXT&gt;</td><td>Search audit trail and incidents<br>e.g. ! EMS1 CHEST</td></tr>
+    <tr><td>! &lt;TEXT&gt;</td><td>Universal search — active incidents, units, addresses, destinations, and type codes (client-side) + server INC lookup for INC patterns. e.g. <code>! EMS1</code> or <code>! SC26-0023</code></td></tr>
     <tr><td>ADDR</td><td>Show full address / facility directory (grouped by category)</td></tr>
     <tr><td>ADDR &lt;QUERY&gt;</td><td>Search addresses and facilities by name, ID, or address</td></tr>
     <tr><td>INFO</td><td>Quick reference (most-used phone numbers)</td></tr>
@@ -539,6 +558,10 @@
   <!-- FIELD APP -->
   <h2 id="field">FIELD APP COMMANDS <span class="badge badge-field">FIELD</span></h2>
   <div class="note">Access the command line by tapping the <strong>COMMAND</strong> toggle in the field app. Type the command and press Enter or the send button. Commands are case-insensitive.</div>
+  <div class="note">
+    <strong>CREATE CALL (Field-Originated):</strong> Tap the <strong>+ CREATE CALL</strong> button on the STATUS tab to self-report a scene. Enter the address (GIS typeahead available), optional call type, and notes — creates an ACTIVE incident and sets your unit ON SCENE. The dispatcher can view the call immediately and update type/priority as more info comes in.<br>
+    The dispatcher equivalent is the <code>UNIT NC ADDRESS[; NOTES]</code> command on the board.
+  </div>
 
   <h3>Status Updates</h3>
   <table>
