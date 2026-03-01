@@ -7153,7 +7153,7 @@ async function _execCmd(tx) {
       lhAddr = ctxInc ? (ctxInc.scene_address || '') : '';
       if (!lhAddr) { showAlert('ERROR', 'INCIDENT HAS NO SCENE ADDRESS.'); return; }
     } else {
-      lhAddr = mU.startsWith('LH ') ? ma.substring(3).trim() : ma.substring(8).trim();
+      lhAddr = no.trim();
       if (!lhAddr) { showAlert('ERROR', 'USAGE: LH <ADDRESS>'); return; }
     }
     _openLocationHistory(lhAddr);
