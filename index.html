@@ -291,10 +291,11 @@
         </div>
       </div>
       <div>
-        <div class="muted" style="margin-bottom:6px;">CREW</div>
-        <div class="row" style="margin-bottom:4px;">
+        <div class="muted" style="margin-bottom:6px;">CREW <span style="font-size:10px;color:var(--muted);font-weight:400;">— ENTER CAD ID TO LOOK UP</span></div>
+        <div class="row" style="margin-bottom:4px;align-items:center;gap:4px;">
+          <input id="mCrew1CadId" placeholder="CAD ID" style="flex:0 0 72px;font-weight:700;" autocomplete="off" autocorrect="off" autocapitalize="off" maxlength="6" oninput="_crewCadIdInput(1)" onblur="_crewCadIdLookup(1)" onkeydown="if(event.key==='Enter'){event.preventDefault();_crewCadIdLookup(1);}" />
           <input id="mCrew1Name" placeholder="CREW 1 — LAST, FIRST" style="flex:1" autocomplete="off" autocorrect="off" autocapitalize="characters" />
-          <select id="mCrew1Cert" style="flex:0 0 100px;">
+          <select id="mCrew1Cert" style="flex:0 0 90px;">
             <option value="">CERT</option>
             <option value="EMT">EMT</option>
             <option value="AEMT">AEMT</option>
@@ -302,10 +303,12 @@
             <option value="RN">RN</option>
             <option value="OTHER">OTHER</option>
           </select>
+          <span id="mCrew1Status" style="font-size:10px;min-width:14px;"></span>
         </div>
-        <div class="row">
+        <div class="row" style="align-items:center;gap:4px;">
+          <input id="mCrew2CadId" placeholder="CAD ID" style="flex:0 0 72px;font-weight:700;" autocomplete="off" autocorrect="off" autocapitalize="off" maxlength="6" oninput="_crewCadIdInput(2)" onblur="_crewCadIdLookup(2)" onkeydown="if(event.key==='Enter'){event.preventDefault();_crewCadIdLookup(2);}" />
           <input id="mCrew2Name" placeholder="CREW 2 — LAST, FIRST (OPTIONAL)" style="flex:1" autocomplete="off" autocorrect="off" autocapitalize="characters" />
-          <select id="mCrew2Cert" style="flex:0 0 100px;">
+          <select id="mCrew2Cert" style="flex:0 0 90px;">
             <option value="">CERT</option>
             <option value="EMT">EMT</option>
             <option value="AEMT">AEMT</option>
@@ -313,6 +316,7 @@
             <option value="RN">RN</option>
             <option value="OTHER">OTHER</option>
           </select>
+          <span id="mCrew2Status" style="font-size:10px;min-width:14px;"></span>
         </div>
       </div>
       <div style="margin-top:6px;">

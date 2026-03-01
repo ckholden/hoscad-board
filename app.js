@@ -3900,26 +3900,41 @@ function openModal(u, f = false) {
   // Parse unit_info into structured crew fields + notes
   const rawInfo = u ? (u.unit_info || '') : '';
   const infoParts = rawInfo.split('|').map((p) => p.trim()).filter(Boolean);
-  let cm1Name = '', cm1Cert = '', cm2Name = '', cm2Cert = '', extraNotes = '';
+  let cm1Name = '', cm1Cert = '', cm1Id = '', cm2Name = '', cm2Cert = '', cm2Id = '', extraNotes = '';
   infoParts.forEach((p) => {
     const crewMatch = p.match(/^CM([12]):(.*?)\s*\(([^)]+)\)\s*$/);
-    if (crewMatch) {
+    const crewNocert = p.match(/^CM([12]):(.+)$/);
+    const cadMatch   = p.match(/^CM([12])ID:(.+)$/);
+    if (cadMatch) {
+      if (cadMatch[1] === '1') cm1Id = cadMatch[2].trim();
+      else                     cm2Id = cadMatch[2].trim();
+    } else if (crewMatch) {
       if (crewMatch[1] === '1') { cm1Name = crewMatch[2].trim(); cm1Cert = crewMatch[3].trim(); }
       else                      { cm2Name = crewMatch[2].trim(); cm2Cert = crewMatch[3].trim(); }
+    } else if (crewNocert && crewNocert[1] && !p.startsWith('CM1ID') && !p.startsWith('CM2ID')) {
+      if (crewNocert[1] === '1') cm1Name = crewNocert[2].trim();
+      else                       cm2Name = crewNocert[2].trim();
     } else if (!p.startsWith('CM')) {
       extraNotes = p;
     }
   });
   const mCrew1Name = document.getElementById('mCrew1Name');
   const mCrew1Cert = document.getElementById('mCrew1Cert');
+  const mCrew1CadId = document.getElementById('mCrew1CadId');
   const mCrew2Name = document.getElementById('mCrew2Name');
   const mCrew2Cert = document.getElementById('mCrew2Cert');
+  const mCrew2CadId = document.getElementById('mCrew2CadId');
   const mUnitNotes = document.getElementById('mUnitNotes');
-  if (mCrew1Name) mCrew1Name.value = cm1Name;
-  if (mCrew1Cert) mCrew1Cert.value = cm1Cert;
-  if (mCrew2Name) mCrew2Name.value = cm2Name;
-  if (mCrew2Cert) mCrew2Cert.value = cm2Cert;
-  if (mUnitNotes) mUnitNotes.value = extraNotes;
+  if (mCrew1Name)  mCrew1Name.value  = cm1Name;
+  if (mCrew1Cert)  mCrew1Cert.value  = cm1Cert;
+  if (mCrew1CadId) mCrew1CadId.value = cm1Id;
+  if (mCrew2Name)  mCrew2Name.value  = cm2Name;
+  if (mCrew2Cert)  mCrew2Cert.value  = cm2Cert;
+  if (mCrew2CadId) mCrew2CadId.value = cm2Id;
+  if (mUnitNotes)  mUnitNotes.value  = extraNotes;
+  // Reset status indicators
+  const s1 = document.getElementById('mCrew1Status'); if (s1) s1.textContent = cm1Id ? '✓' : '';
+  const s2 = document.getElementById('mCrew2Status'); if (s2) s2.textContent = cm2Id ? '✓' : '';
   const mLevel = document.getElementById('mLevel');
   const mStation = document.getElementById('mStation');
   if (mLevel) mLevel.value = u ? (u.level || '') : '';
@@ -3938,6 +3953,33 @@ function closeModal() {
 
 function openLogon() {
   openModal(null);
+}
+
+// CAD ID lookup helpers for crew section of logon modal
+function _crewCadIdInput(n) {
+  const statusEl = document.getElementById('mCrew' + n + 'Status');
+  if (statusEl) statusEl.textContent = '';
+}
+
+async function _crewCadIdLookup(n) {
+  const cadIdEl  = document.getElementById('mCrew' + n + 'CadId');
+  const nameEl   = document.getElementById('mCrew' + n + 'Name');
+  const certEl   = document.getElementById('mCrew' + n + 'Cert');
+  const statusEl = document.getElementById('mCrew' + n + 'Status');
+  if (!cadIdEl || !TOKEN) return;
+  const cadId = cadIdEl.value.trim().toUpperCase();
+  if (!cadId) { if (statusEl) statusEl.textContent = ''; return; }
+  if (statusEl) statusEl.textContent = '…';
+  const r = await API.lookupCrewByCadId(TOKEN, cadId);
+  if (!r.ok) { if (statusEl) statusEl.textContent = '?'; return; }
+  if (r.found) {
+    if (nameEl && !nameEl.value.trim()) nameEl.value = r.name || '';
+    if (certEl && !certEl.value && r.certLevel) certEl.value = r.certLevel;
+    if (statusEl) statusEl.textContent = '✓';
+  } else {
+    if (statusEl) statusEl.textContent = '?';
+    showToast('CAD ID ' + cadId + ' NOT FOUND IN ROSTER.', 'warn');
+  }
 }
 
 async function saveModal() {
@@ -3992,14 +4034,18 @@ async function saveModal() {
     incident: (document.getElementById('mIncident').value || '').trim().toUpperCase(),
     note: modalNote,
     unitInfo: (() => {
-      const c1n = (document.getElementById('mCrew1Name')?.value || '').trim().toUpperCase();
-      const c1c = (document.getElementById('mCrew1Cert')?.value || '').trim().toUpperCase();
-      const c2n = (document.getElementById('mCrew2Name')?.value || '').trim().toUpperCase();
-      const c2c = (document.getElementById('mCrew2Cert')?.value || '').trim().toUpperCase();
+      const c1n  = (document.getElementById('mCrew1Name')?.value || '').trim().toUpperCase();
+      const c1c  = (document.getElementById('mCrew1Cert')?.value || '').trim().toUpperCase();
+      const c1id = (document.getElementById('mCrew1CadId')?.value || '').trim().toUpperCase();
+      const c2n  = (document.getElementById('mCrew2Name')?.value || '').trim().toUpperCase();
+      const c2c  = (document.getElementById('mCrew2Cert')?.value || '').trim().toUpperCase();
+      const c2id = (document.getElementById('mCrew2CadId')?.value || '').trim().toUpperCase();
       const notes = (document.getElementById('mUnitNotes')?.value || '').trim();
       const parts = [];
-      if (c1n) parts.push('CM1:' + c1n + (c1c ? ' (' + c1c + ')' : ''));
-      if (c2n) parts.push('CM2:' + c2n + (c2c ? ' (' + c2c + ')' : ''));
+      if (c1n)  parts.push('CM1:' + c1n + (c1c ? ' (' + c1c + ')' : ''));
+      if (c1id) parts.push('CM1ID:' + c1id);
+      if (c2n)  parts.push('CM2:' + c2n + (c2c ? ' (' + c2c + ')' : ''));
+      if (c2id) parts.push('CM2ID:' + c2id);
       if (notes) parts.push(notes);
       return parts.join('|');
     })(),

@@ -356,6 +356,7 @@ const API = {
   // ============================================================
   crewPinLogin(cadId, pin) { return this.call('crewPinLogin', cadId, pin); },
   changeCrewPin(cadId, currentPin, newPin) { return this.call('changeCrewPin', cadId, currentPin, newPin); },
+  lookupCrewByCadId(token, cadId) { return this.call('lookupCrewByCadId', token, cadId); },
   listCrewRoster(token) { return this.call('listCrewRoster', token); },
   addCrewMember(token, fullName, certLevel) { return this.call('addCrewMember', token, fullName, certLevel); },
   updateCrewMember(token, cadId, fullName, certLevel, isActive) { return this.call('updateCrewMember', token, cadId, fullName, certLevel, isActive); },
