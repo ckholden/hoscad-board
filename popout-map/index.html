@@ -437,21 +437,10 @@ async function _processGeoQueue() {
         }
       } catch (_) {}
     }
-    // ── Fallback: Nominatim ───────────────────────────────────────────────
-    const expanded = addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST').replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST').replace(/\s*\/\s*/g, ' & ');
-    const query = /oregon|,\s*or\b/i.test(expanded) ? expanded : expanded + ', Oregon';
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
-      encodeURIComponent(query) + '&limit=1&viewbox=' + MAP_VIEWBOX +
-      '&bounded=0&countrycodes=us';
-    const res = await fetch(url);
-    if (!res.ok) { _vmGeoCache[addr] = null; return; }
-    const data = await res.json();
-    if (data && data.length) {
-      _vmGeoCache[addr] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-      renderMap();
-    } else {
-      _vmGeoCache[addr] = null;
-    }
+    // No GIS match — mark null (no pin). Nominatim omitted; OSM data for rural
+    // E911-format addresses can be miles off. Non-standard addresses (intersections,
+    // highways) simply won't appear on the map.
+    _vmGeoCache[addr] = null;
   } catch(e) { console.warn('[MAP] geocode error', addr, e); }
 }
 

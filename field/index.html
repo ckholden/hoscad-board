@@ -2482,32 +2482,18 @@
           if (bounds.length > 1) _fieldMapTabObj.fitBounds(bounds, { padding: [30, 30] });
           else _fieldMapTabObj.setView([lat, lon], 14);
         }
-        function _tabNominatim() {
-          var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
-                           .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
-          if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
-          fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (data && data[0]) _tabPlacePin(parseFloat(data[0].lat), parseFloat(data[0].lon));
-              setTimeout(_tabGeoNext, 1500);
-            })
-            .catch(function() { setTimeout(_tabGeoNext, 1500); });
-        }
-        // Try GIS address_points first — faster and more accurate for E911 addresses
+        // Try GIS address_points — if no match, skip (no pin for non-standard addresses)
         if (_cadToken) {
           API.searchAddressPoints(_cadToken, item.addr, 3)
             .then(function(res) {
               if (res && res.results && res.results.length > 0) {
                 _tabPlacePin(res.results[0].lat, res.results[0].lon);
-                setTimeout(_tabGeoNext, 200);
-              } else {
-                _tabNominatim();
               }
+              setTimeout(_tabGeoNext, 200);
             })
-            .catch(function() { _tabNominatim(); });
+            .catch(function() { setTimeout(_tabGeoNext, 200); });
         } else {
-          _tabNominatim();
+          setTimeout(_tabGeoNext, 200);
         }
       }
       _tabGeoNext();
@@ -6215,32 +6201,18 @@
           if (bounds.length > 1) _fieldMapObj.fitBounds(bounds, { padding: [30, 30] });
           else _fieldMapObj.setView([lat, lon], 14);
         }
-        function _tryNominatim() {
-          var q = item.addr.replace(/\bNE\b/g,'NORTHEAST').replace(/\bNW\b/g,'NORTHWEST')
-                           .replace(/\bSE\b/g,'SOUTHEAST').replace(/\bSW\b/g,'SOUTHWEST');
-          if (!/\bOR\b|\boregon\b/i.test(q)) q += ', Oregon';
-          fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (data && data[0]) _placePin(parseFloat(data[0].lat), parseFloat(data[0].lon));
-              setTimeout(_geoNext, 1500);
-            })
-            .catch(function() { setTimeout(_geoNext, 1500); });
-        }
-        // Try GIS address_points first
+        // Try GIS address_points — if no match, skip (no pin for non-standard addresses)
         if (_cadToken) {
           API.searchAddressPoints(_cadToken, item.addr, 3)
             .then(function(res) {
               if (res && res.results && res.results.length > 0) {
                 _placePin(res.results[0].lat, res.results[0].lon);
-                setTimeout(_geoNext, 200);
-              } else {
-                _tryNominatim();
               }
+              setTimeout(_geoNext, 200);
             })
-            .catch(function() { _tryNominatim(); });
+            .catch(function() { setTimeout(_geoNext, 200); });
         } else {
-          _tryNominatim();
+          setTimeout(_geoNext, 200);
         }
       }
       _geoNext();

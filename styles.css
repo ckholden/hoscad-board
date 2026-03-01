@@ -1603,6 +1603,11 @@ body.night-mode .confirmDialog     { filter: brightness(1.4); }
 .map-result-row:hover      { background: rgba(255,255,255,.04); }
 .map-result-row:last-child { border-bottom: none; }
 .map-result-selected       { background: rgba(64,144,216,.12) !important; color: #4090c8; }
+.map-result-force {
+  display: flex; align-items: center; gap: 6px;
+  border-top: 1px solid var(--line); white-space: normal;
+}
+.map-result-force:hover    { background: rgba(232,184,48,.08); }
 
 .leaflet-pane    { z-index: 400 !important; }
 .leaflet-control { z-index: 800 !important; }
@@ -2051,18 +2056,26 @@ a.inc-link:hover { color: var(--hi); }
 /* GIS address typeahead dropdown */
 .addr-ta-drop {
   position: absolute; z-index: 5000;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 3px; box-shadow: 0 4px 16px rgba(0,0,0,.5);
-  max-height: 220px; overflow-y: auto; min-width: 260px;
+  background: var(--panel); border: 1px solid var(--hi);
+  border-radius: 4px; box-shadow: 0 8px 32px rgba(0,0,0,.85);
+  max-height: 280px; overflow-y: auto; min-width: 340px;
 }
 .addr-ta-row {
-  padding: 6px 10px; cursor: pointer;
-  font-size: 12px; font-weight: 700; color: var(--text);
-  border-bottom: 1px solid rgba(255,255,255,.04);
-  letter-spacing: .04em;
+  padding: 8px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
 }
 .addr-ta-row:last-child { border-bottom: none; }
-.addr-ta-row:hover, .addr-ta-row.active { background: rgba(255,255,255,.1); }
+.addr-ta-row:hover, .addr-ta-row.active {
+  background: rgba(91,163,230,.1);
+  border-left-color: var(--hi);
+}
+.addr-ta-main {
+  font-size: 12px; font-weight: 700; color: var(--text);
+  letter-spacing: .05em; font-family: monospace;
+}
+.addr-ta-sub { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: .03em; }
+/* Legacy inline city span */
 .addr-ta-city { font-size: 10px; font-weight: 400; color: var(--muted); margin-left: 6px; }
 
 /* ============================================================

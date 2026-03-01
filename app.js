@@ -1595,13 +1595,14 @@ async function _runAddrTypeahead(val) {
   dd.style.top     = (rect.bottom + window.scrollY + 2) + 'px';
   dd.style.width   = rect.width + 'px';
   dd.innerHTML = r.results.map((res, i) => {
-    const city = res.city ? ' <span class="addr-ta-city">' + esc(res.city) + '</span>' : '';
+    const sub = [res.city, res.county ? res.county + ' Co.' : ''].filter(Boolean).join(' · ');
     return '<div class="addr-ta-row' + (i === 0 ? ' active' : '') + '" ' +
       'onclick="_selectAddrPoint(' + JSON.stringify(res.full_address) + ',' +
         JSON.stringify(res.canonical || '') + ',' +
         (res.lat || 'null') + ',' + (res.lon || 'null') + ',' +
         JSON.stringify(res.city || '') + ')">' +
-      esc(res.full_address) + city +
+      '<div class="addr-ta-main">' + esc(res.full_address) + '</div>' +
+      (sub ? '<div class="addr-ta-sub">' + esc(sub) + '</div>' : '') +
       '</div>';
   }).join('');
   _addrTypeaheadActive = true;
@@ -4343,6 +4344,16 @@ async function _mapSearch() {
     }
   }
 
+  // "USE AS-IS (NO MAP)" — always shown at bottom; lets dispatchers enter
+  // intersections, mile markers, highways, or any address not in GIS without
+  // requiring a map pin. These incidents will not appear on the map.
+  html += '<div class="map-result-row map-result-force" onclick="_mapForceAddr()" ' +
+    'title="Use this text without a map pin — for intersections, mile markers, or highways">' +
+    '<span style="color:var(--yellow);font-weight:700;font-size:10px;white-space:nowrap;">⚡ NO MAP</span>' +
+    '<span style="flex:1;margin:0 8px;font-size:11px;color:var(--muted);">' + esc(raw) + '</span>' +
+    '<span style="font-size:9px;color:var(--muted);white-space:nowrap;">USE WITHOUT PIN</span>' +
+    '</div>';
+
   resultsEl.innerHTML = html;
 
   // Auto-pin: when search was seeded from existing field value, auto-select
@@ -4446,6 +4457,23 @@ function _mapUseSelected() {
     el.dispatchEvent(new Event('input'));
   }
   closeMapModal();
+}
+
+function _mapForceAddr() {
+  // Use raw search text as-is — no GIS verification, no map pin required.
+  // Intended for intersections (HWY 97 & 61ST), mile markers, SB/NB/EB/WB
+  // directional highway references, or any location not in the GIS database.
+  // Incidents with forced addresses will NOT appear on the map.
+  const raw = (document.getElementById('mapSearchInput')?.value || '').trim().toUpperCase();
+  if (!raw) return;
+  _mapSelectedAddr = raw;
+  const selectedEl = document.getElementById('mapSelectedAddr');
+  const useBtn     = document.getElementById('mapUseBtn');
+  if (selectedEl) {
+    selectedEl.innerHTML = esc(raw) +
+      ' <span style="color:var(--yellow);font-size:9px;font-weight:700;margin-left:6px;">⚡ NO MAP PIN</span>';
+  }
+  if (useBtn) { useBtn.disabled = false; useBtn.style.opacity = '1'; }
 }
 
 // ── Incident type parsing helper (for review modal) ──────────────────────────
@@ -10842,35 +10870,11 @@ async function _processBmGeoQueue() {
       } catch (_) {}
     }
 
-    // ── Fallback: Nominatim (for addresses not in GIS table) ─────────────────
-    let geocodeAddr = _expandDirections(stripped.replace(/\s*\/\s*/g, ' & '));
-    const KNOWN_CITIES = ['BEND','REDMOND','PRINEVILLE','MADRAS','SISTERS','LA PINE','LAPINE','WARM SPRINGS','CULVER','METOLIUS','POWELL BUTTE','MITCHELL','DAYVILLE','JOHN DAY','BURNS','LAKEVIEW','KLAMATH FALLS'];
-    const cityMatch = KNOWN_CITIES.find(c => new RegExp('\\b' + c.replace(' ', '\\s+') + '\\b', 'i').test(geocodeAddr));
-    if (cityMatch) {
-      geocodeAddr = geocodeAddr.replace(new RegExp('\\b' + cityMatch.replace(' ', '\\s+') + '\\b', 'i'), '').replace(/[,\s]+$/, '').trim() + ', ' + cityMatch.charAt(0) + cityMatch.slice(1).toLowerCase() + ', OR';
-    }
-    const query = /oregon|,\s*or\b/i.test(geocodeAddr) ? geocodeAddr : geocodeAddr + ', Oregon';
-    const limit = near ? 5 : 1;
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
-      encodeURIComponent(query) + '&limit=' + limit + '&viewbox=' + BM_MAP_VIEWBOX +
-      '&bounded=' + (bounded || 0) + '&countrycodes=us';
-    const res = await fetch(url);
-    if (!res.ok) { _bmGeoCache[addr] = null; return; }
-    const data = await res.json();
-    if (data && data.length) {
-      let best = data[0];
-      if (near && data.length > 1) {
-        let bestDist = Infinity;
-        for (const r of data) {
-          const d = _geoDistSq(near[0], near[1], parseFloat(r.lat), parseFloat(r.lon));
-          if (d < bestDist) { bestDist = d; best = r; }
-        }
-      }
-      _bmGeoCache[addr] = [parseFloat(best.lat), parseFloat(best.lon)];
-      renderBoardMap();
-    } else {
-      _bmGeoCache[addr] = null;
-    }
+    // No GIS match — mark null (no pin). Nominatim is omitted for incident scene
+    // address pins: OSM data for rural E911-format addresses can be miles off.
+    // Dispatchers can use the map modal "USE AS-IS" option for intersections,
+    // highways, or directional references (SB HWY 97/61ST, NB HWY 20, etc.).
+    _bmGeoCache[addr] = null;
   } catch (e) {}
 }
 
