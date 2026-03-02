@@ -724,6 +724,15 @@ const API = {
   adminReopenReport(token, reportId, adminNote) {
     return this.call('adminReopenReport', token, reportId, adminNote||null);
   },
+
+  // ============================================================
+  // Shift Scheduling
+  // ============================================================
+  getShifts(token, startDate, endDate)                  { return this.call('getShifts', token, startDate, endDate); },
+  setShift(token, shiftDate, unitId, crewCadIds, start, end, notes) {
+    return this.call('setShift', token, shiftDate, unitId, crewCadIds, start, end, notes||'');
+  },
+  deleteShift(token, shiftId)                           { return this.call('deleteShift', token, shiftId); },
 };
 
 // Export for module systems (if used)

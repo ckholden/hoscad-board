@@ -102,6 +102,7 @@
     <button class="tab-btn" onclick="switchTab('auditLog')">AUDIT LOG</button>
     <button class="tab-btn" onclick="switchTab('rmsReports')" style="color:#4fa3e0;">RMS REPORTS</button>
     <button class="tab-btn" onclick="switchTab('people')" style="color:#7fffb2;">PEOPLE</button>
+    <button class="tab-btn" onclick="switchTab('schedule')" style="color:#ffd66b;">SCHEDULE</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -914,6 +915,50 @@
     <div id="peopleTable"></div>
   </section>
 
+  <!-- SCHEDULE TAB -->
+  <section id="tabSchedule" class="tab-section">
+    <h2>CREW SCHEDULE</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:14px;">Weekly shift assignments — which crew members are assigned to which unit each day. Click any cell to assign or edit.</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <button class="btn-secondary" style="font-size:11px;" onclick="_schedPrevWeek()">&#9664; PREV</button>
+      <div id="schedWeekLabel" style="font-weight:700;font-size:13px;min-width:220px;text-align:center;">LOADING…</div>
+      <button class="btn-secondary" style="font-size:11px;" onclick="_schedNextWeek()">NEXT &#9654;</button>
+      <button class="btn-secondary" style="font-size:11px;margin-left:auto;" onclick="_schedCopyLastWeek()" title="Copy last week's shifts to this week (skips existing)">COPY LAST WEEK</button>
+    </div>
+    <div id="schedGrid" style="overflow-x:auto;"></div>
+    <!-- Edit/add shift form -->
+    <div id="schedEditForm" style="display:none;margin-top:16px;border:1px solid var(--line);padding:12px;border-radius:4px;background:rgba(255,255,255,.02);">
+      <div id="schedFormTitle" style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:10px;font-weight:700;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">SHIFT START</div>
+          <input type="time" id="schedStart" value="07:00" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:100%;" />
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">SHIFT END</div>
+          <input type="time" id="schedEnd" value="19:00" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:100%;" />
+        </div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">ASSIGNED CREW</div>
+        <div id="schedCrewList" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;"></div>
+        <select id="schedCrewSelect" onchange="_schedAddCrewFromSelect()" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:100%;">
+          <option value="">— ADD CREW MEMBER —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">NOTES (OPTIONAL)</div>
+        <input id="schedNotes" placeholder="e.g. OVERTIME, FLOAT" maxlength="200" style="width:100%;padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;box-sizing:border-box;" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="btn-good" style="font-size:11px;" onclick="_schedSave()">SAVE SHIFT</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="_schedClearShift()">CLEAR SHIFT</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="_schedCloseForm()">CANCEL</button>
+        <span id="schedStatus" class="muted" style="font-size:11px;"></span>
+      </div>
+    </div>
+  </section>
+
   <!-- ROSTER TAB -->
   <section id="tabRoster" class="tab-section">
     <h2>UNIT ROSTER</h2>
@@ -1445,7 +1490,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog','rmsReports','people'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog','rmsReports','people','schedule'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -1469,6 +1514,7 @@
     if (name === 'auditLog') loadAuditLog(0);
     if (name === 'rmsReports') loadRmsReports();
     if (name === 'people') loadPeopleTab();
+    if (name === 'schedule') loadScheduleTab();
   }
 
   // ── Users Tab ─────────────────────────────────────────────
@@ -3909,6 +3955,250 @@
   document.getElementById('peopleQuery')?.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') loadPeopleTab();
   });
+
+  // ── Schedule Tab ────────────────────────────────────────────
+  var _schedWeekStart = null;
+  var _schedShifts    = [];
+  var _schedUnits     = [];
+  var _schedCrew      = [];
+  var _schedEditDate  = null;
+  var _schedEditUnit  = null;
+  var _schedEditShiftId = null;
+  var _schedSelectedCrew = [];
+
+  function _schedGetMonday(d) {
+    var date = new Date(d);
+    var day = date.getDay();
+    var diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  function _schedDateStr(d) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  function _schedFmtDate(d) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function _schedFmtDay(d) {
+    return ['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()];
+  }
+
+  async function loadScheduleTab() {
+    if (!_schedWeekStart) _schedWeekStart = _schedGetMonday(new Date());
+    if (!_schedUnits.length) {
+      var r = await API.getRoster(_token);
+      _schedUnits = (r.roster || []).filter(function(u) { return u.is_active !== false; });
+    }
+    if (!_schedCrew.length) {
+      var cr = await API.call('listCrewRoster', _token);
+      _schedCrew = (cr.crew || []).filter(function(c) { return c.is_active; });
+    }
+    await _schedLoadWeek();
+  }
+
+  async function _schedLoadWeek() {
+    var mon = _schedWeekStart;
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    document.getElementById('schedWeekLabel').textContent =
+      _schedFmtDate(mon) + ' \u2014 ' + _schedFmtDate(sun);
+    var r = await API.getShifts(_token, _schedDateStr(mon), _schedDateStr(sun));
+    _schedShifts = r.shifts || [];
+    _schedRender();
+  }
+
+  function _schedRender() {
+    var mon = _schedWeekStart;
+    var today = _schedDateStr(new Date());
+    var dayDates = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(mon); d.setDate(mon.getDate() + i);
+      dayDates.push(d);
+    }
+    var shiftMap = {};
+    _schedShifts.forEach(function(s) { shiftMap[s.shift_date + '|' + s.unit_id] = s; });
+
+    var html = '<table class="admin-table" style="min-width:840px;">';
+    html += '<thead><tr><th style="min-width:90px;white-space:nowrap;">UNIT</th>';
+    dayDates.forEach(function(d) {
+      var ds = _schedDateStr(d);
+      var isToday = ds === today;
+      html += '<th style="min-width:110px;text-align:center;' +
+        (isToday ? 'color:#4fa3e0;background:rgba(79,163,224,.06);' : '') + '">' +
+        _schedFmtDay(d) + '<br><span style="font-weight:400;font-size:10px;">' + ds.slice(5) + '</span></th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    _schedUnits.forEach(function(unit) {
+      html += '<tr>';
+      html += '<td style="white-space:nowrap;"><strong>' + esc(unit.unit_id) + '</strong>' +
+        '<br><span class="muted" style="font-size:10px;">' + esc(unit.unit_type || '') + '</span></td>';
+      dayDates.forEach(function(d) {
+        var ds = _schedDateStr(d);
+        var isToday = ds === today;
+        var shift = shiftMap[ds + '|' + unit.unit_id];
+        var bg = isToday ? 'background:rgba(79,163,224,.04);' : '';
+        if (shift) {
+          var crew = (shift.crew_members || []).map(function(m) {
+            return '<span style="display:block;font-size:10px;">' + esc(m.full_name) +
+              (m.cert_level ? ' <span class="muted">(' + esc(m.cert_level) + ')</span>' : '') + '</span>';
+          }).join('');
+          var timeStr = (shift.shift_start && shift.shift_end)
+            ? '<span style="font-size:9px;color:var(--muted);">' +
+              esc(shift.shift_start.slice(0,5)) + '\u2013' + esc(shift.shift_end.slice(0,5)) + '</span>'
+            : '';
+          html += '<td style="cursor:pointer;' + bg + 'color:#7fffb2;vertical-align:top;" ' +
+            'onclick="_schedOpenEdit(\'' + ds + '\',\'' + esc(unit.unit_id) + '\')">' +
+            (crew || '<span class="muted" style="font-size:10px;">UNCREWED</span>') + timeStr + '</td>';
+        } else {
+          html += '<td style="cursor:pointer;' + bg + 'color:var(--muted);text-align:center;" ' +
+            'onclick="_schedOpenEdit(\'' + ds + '\',\'' + esc(unit.unit_id) + '\')"><span style="font-size:13px;">\u2013</span></td>';
+        }
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('schedGrid').innerHTML = html;
+  }
+
+  function _schedPrevWeek() {
+    _schedWeekStart = new Date(_schedWeekStart);
+    _schedWeekStart.setDate(_schedWeekStart.getDate() - 7);
+    _schedLoadWeek();
+  }
+
+  function _schedNextWeek() {
+    _schedWeekStart = new Date(_schedWeekStart);
+    _schedWeekStart.setDate(_schedWeekStart.getDate() + 7);
+    _schedLoadWeek();
+  }
+
+  function _schedOpenEdit(dateStr, unitId) {
+    _schedEditDate = dateStr;
+    _schedEditUnit = unitId;
+    var existing = _schedShifts.find(function(s) {
+      return s.shift_date === dateStr && s.unit_id === unitId;
+    });
+    _schedEditShiftId = existing ? existing.id : null;
+    _schedSelectedCrew = existing ? (existing.crew_cad_ids || []).slice() : [];
+
+    document.getElementById('schedFormTitle').textContent = 'SHIFT: ' + unitId + ' \u2014 ' + dateStr;
+    document.getElementById('schedStart').value = existing ? (existing.shift_start || '07:00').slice(0, 5) : '07:00';
+    document.getElementById('schedEnd').value   = existing ? (existing.shift_end   || '19:00').slice(0, 5) : '19:00';
+    document.getElementById('schedNotes').value = existing ? (existing.notes || '') : '';
+    document.getElementById('schedStatus').textContent = '';
+
+    var sel = document.getElementById('schedCrewSelect');
+    sel.innerHTML = '<option value="">— ADD CREW MEMBER —</option>' +
+      _schedCrew.map(function(c) {
+        return '<option value="' + esc(c.cad_id) + '">' +
+          esc(c.full_name) + ' (' + esc(c.cert_level || '') + ') [' + esc(c.cad_id) + ']</option>';
+      }).join('');
+
+    _schedRenderCrewTags();
+    document.getElementById('schedEditForm').style.display = '';
+    document.getElementById('schedEditForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function _schedRenderCrewTags() {
+    var container = document.getElementById('schedCrewList');
+    if (!_schedSelectedCrew.length) {
+      container.innerHTML = '<span class="muted" style="font-size:10px;">No crew assigned yet.</span>';
+      return;
+    }
+    var crewMap = {};
+    _schedCrew.forEach(function(c) { crewMap[c.cad_id] = c; });
+    container.innerHTML = _schedSelectedCrew.map(function(cid) {
+      var m = crewMap[cid];
+      var label = m ? (m.full_name + (m.cert_level ? ' (' + m.cert_level + ')' : '') + ' [' + cid + ']') : cid;
+      return '<span style="display:inline-flex;align-items:center;gap:4px;background:#1a2e1a;' +
+        'color:#7fffb2;padding:2px 7px;border-radius:3px;font-size:11px;">' + esc(label) +
+        ' <button type="button" style="background:none;border:none;color:#ff6b6b;cursor:pointer;' +
+        'padding:0 1px;font-size:13px;line-height:1;" onclick="_schedRemoveCrew(\'' + esc(cid) + '\')">&times;</button></span>';
+    }).join(' ');
+  }
+
+  function _schedRemoveCrew(cadId) {
+    _schedSelectedCrew = _schedSelectedCrew.filter(function(id) { return id !== cadId; });
+    _schedRenderCrewTags();
+  }
+
+  function _schedAddCrewFromSelect() {
+    var sel = document.getElementById('schedCrewSelect');
+    var val = sel.value;
+    if (!val) return;
+    if (!_schedSelectedCrew.includes(val)) {
+      _schedSelectedCrew.push(val);
+      _schedRenderCrewTags();
+    }
+    sel.value = '';
+  }
+
+  async function _schedSave() {
+    var st = document.getElementById('schedStatus');
+    st.textContent = 'SAVING...';
+    var r = await API.setShift(
+      _token, _schedEditDate, _schedEditUnit, _schedSelectedCrew,
+      document.getElementById('schedStart').value,
+      document.getElementById('schedEnd').value,
+      document.getElementById('schedNotes').value
+    );
+    if (!r.ok) { st.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    _schedCloseForm();
+    await _schedLoadWeek();
+  }
+
+  async function _schedClearShift() {
+    if (!_schedEditShiftId) { _schedCloseForm(); return; }
+    if (!confirm('CLEAR shift for ' + _schedEditUnit + ' on ' + _schedEditDate + '?')) return;
+    var st = document.getElementById('schedStatus');
+    st.textContent = 'CLEARING...';
+    var r = await API.deleteShift(_token, _schedEditShiftId);
+    if (!r.ok) { st.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    _schedCloseForm();
+    await _schedLoadWeek();
+  }
+
+  function _schedCloseForm() {
+    document.getElementById('schedEditForm').style.display = 'none';
+    _schedEditDate = null; _schedEditUnit = null; _schedEditShiftId = null; _schedSelectedCrew = [];
+  }
+
+  async function _schedCopyLastWeek() {
+    if (!confirm('COPY last week\'s shifts to this week?\nExisting assignments will NOT be overwritten.')) return;
+    var lblEl = document.getElementById('schedWeekLabel');
+    var origLabel = lblEl.textContent;
+    lblEl.textContent = 'COPYING…';
+    var lastMon = new Date(_schedWeekStart); lastMon.setDate(lastMon.getDate() - 7);
+    var lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
+    var r = await API.getShifts(_token, _schedDateStr(lastMon), _schedDateStr(lastSun));
+    var lastWeek = r.shifts || [];
+    var existingUnits = new Set(_schedShifts.map(function(s) { return s.shift_date + '|' + s.unit_id; }));
+    for (var s of lastWeek) {
+      var newDate = new Date(s.shift_date + 'T00:00:00');
+      newDate.setDate(newDate.getDate() + 7);
+      var newDs = _schedDateStr(newDate);
+      if (existingUnits.has(newDs + '|' + s.unit_id)) continue;
+      await API.setShift(_token, newDs, s.unit_id, s.crew_cad_ids,
+        s.shift_start, s.shift_end, s.notes || '');
+    }
+    lblEl.textContent = origLabel;
+    await _schedLoadWeek();
+  }
+
+  window._schedPrevWeek = _schedPrevWeek;
+  window._schedNextWeek = _schedNextWeek;
+  window._schedOpenEdit = _schedOpenEdit;
+  window._schedRemoveCrew = _schedRemoveCrew;
+  window._schedAddCrewFromSelect = _schedAddCrewFromSelect;
+  window._schedSave = _schedSave;
+  window._schedClearShift = _schedClearShift;
+  window._schedCloseForm = _schedCloseForm;
+  window._schedCopyLastWeek = _schedCopyLastWeek;
+  window.loadScheduleTab = loadScheduleTab;
 
 </script>
 </body>
