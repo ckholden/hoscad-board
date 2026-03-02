@@ -464,7 +464,8 @@ const CMD_HINTS = [
   { cmd: 'NOTE CLEAR', desc: 'Clear info banner' },
   { cmd: 'ALERT <MESSAGE>', desc: 'Set alert banner (plays tone)' },
   { cmd: 'ALERT CLEAR', desc: 'Clear alert banner' },
-  { cmd: 'CLR <UNIT>', desc: 'Clear unit from incident (no status change)' },
+  { cmd: 'C <UNIT>', desc: 'Clear unit from incident (no status change)' },
+  { cmd: 'C', desc: 'Clear ALL units from context-bound incident' },
   { cmd: 'ETA <UNIT> <MINUTES>', desc: 'Set ETA for unit (e.g. ETA EMS1 8)' },
   { cmd: 'ETA <UNIT> CLR', desc: 'Clear ETA badge from unit' },
   { cmd: 'NEXT <UNIT>', desc: 'Advance unit one step in EMS chain: D→DE→OS→T→TH→AV' },
@@ -6164,17 +6165,31 @@ async function _execCmd(tx) {
     return;
   }
 
-  // CLR <UNIT> - clear unit from incident without status change
-  if (mU.startsWith('CLR ')) {
-    const unitId = mU.substring(4).trim().toUpperCase();
-    if (unitId) {
+  // C <UNIT> — clear unit from incident (no status change)
+  // C (bare, context-bound) — clear all assigned units from context incident
+  if (mU === 'C' || mU.startsWith('C ')) {
+    const unitArg = mU.startsWith('C ') ? mU.substring(2).trim().toUpperCase() : '';
+    if (unitArg) {
       setLive(true, 'LIVE • CLR UNIT');
-      const r = await API.clearUnitIncident(TOKEN, unitId);
+      const r = await API.clearUnitIncident(TOKEN, unitArg);
       if (!r.ok) return showErr(r);
-      showToast('CLEARED ' + unitId + ' FROM ' + (r.clearedIncident || 'INCIDENT'));
+      showToast('CLEARED ' + unitArg + ' FROM ' + (r.clearedIncident || 'INCIDENT'));
       refresh();
       return;
     }
+    // Bare C — context-bound: clear all units from context incident
+    const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    if (!_ctxId) { showAlert('ERROR', 'USAGE: C <UNIT>  — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
+    const ctxInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === _ctxId) : null;
+    const ctxUnits = ctxInc && ctxInc.units ? ctxInc.units.split(',').map(u => u.trim()).filter(Boolean) : [];
+    if (!ctxUnits.length) { showAlert('INFO', 'NO UNITS ASSIGNED TO ' + _ctxId); return; }
+    const ok = await showConfirmAsync('CLEAR UNITS', 'CLEAR ALL UNITS FROM ' + _ctxId + '?\n\n' + ctxUnits.join(', '));
+    if (!ok) return;
+    setLive(true, 'LIVE • CLR UNITS');
+    for (const uid of ctxUnits) { await API.clearUnitIncident(TOKEN, uid); }
+    showToast('CLEARED ' + ctxUnits.join(', ') + ' FROM ' + _ctxId, 'success');
+    refresh();
+    return;
   }
 
   // CLR - clear filters + search
@@ -9001,6 +9016,8 @@ ELAPSED LONG            Elapsed: 1:30:45
 ELAPSED OFF             Hide elapsed time
 NIGHT                   Toggle night mode (dim display)
 CLR                     Clear all filters + search
+C <UNIT>                Clear unit from incident (no status change)
+C                       Clear ALL units from context-bound incident
 
 ═══════════════════════════════════════════════════
 GENERAL COMMANDS
