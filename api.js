@@ -1,6 +1,10 @@
 /**
  * HOSCAD/EMS Tracking System - API Wrapper
  *
+ * @see docs/API_SURFACE.md       — Complete endpoint reference with inputs/outputs
+ * @see docs/AUTHENTICATION.md    — Token handling, session lifecycle
+ * @see docs/ARCHITECTURE.md      — Data flow and component interaction
+ *
  * Targets the Supabase Edge Function backend at:
  *   https://vnqiqxffedudfsdoadqg.supabase.co/functions/v1/hoscad
  *

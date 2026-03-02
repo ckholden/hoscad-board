@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#070a0f" />
+  <title>CASCADE COMMAND — AGENCY ONBOARDING</title>
+  <link rel="icon" type="image/x-icon" href="../icons/favicon.ico?v=3" />
+  <link rel="stylesheet" href="../styles.css" />
+  <style>
+    body { padding: 0; margin: 0; }
+
+    /* Login */
+    #loginScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    #mainPanel { display:none; max-width:900px; margin:0 auto; padding:20px; }
+
+    /* Header */
+    .panel-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:2px solid var(--line); padding-bottom:12px; }
+    .panel-title { font-size:16px; font-weight:900; color:var(--green); flex:1; }
+
+    /* Existing tenants */
+    .tenants-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px; margin-bottom:24px; }
+    .tenant-card { background:#0c111a; border:1px solid var(--line); padding:12px; }
+    .tenant-card .t-name { font-weight:700; font-size:13px; color:var(--fg); }
+    .tenant-card .t-meta { font-size:11px; color:var(--muted); margin-top:4px; }
+    .tenant-card .t-url { font-size:10px; color:var(--blue); margin-top:2px; }
+    .tenant-card.active { border-color: var(--green); }
+    .tenant-card.inactive { border-color: #f85149; opacity: 0.6; }
+
+    /* Form */
+    .form-section { margin-bottom:20px; }
+    .form-section-title { font-size:11px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .form-group { display:flex; flex-direction:column; gap:3px; }
+    .form-group.full { grid-column:1/-1; }
+    .form-group label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+    .form-group input, .form-group select { padding:6px 10px; font-size:12px; background:#0b1018; border:1px solid var(--line); color:var(--fg); font-family:inherit; }
+    .form-group input:focus, .form-group select:focus { border-color:var(--blue); outline:none; }
+    .form-group .hint { font-size:9px; color:#4a5568; margin-top:1px; }
+    .form-group input::placeholder { color:#3a4a5a; }
+    .req::after { content:'*'; color:#f85149; margin-left:2px; }
+
+    /* Positions builder */
+    .pos-list { display:flex; flex-direction:column; gap:4px; margin-top:4px; }
+    .pos-row { display:flex; gap:6px; align-items:center; }
+    .pos-row input { flex:1; }
+    .pos-row select { width:130px; }
+    .pos-row .remove-btn { background:none; border:none; color:#f85149; cursor:pointer; font-size:14px; padding:2px 6px; }
+
+    /* Results */
+    #resultPanel { display:none; margin-top:20px; }
+    .result-card { background:#0c111a; border:1px solid var(--green); padding:16px; margin-bottom:12px; }
+    .result-card h3 { margin:0 0 10px; font-size:14px; color:var(--green); }
+    .step-ok { color:var(--green); font-size:12px; margin:3px 0; }
+    .step-err { color:#f85149; font-size:12px; margin:3px 0; }
+    .cred-box { background:#111822; border:1px solid var(--line); padding:10px; margin:8px 0; font-family:monospace; font-size:12px; }
+    .next-step { font-size:12px; color:var(--muted); margin:3px 0; padding-left:18px; text-indent:-18px; }
+
+    /* Submit area */
+    .submit-area { margin-top:20px; display:flex; gap:10px; align-items:center; }
+    #submitStatus { font-size:11px; color:var(--muted); }
+
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns:1fr; }
+      .tenants-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Login Screen ──────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="card login" style="min-width:320px;">
+    <h3 style="margin-top:0;">CASCADE COMMAND</h3>
+    <div class="muted" style="margin-bottom:4px;">PLATFORM ADMINISTRATION</div>
+    <div class="muted" style="margin-bottom:12px;font-size:10px;color:#f85149;">SUPERUSER ACCESS REQUIRED</div>
+    <div class="row">
+      <input id="loginCadId" placeholder="CAD ID" maxlength="20" style="flex:1" />
+    </div>
+    <div class="row">
+      <input id="loginPassword" type="password" placeholder="PASSWORD" maxlength="50" style="flex:1" />
+    </div>
+    <div class="row">
+      <button class="btn-good" onclick="doLogin()">LOGIN</button>
+      <a href="../" class="btn-secondary" style="text-decoration:none;padding:8px 14px;">BACK TO BOARD</a>
+    </div>
+    <div id="loginErr" class="muted" style="margin-top:6px;"></div>
+  </div>
+</div>
+
+<!-- ─── Main Panel ────────────────────────────────────────────── -->
+<div id="mainPanel">
+  <div class="panel-header">
+    <div class="panel-title">CASCADE COMMAND — AGENCY ONBOARDING</div>
+    <span id="userPill" class="pill" style="font-size:11px;"></span>
+    <button class="btn-secondary" style="font-size:11px;" onclick="doLogout()">LOGOUT</button>
+    <a href="../" class="btn-secondary" style="text-decoration:none;padding:6px 12px;font-size:11px;">BOARD</a>
+  </div>
+
+  <!-- Existing Tenants -->
+  <div class="form-section">
+    <div class="form-section-title">EXISTING AGENCIES</div>
+    <div id="tenantsList" class="tenants-grid">
+      <div class="muted" style="font-size:11px;">LOADING...</div>
+    </div>
+  </div>
+
+  <!-- Onboarding Form -->
+  <div class="form-section">
+    <div class="form-section-title">ONBOARD NEW AGENCY</div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="req">Tenant ID</label>
+        <input id="fTenantId" placeholder="SFD" maxlength="20" oninput="autoFill()" />
+        <div class="hint">Short uppercase code (e.g. SFD, BPD, DCAC)</div>
+      </div>
+      <div class="form-group">
+        <label class="req">Agency Name</label>
+        <input id="fName" placeholder="Sunriver Fire District" />
+      </div>
+      <div class="form-group">
+        <label class="req">Subdomain</label>
+        <div style="display:flex;align-items:center;gap:0;">
+          <input id="fSubdomain" placeholder="sunriver" style="border-radius:0;" />
+          <span style="padding:6px 8px;background:#111822;border:1px solid var(--line);border-left:none;font-size:11px;color:var(--muted);white-space:nowrap;">.hoscad.net</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Incident Prefix</label>
+        <input id="fPrefix" placeholder="SFD" maxlength="6" />
+        <div class="hint">Defaults to Tenant ID. Max 6 chars.</div>
+      </div>
+      <div class="form-group">
+        <label>Display Name</label>
+        <input id="fDisplayName" placeholder="Sunriver Fire District" />
+        <div class="hint">Shown in header branding. Defaults to agency name.</div>
+      </div>
+      <div class="form-group">
+        <label>Agency Type</label>
+        <select id="fAgencyType">
+          <option value="EMS">EMS</option>
+          <option value="FIRE">FIRE</option>
+          <option value="LAW">LAW ENFORCEMENT</option>
+          <option value="ANIMAL">ANIMAL CONTROL</option>
+          <option value="CODE">CODE ENFORCEMENT</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Timezone</label>
+        <select id="fTimezone">
+          <option value="America/Los_Angeles">Pacific (America/Los_Angeles)</option>
+          <option value="America/Denver">Mountain (America/Denver)</option>
+          <option value="America/Chicago">Central (America/Chicago)</option>
+          <option value="America/New_York">Eastern (America/New_York)</option>
+          <option value="America/Anchorage">Alaska (America/Anchorage)</option>
+          <option value="Pacific/Honolulu">Hawaii (Pacific/Honolulu)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Branding -->
+  <div class="form-section">
+    <div class="form-section-title">BRANDING &amp; SETTINGS</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Accent Color</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="color" id="fAccentColor" value="#2563EB" style="width:40px;height:30px;padding:0;border:1px solid var(--line);cursor:pointer;" />
+          <input id="fAccentColorHex" value="#2563EB" maxlength="7" style="width:80px;" oninput="document.getElementById('fAccentColor').value=this.value" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Accent Text Color</label>
+        <input id="fAccentText" value="#FFFFFF" maxlength="7" />
+      </div>
+      <div class="form-group">
+        <label>Map Center (lat,lng)</label>
+        <input id="fMapCenter" placeholder="44.058,-121.315" />
+      </div>
+      <div class="form-group">
+        <label>Map Zoom</label>
+        <input id="fMapZoom" value="13" type="number" min="1" max="20" />
+      </div>
+      <div class="form-group">
+        <label>Logo URL</label>
+        <input id="fLogoUrl" placeholder="https://..." />
+      </div>
+      <div class="form-group">
+        <label>Contact Email</label>
+        <input id="fContactEmail" type="email" placeholder="chief@agency.org" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Positions -->
+  <div class="form-section">
+    <div class="form-section-title">DISPATCHER POSITIONS</div>
+    <div style="margin-bottom:8px;">
+      <label style="font-size:11px;color:var(--muted);cursor:pointer;">
+        <input type="checkbox" id="fDefaultPositions" checked onchange="togglePositions()" />
+        Use defaults (Dispatch 1, Dispatch 2, Supervisor, IT Admin)
+      </label>
+    </div>
+    <div id="positionsBuilder" style="display:none;">
+      <div id="posList" class="pos-list"></div>
+      <button class="btn-secondary" style="font-size:10px;margin-top:6px;" onclick="addPositionRow()">+ ADD POSITION</button>
+    </div>
+  </div>
+
+  <!-- Type Codes -->
+  <div class="form-section">
+    <div class="form-section-title">INCIDENT TYPE CODES</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Source</label>
+        <select id="fTypeCodes">
+          <option value="copy_from_scmc">Copy from SCMC (EMS/Fire defaults)</option>
+          <option value="none">None — configure later</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin User -->
+  <div class="form-section">
+    <div class="form-section-title">ADMIN USER</div>
+    <div style="margin-bottom:8px;">
+      <label style="font-size:11px;color:var(--muted);cursor:pointer;">
+        <input type="checkbox" id="fCreateAdmin" checked onchange="toggleAdmin()" />
+        Create admin user for this agency
+      </label>
+    </div>
+    <div id="adminFields" class="form-grid">
+      <div class="form-group">
+        <label class="req">CAD ID</label>
+        <input id="fAdminCadId" placeholder="1001" />
+      </div>
+      <div class="form-group">
+        <label>Username</label>
+        <input id="fAdminUsername" placeholder="sfdadmin" />
+        <div class="hint">Auto-generated from CAD ID if blank</div>
+      </div>
+      <div class="form-group">
+        <label class="req">Full Name</label>
+        <input id="fAdminFullName" placeholder="Agency Administrator" />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="fAdminEmail" type="email" placeholder="admin@agency.org" />
+      </div>
+      <div class="form-group">
+        <label>Initial Password</label>
+        <input id="fAdminPassword" value="changeme123" />
+        <div class="hint">User must change on first login</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <div class="submit-area">
+    <button class="btn-good" style="padding:10px 28px;font-size:13px;font-weight:900;" onclick="submitOnboard()">ONBOARD AGENCY</button>
+    <span id="submitStatus"></span>
+  </div>
+
+  <!-- Results -->
+  <div id="resultPanel">
+    <div class="result-card">
+      <h3 id="resultTitle">ONBOARDING COMPLETE</h3>
+      <div id="resultSteps"></div>
+      <div id="resultErrors"></div>
+      <div id="resultCreds"></div>
+      <div id="resultNext"></div>
+    </div>
+    <button class="btn-secondary" onclick="resetForm()">ONBOARD ANOTHER AGENCY</button>
+  </div>
+</div>
+
+<!-- ─── Scripts ────────────────────────────────────────────────── -->
+<script src="../api.js"></script>
+<script>
+  var _token = '';
+
+  // ── Login / Logout ──────────────────────────────────────────
+
+  async function doLogin() {
+    var cadId = (document.getElementById('loginCadId').value || '').trim();
+    var pw = (document.getElementById('loginPassword').value || '').trim();
+    var err = document.getElementById('loginErr');
+    err.textContent = '';
+
+    if (!cadId) { err.textContent = 'ENTER CAD ID.'; return; }
+    if (!pw) { err.textContent = 'ENTER PASSWORD.'; return; }
+
+    err.textContent = 'AUTHENTICATING...';
+    var res = await API.login('IT', cadId, pw, 'board', false);
+    if (!res || !res.ok) {
+      err.textContent = res?.error || 'LOGIN FAILED.';
+      return;
+    }
+    _token = res.token;
+
+    // Verify superuser access by trying listTenants
+    err.textContent = 'VERIFYING SUPERUSER ACCESS...';
+    var tenants = await API.call('listTenants', _token);
+    if (!tenants || !tenants.ok) {
+      err.textContent = 'SUPERUSER ACCESS REQUIRED. YOUR ACCOUNT DOES NOT HAVE PLATFORM ADMIN PRIVILEGES.';
+      try { await API.logout(_token); } catch(e) {}
+      _token = '';
+      return;
+    }
+
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainPanel').style.display = 'block';
+    document.getElementById('userPill').textContent = 'IT: ' + (res.actor || cadId);
+    renderTenants(tenants.tenants || []);
+  }
+
+  async function doLogout() {
+    if (_token) { try { await API.logout(_token); } catch(e) {} }
+    _token = '';
+    document.getElementById('mainPanel').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginErr').textContent = '';
+  }
+
+  // Allow Enter key to submit login
+  document.getElementById('loginPassword').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('loginCadId').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('loginPassword').focus();
+  });
+
+  // ── Tenants List ────────────────────────────────────────────
+
+  function renderTenants(tenants) {
+    var el = document.getElementById('tenantsList');
+    if (!tenants.length) {
+      el.innerHTML = '<div class="muted" style="font-size:11px;">NO AGENCIES YET</div>';
+      return;
+    }
+    el.innerHTML = tenants.map(function(t) {
+      var cls = t.is_active ? 'active' : 'inactive';
+      return '<div class="tenant-card ' + cls + '">' +
+        '<div class="t-name">' + esc(t.display_name || t.name) + '</div>' +
+        '<div class="t-meta">ID: ' + esc(t.id) + ' &middot; Prefix: ' + esc(t.incident_prefix || t.id) + ' &middot; ' + (t.is_active ? 'Active' : 'Inactive') + '</div>' +
+        '<div class="t-url">' + esc(t.subdomain) + '.hoscad.net</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  // ── Auto-fill helpers ───────────────────────────────────────
+
+  function autoFill() {
+    var id = (document.getElementById('fTenantId').value || '').toUpperCase().trim();
+    var sub = document.getElementById('fSubdomain');
+    var prefix = document.getElementById('fPrefix');
+    if (sub && !sub._userEdited) sub.value = id.toLowerCase();
+    if (prefix && !prefix._userEdited) prefix.value = id;
+  }
+
+  // Track manual edits on auto-filled fields
+  document.getElementById('fSubdomain').addEventListener('input', function() { this._userEdited = true; });
+  document.getElementById('fPrefix').addEventListener('input', function() { this._userEdited = true; });
+
+  // ── Positions builder ───────────────────────────────────────
+
+  function togglePositions() {
+    var useDefaults = document.getElementById('fDefaultPositions').checked;
+    document.getElementById('positionsBuilder').style.display = useDefaults ? 'none' : 'block';
+    if (!useDefaults && document.getElementById('posList').children.length === 0) {
+      addPositionRow('Dispatch 1', 'DISPATCH');
+      addPositionRow('Dispatch 2', 'DISPATCH');
+      addPositionRow('Supervisor', 'SUPERVISOR');
+      addPositionRow('IT Admin', 'IT');
+    }
+  }
+
+  function addPositionRow(name, role) {
+    var list = document.getElementById('posList');
+    var row = document.createElement('div');
+    row.className = 'pos-row';
+    row.innerHTML =
+      '<input placeholder="Position name" value="' + esc(name || '') + '" />' +
+      '<select>' +
+        '<option value="DISPATCH"' + (role === 'DISPATCH' ? ' selected' : '') + '>DISPATCH</option>' +
+        '<option value="SUPERVISOR"' + (role === 'SUPERVISOR' ? ' selected' : '') + '>SUPERVISOR</option>' +
+        '<option value="MANAGER"' + (role === 'MANAGER' ? ' selected' : '') + '>MANAGER</option>' +
+        '<option value="IT"' + (role === 'IT' ? ' selected' : '') + '>IT</option>' +
+      '</select>' +
+      '<button class="remove-btn" onclick="this.parentElement.remove()" title="Remove">&times;</button>';
+    list.appendChild(row);
+  }
+
+  // ── Admin user toggle ───────────────────────────────────────
+
+  function toggleAdmin() {
+    document.getElementById('adminFields').style.display =
+      document.getElementById('fCreateAdmin').checked ? 'grid' : 'none';
+  }
+
+  // ── Color picker sync ──────────────────────────────────────
+
+  document.getElementById('fAccentColor').addEventListener('input', function() {
+    document.getElementById('fAccentColorHex').value = this.value;
+  });
+
+  // ── Submit ──────────────────────────────────────────────────
+
+  async function submitOnboard() {
+    var status = document.getElementById('submitStatus');
+
+    // Validate required fields
+    var tenantId = (document.getElementById('fTenantId').value || '').toUpperCase().trim();
+    var name = (document.getElementById('fName').value || '').trim();
+    var subdomain = (document.getElementById('fSubdomain').value || '').toLowerCase().trim();
+
+    if (!tenantId) { status.textContent = 'TENANT ID REQUIRED.'; status.style.color = '#f85149'; return; }
+    if (!name) { status.textContent = 'AGENCY NAME REQUIRED.'; status.style.color = '#f85149'; return; }
+    if (!subdomain) { status.textContent = 'SUBDOMAIN REQUIRED.'; status.style.color = '#f85149'; return; }
+    if (!/^[A-Z0-9_-]+$/.test(tenantId)) { status.textContent = 'TENANT ID: A-Z, 0-9, -, _ ONLY.'; status.style.color = '#f85149'; return; }
+    if (!/^[a-z0-9-]+$/.test(subdomain)) { status.textContent = 'SUBDOMAIN: a-z, 0-9, - ONLY.'; status.style.color = '#f85149'; return; }
+
+    // Build config object
+    var config = {
+      id: tenantId,
+      name: name,
+      subdomain: subdomain,
+      incidentPrefix: (document.getElementById('fPrefix').value || tenantId).toUpperCase().trim(),
+      displayName: (document.getElementById('fDisplayName').value || name).trim(),
+      agencyType: document.getElementById('fAgencyType').value,
+      timezone: document.getElementById('fTimezone').value,
+      settings: {}
+    };
+
+    // Settings
+    var accent = (document.getElementById('fAccentColorHex').value || '').trim();
+    var accentText = (document.getElementById('fAccentText').value || '').trim();
+    var mapCenter = (document.getElementById('fMapCenter').value || '').trim();
+    var mapZoom = (document.getElementById('fMapZoom').value || '').trim();
+    var logoUrl = (document.getElementById('fLogoUrl').value || '').trim();
+    var contactEmail = (document.getElementById('fContactEmail').value || '').trim();
+
+    if (accent) config.settings.accent_color = accent;
+    if (accentText) config.settings.accent_text = accentText;
+    if (mapCenter) config.settings.default_map_center = mapCenter;
+    if (mapZoom) config.settings.default_map_zoom = mapZoom;
+    if (logoUrl) config.settings.logo_url = logoUrl;
+    if (contactEmail) config.settings.contact_email = contactEmail;
+
+    // Positions
+    if (!document.getElementById('fDefaultPositions').checked) {
+      var rows = document.querySelectorAll('#posList .pos-row');
+      config.positions = [];
+      rows.forEach(function(row) {
+        var posName = row.querySelector('input').value.trim();
+        var posRole = row.querySelector('select').value;
+        if (posName) config.positions.push({ name: posName, role: posRole });
+      });
+    }
+
+    // Type codes
+    var tc = document.getElementById('fTypeCodes').value;
+    if (tc !== 'none') config.typeCodes = tc;
+
+    // Admin user
+    if (document.getElementById('fCreateAdmin').checked) {
+      var adminCadId = (document.getElementById('fAdminCadId').value || '').trim();
+      var adminFullName = (document.getElementById('fAdminFullName').value || '').trim();
+      if (!adminCadId) { status.textContent = 'ADMIN CAD ID REQUIRED.'; status.style.color = '#f85149'; return; }
+      if (!adminFullName) { status.textContent = 'ADMIN FULL NAME REQUIRED.'; status.style.color = '#f85149'; return; }
+
+      config.adminUser = {
+        cadId: adminCadId,
+        username: (document.getElementById('fAdminUsername').value || adminCadId).toLowerCase().trim(),
+        fullName: adminFullName,
+        email: (document.getElementById('fAdminEmail').value || '').trim(),
+        password: (document.getElementById('fAdminPassword').value || 'changeme123').trim()
+      };
+    }
+
+    // Confirm
+    if (!confirm('ONBOARD NEW AGENCY?\n\n' +
+      'Tenant: ' + tenantId + '\n' +
+      'Name: ' + name + '\n' +
+      'URL: ' + subdomain + '.hoscad.net\n\n' +
+      'This will create the tenant and all associated data.')) {
+      return;
+    }
+
+    status.textContent = 'PROVISIONING...';
+    status.style.color = 'var(--muted)';
+
+    var result = await API.call('onboardTenant', _token, config);
+
+    if (!result || !result.ok) {
+      status.textContent = 'FAILED: ' + (result?.error || 'UNKNOWN ERROR');
+      status.style.color = '#f85149';
+      return;
+    }
+
+    // Show results
+    status.textContent = '';
+    showResults(result, config);
+
+    // Refresh tenants list
+    var tenants = await API.call('listTenants', _token);
+    if (tenants && tenants.ok) renderTenants(tenants.tenants || []);
+  }
+
+  function showResults(result, config) {
+    document.getElementById('resultPanel').style.display = 'block';
+
+    // Steps
+    var stepsHtml = (result.steps || []).map(function(s) {
+      return '<div class="step-ok">&#10003; ' + esc(s) + '</div>';
+    }).join('');
+    document.getElementById('resultSteps').innerHTML = stepsHtml;
+
+    // Errors
+    if (result.errors && result.errors.length > 0) {
+      document.getElementById('resultErrors').innerHTML =
+        '<div style="margin-top:8px;font-size:11px;color:#f85149;font-weight:700;">WARNINGS:</div>' +
+        result.errors.map(function(e) {
+          return '<div class="step-err">&#9888; ' + esc(e) + '</div>';
+        }).join('');
+    } else {
+      document.getElementById('resultErrors').innerHTML = '';
+    }
+
+    // Admin credentials
+    if (result.adminUser) {
+      document.getElementById('resultCreds').innerHTML =
+        '<div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--muted);">ADMIN CREDENTIALS (SAVE THESE):</div>' +
+        '<div class="cred-box">' +
+          'Username: ' + esc(result.adminUser.username) + '<br>' +
+          'CAD ID:   ' + esc(result.adminUser.cadId || 'auto') + '<br>' +
+          'Password: ' + esc(result.adminUser.password) + '<br>' +
+          '<span style="color:var(--muted);">User must change password on first login</span>' +
+        '</div>';
+    } else {
+      document.getElementById('resultCreds').innerHTML = '';
+    }
+
+    // Next steps
+    var nextHtml = '<div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--muted);">MANUAL STEPS REMAINING:</div>';
+    (result.nextSteps || []).forEach(function(ns) {
+      nextHtml += '<div class="next-step">&#9744; ' + esc(ns) + '</div>';
+    });
+    nextHtml += '<div style="margin-top:10px;font-size:13px;font-weight:700;color:var(--blue);">Agency URL: https://' + esc(config.subdomain) + '.hoscad.net</div>';
+    document.getElementById('resultNext').innerHTML = nextHtml;
+
+    // Scroll to results
+    document.getElementById('resultPanel').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function resetForm() {
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('fTenantId').value = '';
+    document.getElementById('fName').value = '';
+    document.getElementById('fSubdomain').value = '';
+    document.getElementById('fSubdomain')._userEdited = false;
+    document.getElementById('fPrefix').value = '';
+    document.getElementById('fPrefix')._userEdited = false;
+    document.getElementById('fDisplayName').value = '';
+    document.getElementById('fAdminCadId').value = '';
+    document.getElementById('fAdminUsername').value = '';
+    document.getElementById('fAdminFullName').value = '';
+    document.getElementById('fAdminEmail').value = '';
+    document.getElementById('fAdminPassword').value = 'changeme123';
+    document.getElementById('fLogoUrl').value = '';
+    document.getElementById('fContactEmail').value = '';
+    document.getElementById('fMapCenter').value = '';
+    document.getElementById('submitStatus').textContent = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
