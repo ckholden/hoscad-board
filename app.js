@@ -1046,6 +1046,38 @@ window.queueZoom = queueZoom;
   if (el) el.style.fontSize = _queueFontSize + 'px';
 })();
 
+// ── Custom theme-aware tooltip for .inc-note cells ──────────────
+(function() {
+  const tip = document.getElementById('qTooltip');
+  if (!tip) return;
+  let _tipTarget = null;
+
+  document.addEventListener('mouseover', function(e) {
+    const cell = e.target.closest('[data-ttip]');
+    if (!cell || !cell.dataset.ttip) return;
+    _tipTarget = cell;
+    tip.textContent = cell.dataset.ttip;
+    tip.style.display = 'block';
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!_tipTarget) return;
+    const x = e.clientX + 14;
+    const y = e.clientY + 14;
+    // Keep within viewport
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(x, window.innerWidth - tw - 8) + 'px';
+    tip.style.top  = Math.min(y, window.innerHeight - th - 8) + 'px';
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    const cell = e.target.closest('[data-ttip]');
+    if (!cell) return;
+    _tipTarget = null;
+    tip.style.display = 'none';
+  });
+})();
+
 // Toolbar event handlers
 function tbFilterChanged() {
   const val = document.getElementById('tbFilterStatus').value;
@@ -2986,7 +3018,7 @@ function renderIncidentQueue() {
     html += `<td class="inc-dest${incDestResolved.recognized ? ' dest-recognized' : ''}">${esc(incDestDisplay)}</td>`;
     html += `<td>${incType ? '<span class="inc-type ' + typeCl + '">' + esc(incType) + '</span>' : '<span class="muted">--</span>'}</td>`;
     const noteTip = _noteHistory.length > 1 ? _noteHistory.join('\n─────────────\n') : (_noteHistory[0] || '');
-    html += `<td class="inc-note" title="${esc(noteTip)}">${esc(note || '--')}</td>`;
+    html += `<td class="inc-note" data-ttip="${esc(noteTip)}">${esc(note || '--')}</td>`;
     html += `<td style="font-size:11px;color:var(--muted);">${esc(sceneDisplay)}</td>`;
     html += `<td class="${waitCls}">${waitMins}M</td>`;
     html += `<td style="white-space:nowrap;">`;
@@ -7229,39 +7261,47 @@ async function _execCmd(tx) {
     if (!iR && CLI_CONTEXT.incidentId) {
       return openIncidentFromServer(CLI_CONTEXT.incidentId);
     }
-    if (!iR) { showConfirm('ERROR', 'USAGE: R INC0001 OR R 0001', () => {}); return; }
+    if (!iR) { showAlert('ERROR', 'USAGE: R <INC#>  EXAMPLES: R 123  R 00123  R 26-00123'); return; }
 
-    // Resolve incident ID
-    let rIncId = iR;
-    if (/^\d{3,4}$/.test(rIncId)) {
-      const yy = String(new Date().getFullYear()).slice(-2);
-      rIncId = 'SC' + yy + '-' + rIncId.padStart(4, '0');
-    } else if (/^INC(\d+)$/.test(rIncId)) {
-      const yy = String(new Date().getFullYear()).slice(-2);
-      rIncId = 'SC' + yy + '-' + rIncId.replace(/^INC/, '').padStart(4, '0');
+    // Strip INC / SC / year prefixes — extract just the digit string
+    let cleanR = iR.replace(/^INC[-\s]*/i, '').replace(/^SC\d{2}-/i, '');
+    const yearPfx = cleanR.match(/^(\d{2})-(\d+)$/);
+    let digits = yearPfx ? yearPfx[2] : cleanR;
+
+    // Full 5-digit format (possibly with year): 26-00123 or 00123
+    if (/^\d{5}$/.test(digits) || (yearPfx && /^\d{5}$/.test(yearPfx[2]))) {
+      const yy  = yearPfx ? yearPfx[1] : String(new Date().getFullYear()).slice(-2);
+      const pad = digits.padStart(5, '0');
+      return _rOpenAndBind(`${yy}-${pad}`);
     }
 
-    // Look up in STATE
-    const rInc = STATE && STATE.incidents
-      ? STATE.incidents.find(i => i.incident_id.toUpperCase() === rIncId.toUpperCase())
-      : null;
-
-    // Always open the modal
-    openIncidentFromServer(rIncId);
-
-    // Bind context only for non-VIEWER on active/queued incidents
-    if (ROLE !== 'VIEWER' && rInc && rInc.status !== 'CLOSED') {
-      if (CLI_CONTEXT.incidentId && CLI_CONTEXT.incidentId !== rIncId) {
-        // Context switch — log exit from old incident
-        const oldId = CLI_CONTEXT.incidentId;
-        API.appendIncidentNote(TOKEN, oldId, '[SYS] CONTEXT RELEASED BY ' + ACTOR).catch(() => {});
-        showToast('CONTEXT: ' + oldId + ' → ' + rIncId);
+    // Short input (3-4 digits) — search STATE for prefix matches
+    if (/^\d{3,4}$/.test(digits)) {
+      const paddedExact = digits.padStart(5, '0');
+      const allInc = (STATE?.incidents || []);
+      const matches = [];
+      const seen = new Set();
+      allInc.forEach(i => {
+        if (seen.has(i.incident_id)) return;
+        const numPart = (i.incident_id.split('-')[1] || '');
+        // Exact padded match first; also match if numPart starts with the raw digits
+        if (numPart === paddedExact || numPart.startsWith(digits)) {
+          matches.push(i);
+          seen.add(i.incident_id);
+        }
+      });
+      if (matches.length === 1) {
+        return _rOpenAndBind(matches[0].incident_id);
+      } else if (matches.length > 1) {
+        _rDisambiguate(matches);
+        return;
       }
-      CLI_CONTEXT = { incidentId: rIncId, activatedAt: new Date(), activatedBy: ACTOR, lastUpdate: rInc.last_update || null };
-      _updateContextBanner();
-    } else if (rInc && rInc.status === 'CLOSED') {
-      showToast('INC CLOSED — CONTEXT NOT BOUND', 'warn');
+      // 0 active matches — might be closed; open from server with exact pad
+      const yy = String(new Date().getFullYear()).slice(-2);
+      return _rOpenAndBind(`${yy}-${paddedExact}`);
     }
+
+    showAlert('ERROR', 'USAGE: R <INC#>  EXAMPLES: R 123  R 00123  R 26-00123');
     return;
   }
 
@@ -10168,11 +10208,67 @@ function _openIncidentSmart(incId) {
   }
 }
 
+// ── R command helpers ────────────────────────────────────────────────────────
+function _rOpenAndBind(rIncId) {
+  const rInc = (STATE?.incidents || []).find(i => i.incident_id.toUpperCase() === rIncId.toUpperCase()) || null;
+  openIncidentFromServer(rIncId);
+  if (ROLE !== 'VIEWER' && rInc && rInc.status !== 'CLOSED') {
+    if (CLI_CONTEXT.incidentId && CLI_CONTEXT.incidentId !== rIncId) {
+      showToast('CONTEXT: ' + CLI_CONTEXT.incidentId + ' → ' + rIncId);
+    }
+    CLI_CONTEXT = { incidentId: rIncId, activatedAt: new Date(), activatedBy: ACTOR, lastUpdate: rInc.last_update || null };
+    _updateContextBanner();
+  } else if (rInc && rInc.status === 'CLOSED') {
+    showToast('INC CLOSED — CONTEXT NOT BOUND', 'warn');
+  }
+}
+
+function _rDisambiguate(matches) {
+  // Remove any existing overlay
+  const old = document.getElementById('rDisambig');
+  if (old) old.remove();
+  const oldBd = document.getElementById('rDisambigBd');
+  if (oldBd) oldBd.remove();
+
+  const el = document.createElement('div');
+  el.id = 'rDisambig';
+  let html = '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:10px;">MULTIPLE MATCHES — SELECT INCIDENT</div>';
+  matches.forEach((inc, idx) => {
+    const note = (inc.incident_note || '').split('\n')[0].replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
+    const statusColor = inc.status === 'ACTIVE' ? '#7fffb2' : '#ffd700';
+    const pri = inc.priority ? `<span style="font-size:9px;margin-left:6px;font-weight:700;color:#f0a030;">${esc(inc.priority)}</span>` : '';
+    html += `<div class="dis-row" onclick="_rDisambigSelect('${esc(inc.incident_id)}')">
+      <span style="color:#4fa3e0;font-weight:700;font-size:13px;">${esc(inc.incident_id)}</span>${pri}
+      <span style="font-size:10px;margin-left:10px;color:${statusColor};">${esc(inc.status)}</span>
+      <span style="font-size:10px;margin-left:8px;color:var(--muted);">${esc(inc.incident_type || '—')}</span>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc((inc.scene_address || '—').substring(0, 55))}${note ? ' · ' + esc(note.substring(0, 40)) : ''}</div>
+    </div>`;
+  });
+  html += '<div style="text-align:right;margin-top:8px;"><button onclick="document.getElementById(\'rDisambig\').remove();document.getElementById(\'rDisambigBd\')?.remove();" style="font-size:10px;padding:2px 10px;">CANCEL</button></div>';
+  el.innerHTML = html;
+
+  const bd = document.createElement('div');
+  bd.id = 'rDisambigBd';
+  bd.style.cssText = 'position:fixed;inset:0;z-index:9499;';
+  bd.onclick = () => { el.remove(); bd.remove(); };
+
+  document.body.appendChild(bd);
+  document.body.appendChild(el);
+}
+function _rDisambigSelect(incId) {
+  const el = document.getElementById('rDisambig');
+  const bd = document.getElementById('rDisambigBd');
+  if (el) el.remove();
+  if (bd) bd.remove();
+  _rOpenAndBind(incId);
+}
+
 window._openIncidentReview    = _openIncidentReview;
 window._openIncidentSmart     = _openIncidentSmart;
 window._incReviewAddIntel     = _incReviewAddIntel;
 window._incReviewLink         = _incReviewLink;
 window._incReviewAttachPerson = _incReviewAttachPerson;
+window._rDisambigSelect       = _rDisambigSelect;
 
 // ── Person Card Modal ────────────────────────────────────────────────────────
 async function _openPersonCard(personId) {

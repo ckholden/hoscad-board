@@ -2157,3 +2157,49 @@ span.inc-link:hover { color: var(--hi); }
     white-space: nowrap;
   }
 }
+
+/* ── Custom Tooltip (theme-aware, replaces browser title attr) ── */
+#qTooltip {
+  display: none;
+  position: fixed;
+  z-index: 9800;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 6px 10px;
+  border-radius: 4px;
+  max-width: 340px;
+  white-space: pre-wrap;
+  pointer-events: none;
+  box-shadow: 0 3px 12px rgba(0,0,0,.45);
+  line-height: 1.5;
+}
+
+/* ── Incident disambiguation modal ─────────────────────────── */
+#rDisambig {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9500;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  min-width: 380px;
+  max-width: 520px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 24px rgba(0,0,0,.6);
+}
+#rDisambig .dis-row {
+  cursor: pointer;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  margin-bottom: 5px;
+  transition: background .12s;
+}
+#rDisambig .dis-row:hover { background: var(--bg2); }
