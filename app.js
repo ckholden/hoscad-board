@@ -1182,7 +1182,7 @@ function _validateContext() {
 // ---------------------------------------------------------------------------
 // Location Profile — full modal with Safety Flags, Location Info, History
 // ---------------------------------------------------------------------------
-let _lhCtx = { address: '', canonical: '', flags: [], results: [], hasMore: false, activeTab: 'safety', loading: false };
+let _lhCtx = { address: '', canonical: '', flags: [], results: [], hasMore: false, people: [], activeTab: 'safety', loading: false };
 
 const _LH_SAFETY_CATS = ['VIOLENCE-THREATS','WEAPONS-HISTORY','AGGRESSIVE-ANIMAL','HAZARDOUS-MATERIALS','KNOWN-MENTAL-HEALTH-RISK','LAW-ENFORCEMENT-SENSITIVE'];
 const _LH_INFO_CATS   = ['ACCESS-CODE-SECURE-ENTRY','CONTACT-PHONE'];
@@ -1196,6 +1196,7 @@ async function _openLocationHistory(address) {
   _lhCtx.flags = [];
   _lhCtx.results = [];
   _lhCtx.hasMore = false;
+  _lhCtx.people = [];
   _lhCtx.loading = true;
 
   const lhTitle = document.getElementById('lhPanelTitle');
@@ -1203,7 +1204,10 @@ async function _openLocationHistory(address) {
   panel.style.display = 'flex';
   _lhRender();  // show loading state
 
-  const r = await API.getLocationHistory(TOKEN, address, 30, 0);
+  const [r, pr] = await Promise.all([
+    API.getLocationHistory(TOKEN, address, 30, 0),
+    TOKEN && address.length >= 3 ? API.searchPeople(TOKEN, address).catch(() => ({ ok: false })) : Promise.resolve({ ok: false }),
+  ]);
   _lhCtx.loading = false;
   if (!r.ok) {
     const lhBody = document.getElementById('lhPanelBody');
@@ -1214,6 +1218,7 @@ async function _openLocationHistory(address) {
   _lhCtx.flags   = r.flags   || [];
   _lhCtx.results = r.results || [];
   _lhCtx.hasMore = r.hasMore || false;
+  _lhCtx.people  = (pr.ok && pr.people) ? pr.people : [];
   _lhRender();
 }
 
@@ -1239,6 +1244,7 @@ function _lhRender() {
     { id: 'safety',  label: safetyFlags.length > 0 ? `⚠ SAFETY FLAGS (${safetyFlags.length})` : '⚠ SAFETY FLAGS' },
     { id: 'info',    label: infoFlags.length > 0 ? `LOCATION INFO (${infoFlags.length})` : 'LOCATION INFO' },
     { id: 'history', label: _lhCtx.results.length > 0 ? `HISTORY (${_lhCtx.results.length}${_lhCtx.hasMore ? '+' : ''})` : 'HISTORY' },
+    { id: 'people',  label: _lhCtx.people.length > 0 ? `PEOPLE (${_lhCtx.people.length})` : 'PEOPLE' },
   ];
   if (lhTabBar) {
     let tabHtml = '<div class="lh-tabs">';
@@ -1312,7 +1318,7 @@ function _lhRender() {
       }
     }
 
-  } else { // history
+  } else if (_lhCtx.activeTab === 'history') {
     if (_lhCtx.results.length === 0) {
       html += '<div class="lh-empty">NO PRIOR INCIDENTS AT THIS ADDRESS.</div>';
     } else {
@@ -1328,6 +1334,16 @@ function _lhRender() {
       if (_lhCtx.hasMore) {
         html += '<div style="padding:8px 12px;color:var(--muted);font-size:11px;">SHOWING 30 MOST RECENT INCIDENTS.</div>';
       }
+    }
+  } else { // people
+    if (_lhCtx.people.length === 0) {
+      html += '<div class="lh-empty">NO PERSONS WITH THIS ADDRESS ON RECORD.</div>';
+    } else {
+      html += '<table class="lh-table"><thead><tr><th>PERSON ID</th><th>NAME</th><th>DOB</th><th>ADDRESS</th></tr></thead><tbody>';
+      _lhCtx.people.forEach(p => {
+        html += `<tr><td style="color:#4fa3e0;font-weight:700;">${esc(p.person_id)}</td><td><b>${esc(p.full_name)}</b></td><td>${esc(p.dob || '—')}</td><td>${esc(p.address1 || p.address2 || '—')}</td></tr>`;
+      });
+      html += '</tbody></table>';
     }
   }
 
@@ -5238,6 +5254,29 @@ async function openIncidentFromServer(iId) {
     }).catch(function() {});
   }
 
+  // Involved persons — async, non-blocking
+  const _incPplEl    = document.getElementById('incPeople');
+  const _incPplListEl = document.getElementById('incPeopleList');
+  const _incPplCntEl = document.getElementById('incPeopleCount');
+  if (_incPplEl) { _incPplEl.style.display = 'none'; if (_incPplListEl) _incPplListEl.innerHTML = ''; }
+  if (TOKEN) {
+    API.getIncidentPeople(TOKEN, iId).then(function(pr) {
+      if (!pr.ok || !pr.people || !pr.people.length) return;
+      if (_incPplEl) _incPplEl.style.display = '';
+      if (_incPplCntEl) _incPplCntEl.textContent = pr.people.length;
+      if (_incPplListEl) {
+        _incPplListEl.innerHTML = pr.people.map(function(p) {
+          return '<div style="font-size:11px;display:flex;gap:8px;align-items:center;margin-bottom:2px;flex-wrap:wrap;">' +
+            '<span style="color:#4fa3e0;font-weight:700;">[' + esc(p.person_id) + ']</span>' +
+            '<b>' + esc(p.full_name) + '</b>' +
+            (p.dob ? '<span class="muted">' + esc(p.dob) + '</span>' : '') +
+            '— <span style="color:#7fffb2;">' + esc(p.role) + '</span>' +
+            '</div>';
+        }).join('');
+      }
+    }).catch(function() {});
+  }
+
   // Danger flag banner — async, non-blocking
   const _dfAddr = inc.scene_address || '';
   const _dfBanner = document.getElementById('incDangerBanner');
@@ -5337,6 +5376,7 @@ function _buildReportHtml(rpt) {
 }
 
 window._openReportPopout = _openReportPopout;
+window._clickRptLink     = _clickRptLink;
 
 // Agency-level approximate coordinates for proximity scoring in SUGGEST
 // Used when exact geocode is unavailable — coarse but correct directionally
@@ -5689,6 +5729,21 @@ async function _updateIncidentScene() {
   _refreshIncidentModal(CURRENT_INCIDENT_ID);
 }
 
+function _formatAuditMessage(rawMsg) {
+  // Escape first, then make [RPT: RPT-XX-XXXX] tags clickable
+  let html = esc(String(rawMsg || ''));
+  html = html.replace(
+    /\[RPT: (RPT-[\w-]+)\]/g,
+    '<span class="tag-rpt" onclick="_clickRptLink(\'$1\')">[RPT: $1]</span>'
+  );
+  // Also hyperlink incident IDs: INC/SC\d{2}-\d{4}
+  html = html.replace(
+    /\b((?:SC|INC[-\s]?)\d{2}[-]?\d{4})\b/gi,
+    '<span class="inc-link" onclick="_clickIncLink(this)" data-inc="$1">$1</span>'
+  );
+  return html;
+}
+
 function renderIncidentAudit(aR) {
   const e = document.getElementById('incAudit');
   const rs = aR || [];
@@ -5705,11 +5760,15 @@ function renderIncidentAudit(aR) {
       : 'font-weight:900; color:var(--yellow); margin-top:2px;';
     return `<div style="border-bottom:1px solid var(--line); padding:8px 6px;">
       <div class="muted ${aC}">${esc(ts)} • ${esc((r.actor || '').toUpperCase())}</div>
-      <div style="${msgStyle}">${esc(String(r.message || ''))}</div>
+      <div style="${msgStyle}">${_formatAuditMessage(String(r.message || ''))}</div>
     </div>`;
   }).join('');
   // Auto-scroll to bottom — most recent entry is last
   setTimeout(() => { e.scrollTop = e.scrollHeight; }, 0);
+}
+
+function _clickRptLink(reportId) {
+  _openReportPopout(reportId);
 }
 
 // ============================================================
@@ -7788,6 +7847,21 @@ async function _execCmd(tx) {
     return;
   }
 
+  // RPT - Attach a submitted crew report to the context incident
+  // RPT <RPT-ID>   — attaches report to context incident
+  if (/^RPT RPT-\d{2}-\d+$/i.test(tx) && CLI_CONTEXT.incidentId) {
+    const rptArg = tx.trim().toUpperCase().split(/\s+/)[1];
+    const r = await API.dispatcherAttachReport(TOKEN, rptArg, CLI_CONTEXT.incidentId);
+    if (!r.ok) return showErr(r);
+    showToast('REPORT ' + rptArg + ' ATTACHED TO ' + CLI_CONTEXT.incidentId + '.', 'success');
+    refresh();
+    return;
+  }
+  if (/^RPT RPT-\d{2}-\d+$/i.test(tx) && !CLI_CONTEXT.incidentId) {
+    showAlert('ERROR', 'BIND A CONTEXT INCIDENT FIRST (R <INC#>), THEN: RPT <RPT-ID>');
+    return;
+  }
+
   // ILINK / IUNLINK - Link/unlink two incidents (incident-to-incident relationship)
   // ILINK <INC#>           — links context incident to target
   // ILINK <INC#> <INC#>    — links two explicit incidents
@@ -9391,11 +9465,12 @@ async function _doSearchPanel() {
 
   // Kick off all server-side history fetches early (parallel with client-side work)
   const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
-  const [incIdPromise, locHistPromise, fullSearchPromise] = (TOKEN && q.length >= 3) ? [
+  const [incIdPromise, locHistPromise, fullSearchPromise, f3PeoplePromise] = (TOKEN && q.length >= 3) ? [
     (incPat.test(q) && q.length >= 4) ? API.searchIncidents(TOKEN, q, 6).catch(() => null) : Promise.resolve(null),
     API.getLocationHistory(TOKEN, q, 6).catch(() => null),
     API.searchIncidentsFull(TOKEN, q, 8).catch(() => null),
-  ] : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
+    API.searchPeople(TOKEN, q).catch(() => null),
+  ] : [Promise.resolve(null), Promise.resolve(null), Promise.resolve(null), Promise.resolve(null)];
 
   let html = '';
 
@@ -9454,9 +9529,9 @@ async function _doSearchPanel() {
     });
   }
 
-  // ── Server-side history (all three in parallel) ──
+  // ── Server-side history (all four in parallel) ──
   const capturedQ = q;
-  const [incIdRes, locHistRes, fullSearchRes] = await Promise.all([incIdPromise, locHistPromise, fullSearchPromise]);
+  const [incIdRes, locHistRes, fullSearchRes, f3PeopleRes] = await Promise.all([incIdPromise, locHistPromise, fullSearchPromise, f3PeoplePromise]);
   const currentQ = (document.getElementById('searchPanelInput')?.value||'').trim().toUpperCase();
   if (currentQ === capturedQ) {
     const alreadyShown = new Set(((STATE && STATE.incidents) ? STATE.incidents : []).map(i => i.incident_id));
@@ -9571,6 +9646,21 @@ async function _doSearchPanel() {
         });
       }
     }
+
+    // People database
+    if (f3PeopleRes?.ok && f3PeopleRes.people?.length) {
+      html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">PEOPLE (' + f3PeopleRes.people.length + ')</div>';
+      f3PeopleRes.people.slice(0, 8).forEach(p => {
+        html += '<div class="search-result-row">' +
+          '<div class="search-result-label">' +
+            '<span style="font-weight:900;color:#4fa3e0;">[' + esc(p.person_id) + ']</span>' +
+            ' <span style="font-weight:700;">' + esc(p.full_name) + '</span>' +
+            (p.dob ? ' <span style="font-size:10px;color:var(--muted);">DOB: ' + esc(p.dob) + '</span>' : '') +
+            (p.address1 ? '<br><span style="font-size:10px;color:var(--muted);">' + esc(p.address1) + '</span>' : '') +
+          '</div>' +
+        '</div>';
+      });
+    }
   }
 
   if (!html) {
@@ -9658,21 +9748,22 @@ async function _doUniversalQuery() {
     type: 'typecode', id: t.code||'', label: t.code||'', sub: t.name||''
   }))});
 
-  // Historical incidents — server-side, all three searches in parallel
+  // Historical incidents + people — server-side, all searches in parallel
   if (TOKEN && q.length >= 3) {
     const capturedQ = q;
     const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
     const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
 
-    // Run all applicable searches in parallel
+    // Run all applicable searches in parallel (including people)
     const incIdPromise = (incPat.test(q) && q.length >= 4)
       ? API.searchIncidents(TOKEN, q, 5).catch(() => null)
       : Promise.resolve(null);
     const locHistPromise = API.getLocationHistory(TOKEN, q, 6).catch(() => null);
     const fullSearchPromise = API.searchIncidentsFull(TOKEN, q, 8).catch(() => null);
+    const peoplePromise = API.searchPeople(TOKEN, q).catch(() => null);
 
     try {
-      const [hr, lr, fr] = await Promise.all([incIdPromise, locHistPromise, fullSearchPromise]);
+      const [hr, lr, fr, pr] = await Promise.all([incIdPromise, locHistPromise, fullSearchPromise, peoplePromise]);
 
       // Only render if query hasn't changed since we fired the requests
       if ((inp.value||'').trim().toUpperCase() === capturedQ) {
@@ -9720,6 +9811,14 @@ async function _doUniversalQuery() {
             type: 'incident', id: i.incident_id, label: i.incident_id,
             sub: (i.incident_type||'') + (i.unit_id ? ' · ' + i.unit_id : '') + ' · ' + (i.status||'') + (i.scene_address ? ' · ' + i.scene_address : ''),
             status: i.status
+          }))});
+        }
+
+        // People database
+        if (pr?.ok && pr.people?.length) {
+          categories.push({ label: 'PEOPLE', items: pr.people.map(p => ({
+            type: 'person', id: p.person_id, label: p.full_name,
+            sub: (p.dob ? 'DOB: ' + p.dob + ' · ' : '') + (p.address1 || p.address2 || '') + ' · ' + p.person_id
           }))});
         }
       }

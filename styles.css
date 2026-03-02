@@ -2053,6 +2053,20 @@ a.inc-link {
 }
 a.inc-link:hover { color: var(--hi); }
 
+/* [RPT: RPT-XX-XXXX] clickable tags in incident audit */
+.tag-rpt {
+  color: #4fa3e0; font-weight: 700; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 2px;
+}
+.tag-rpt:hover { color: #79c0ff; }
+
+/* span.inc-link in audit messages */
+span.inc-link {
+  color: var(--yellow); font-weight: 900; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 2px;
+}
+span.inc-link:hover { color: var(--hi); }
+
 /* GIS address typeahead dropdown */
 .addr-ta-drop {
   position: absolute; z-index: 5000;

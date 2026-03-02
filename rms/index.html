@@ -319,6 +319,7 @@
       <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button class="btn btn-secondary" style="font-size:11px;" id="btnBackToReports">← BACK TO MY REPORTS</button>
         <button class="btn btn-secondary" style="font-size:11px;" id="btnPrintReport">PRINT / EXPORT</button>
+        <button class="btn btn-secondary" style="font-size:10px;" id="btnAttachToInc" style="display:none;" onclick="_attachReportToIncident()">ATTACH TO CAD INCIDENT</button>
       </div>
       <div class="card">
         <div class="card-title" id="viewReportTitle">REPORT</div>
@@ -335,6 +336,11 @@
       <div class="card" id="viewCadNotesCard" style="display:none;">
         <div class="card-title">CAD INCIDENT NOTES</div>
         <pre id="viewCadNotesContent" style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:var(--text);margin:0;font-family:monospace;"></pre>
+      </div>
+      <!-- Involved Persons (view mode) -->
+      <div class="card" id="viewPeopleSection" style="display:none;">
+        <div class="card-title">INVOLVED PERSONS</div>
+        <div id="viewPeopleList"></div>
       </div>
       <div class="card">
         <div class="card-title">FOLLOW-UP NOTES</div>
@@ -392,9 +398,62 @@
 
       <div class="card">
         <div class="card-title">NARRATIVE *</div>
+        <!-- Template picker -->
+        <div id="templateBar" style="margin-bottom:8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:.06em;">TEMPLATE:</span>
+          <select id="templateSelect" style="font-size:11px;width:200px;">
+            <option value="">— SELECT —</option>
+            <optgroup label="EMS">
+              <option value="soap">SOAP</option>
+              <option value="chart">CHART</option>
+              <option value="dacharte">DAR/CHART-E</option>
+              <option value="refusal">AMA REFUSAL</option>
+              <option value="trauma">TRAUMA</option>
+              <option value="cardiac">CARDIAC/ACS</option>
+            </optgroup>
+          </select>
+          <button id="btnApplyTemplate" class="btn btn-secondary" style="font-size:10px;padding:3px 9px;">APPLY</button>
+          <span style="font-size:9px;color:var(--muted);">Replaces narrative only if empty or confirmed.</span>
+        </div>
         <textarea id="writerNarrative" placeholder="PATIENT PRESENTATION, ASSESSMENT, TREATMENT, AND TRANSPORT NARRATIVE..."></textarea>
         <div style="font-size:10px;color:var(--muted);margin-top:6px;">
           DRAFT SAVES AUTOMATICALLY. SUBMIT TO FINALIZE (IRREVERSIBLE).
+        </div>
+      </div>
+
+      <!-- Involved Persons section — shown once report draft exists -->
+      <div id="writerPeopleSection" class="card" style="display:none;">
+        <div class="card-title">INVOLVED PERSONS</div>
+        <div id="writerPeopleList" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+          <input id="writerPeopleSearch" placeholder="SEARCH BY NAME OR ADDRESS…" style="flex:1;min-width:160px;font-size:11px;" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+          <button id="btnPeopleSearch" class="btn btn-secondary" style="font-size:10px;padding:3px 9px;">FIND</button>
+          <button id="btnNewPerson" class="btn btn-secondary" style="font-size:10px;padding:3px 9px;">+ NEW</button>
+        </div>
+        <div id="writerPeopleResults" style="display:none;margin-top:6px;border:1px solid var(--border);border-radius:4px;max-height:200px;overflow-y:auto;"></div>
+        <!-- Inline new person form -->
+        <div id="newPersonForm" style="display:none;margin-top:8px;border:1px solid var(--border);padding:10px;border-radius:4px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:6px;">NEW PERSON</div>
+          <input id="npName"  placeholder="FULL NAME *" style="width:100%;margin-bottom:4px;" maxlength="80" autocapitalize="words" />
+          <div style="display:flex;gap:4px;margin-bottom:4px;">
+            <input id="npDob"   placeholder="DATE OF BIRTH (YYYY-MM-DD)" style="flex:1;" maxlength="10" />
+            <input id="npPhone" placeholder="PHONE" style="flex:1;" maxlength="20" />
+          </div>
+          <input id="npAddr1" placeholder="PRIMARY ADDRESS" style="width:100%;margin-bottom:4px;" maxlength="120" autocapitalize="characters" />
+          <input id="npAddr2" placeholder="SECONDARY ADDRESS (OPTIONAL)" style="width:100%;margin-bottom:6px;" maxlength="120" autocapitalize="characters" />
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+            <select id="npRole" style="flex:1;font-size:11px;">
+              <option value="PATIENT">PATIENT</option>
+              <option value="SUBJECT">SUBJECT</option>
+              <option value="VICTIM">VICTIM</option>
+              <option value="WITNESS">WITNESS</option>
+              <option value="POI">POI</option>
+              <option value="OTHER">OTHER</option>
+            </select>
+            <button id="btnSavePerson" class="btn btn-green" style="font-size:10px;">SAVE & ATTACH</button>
+            <button id="btnCancelPerson" class="btn btn-secondary" style="font-size:10px;">CANCEL</button>
+          </div>
+          <div id="newPersonStatus" style="font-size:11px;margin-top:4px;"></div>
         </div>
       </div>
 
@@ -480,6 +539,18 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ════════════════════════════════════════════════════════════════════════
+// Narrative templates
+// ════════════════════════════════════════════════════════════════════════
+const RMS_TEMPLATES = {
+  soap: 'SUBJECTIVE:\n\n\nOBJECTIVE:\nVitals:\nAssessment findings:\n\nASSESSMENT:\n\n\nPLAN:\nTreatment:\nTransport:\n',
+  chart: 'CHIEF COMPLAINT:\n\n\nHISTORY:\n\n\nASSESSMENT:\n\n\nRx (TREATMENT):\n\nTRANSPORT:\n',
+  dacharte: 'DATE/TIME:\nAGENCY/CREW:\n\nCHIEF COMPLAINT:\n\nHISTORY:\n\nASSESSMENT:\nVitals:\nPhysical Exam:\n\nRx (TREATMENT):\n\nTRANSPORT/DISPOSITION:\n\nEVALUATION (outcome):\n',
+  refusal: 'PATIENT CONTACT:\n\nCONDITION ASSESSMENT:\n\nREFUSAL INFORMATION PROVIDED:\n- Risks explained:\n- Patient demonstrated understanding: YES / NO\n- Capacity assessment: Alert / Oriented x4: YES / NO\n\nSIGNATURE OBTAINED: YES / NO\nWITNESS:\n\nCREW RECOMMENDATION:\n',
+  trauma: 'MECHANISM OF INJURY:\n\nPRIMARY SURVEY (ABCDE):\nAirway:\nBreathing:\nCirculation:\nDisability (GCS: __ E__V__M__):\nExposure:\n\nVITALS:\n\nSECONDARY SURVEY:\n\nTREATMENT:\n\nTRANSPORT:\n',
+  cardiac: 'ONSET/HISTORY:\n\nSYMPTOMS:\n\u2610 Chest pain/pressure  \u2610 SOB  \u2610 Diaphoresis  \u2610 Nausea  \u2610 Syncope\n\n12-LEAD FINDINGS:\n\nVITALS:\n\nTREATMENT:\n\nCARDIAC ALERT: YES / NO\n\nTRANSPORT:\n',
+};
+
 // ════════════════════════════════════════════════════════════════════════
 // Config
 // ════════════════════════════════════════════════════════════════════════
@@ -909,8 +980,163 @@ async function _viewReport(reportId) {
   document.getElementById('writerViewMode').style.display = '';
   // Store full report on print button for later
   document.getElementById('btnPrintReport')._rptData = rpt;
+  // ATTACH TO INCIDENT button — only for submitted reports with an incident
+  var attachBtn = document.getElementById('btnAttachToInc');
+  if (attachBtn) {
+    if (rpt.status === 'SUBMITTED' && rpt.incident_id) {
+      attachBtn.style.display = '';
+      attachBtn.disabled = false;
+      attachBtn.textContent = 'ATTACH TO CAD INCIDENT';
+    } else {
+      attachBtn.style.display = 'none';
+    }
+  }
+  // Load people (view mode)
+  _loadViewPeople(rpt.report_id);
   switchTab('writer');
 }
+
+// ─── Narrative template apply ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var applyBtn = document.getElementById('btnApplyTemplate');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function() {
+      var tpl = document.getElementById('templateSelect').value;
+      if (!tpl || !RMS_TEMPLATES[tpl]) return;
+      var ta = document.getElementById('writerNarrative');
+      if (ta.value.trim() && !confirm('REPLACE current narrative with template?')) return;
+      ta.value = RMS_TEMPLATES[tpl];
+      document.getElementById('templateSelect').value = '';
+      ta.focus();
+    });
+  }
+});
+
+// ─── People (view mode) ───────────────────────────────────────────────────────
+async function _loadViewPeople(reportId) {
+  var section = document.getElementById('viewPeopleSection');
+  var list    = document.getElementById('viewPeopleList');
+  if (!section || !list) return;
+  section.style.display = 'none';
+  list.innerHTML = '';
+  var r = await rmsCall('getReportPeople', _token, reportId);
+  if (!r.ok || !r.people || !r.people.length) return;
+  section.style.display = '';
+  list.innerHTML = r.people.map(function(p) {
+    return '<div style="font-size:11px;margin-bottom:4px;font-family:monospace;">' +
+      '<span style="color:#4fa3e0;font-weight:700;">[' + esc(p.person_id) + ']</span> ' +
+      '<b>' + esc(p.full_name) + '</b>' +
+      (p.dob ? ' <span style="color:var(--muted);">DOB: ' + esc(p.dob) + '</span>' : '') +
+      ' — <span style="color:#7fffb2;">' + esc(p.role) + '</span>' +
+      '</div>';
+  }).join('');
+}
+
+// ─── People (writer / edit mode) ─────────────────────────────────────────────
+async function _loadReportPeople(reportId) {
+  var section = document.getElementById('writerPeopleSection');
+  var list    = document.getElementById('writerPeopleList');
+  if (!section || !list) return;
+  if (!reportId) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = '<span style="color:var(--muted);font-size:11px;">LOADING...</span>';
+  var r = await rmsCall('getReportPeople', _token, reportId);
+  if (!r.ok) { list.innerHTML = ''; return; }
+  if (!r.people || !r.people.length) { list.innerHTML = '<span style="color:var(--muted);font-size:11px;">NONE ATTACHED.</span>'; return; }
+  list.innerHTML = r.people.map(function(p) {
+    var pidE = esc(p.person_id);
+    return '<div style="font-size:11px;display:flex;gap:8px;align-items:center;margin-bottom:4px;flex-wrap:wrap;">' +
+      '<span style="color:#4fa3e0;font-weight:700;">[' + pidE + ']</span>' +
+      '<b>' + esc(p.full_name) + '</b>' +
+      (p.dob ? '<span style="color:var(--muted);">' + esc(p.dob) + '</span>' : '') +
+      '<span style="color:#7fffb2;">' + esc(p.role) + '</span>' +
+      '<button style="font-size:10px;padding:1px 6px;" class="btn btn-secondary" onclick="_detachPersonFromReport(' + JSON.stringify(p.person_id) + ')">DETACH</button>' +
+      '</div>';
+  }).join('');
+}
+
+async function _detachPersonFromReport(personId) {
+  if (!_editingReportId) return;
+  var r = await rmsCall('detachPersonFromReport', _token, _editingReportId, personId);
+  if (!r.ok) { showToast(r.error || 'DETACH FAILED.', 'err'); return; }
+  _loadReportPeople(_editingReportId);
+}
+
+async function _doPeopleSearch() {
+  var q = (document.getElementById('writerPeopleSearch').value || '').trim();
+  if (!q) return;
+  var resultsEl = document.getElementById('writerPeopleResults');
+  resultsEl.style.display = '';
+  resultsEl.innerHTML = '<div style="color:var(--muted);padding:8px;font-size:11px;">SEARCHING...</div>';
+  var r = await rmsCall('searchPeople', _token, q);
+  if (!r.ok || !r.people || !r.people.length) {
+    resultsEl.innerHTML = '<div style="color:var(--muted);padding:8px;font-size:11px;">NO RESULTS.</div>';
+    return;
+  }
+  resultsEl.innerHTML = r.people.map(function(p) {
+    var pidE = esc(p.person_id);
+    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);flex-wrap:wrap;">' +
+      '<span style="color:#4fa3e0;font-weight:700;font-size:11px;">[' + pidE + ']</span>' +
+      '<span style="font-size:11px;font-weight:700;">' + esc(p.full_name) + '</span>' +
+      (p.dob ? '<span style="color:var(--muted);font-size:10px;">' + esc(p.dob) + '</span>' : '') +
+      (p.address1 ? '<span style="color:var(--muted);font-size:10px;">' + esc(p.address1) + '</span>' : '') +
+      '<select id="roleSelect_' + pidE + '" style="font-size:10px;padding:1px 4px;margin-left:auto;">' +
+        '<option value="PATIENT">PATIENT</option><option value="SUBJECT">SUBJECT</option>' +
+        '<option value="VICTIM">VICTIM</option><option value="WITNESS">WITNESS</option>' +
+        '<option value="POI">POI</option><option value="OTHER">OTHER</option>' +
+      '</select>' +
+      '<button style="font-size:10px;padding:2px 7px;" class="btn btn-green" onclick="_attachExistingPerson(' + JSON.stringify(p.person_id) + ',\'roleSelect_' + pidE + '\')">ATTACH</button>' +
+      '</div>';
+  }).join('');
+}
+
+async function _attachExistingPerson(personId, roleSelectId) {
+  if (!_editingReportId) return;
+  var role = document.getElementById(roleSelectId) ? document.getElementById(roleSelectId).value : 'PATIENT';
+  var r = await rmsCall('attachPersonToReport', _token, _editingReportId, personId, role);
+  if (!r.ok) { showToast(r.error || 'ATTACH FAILED.', 'err'); return; }
+  document.getElementById('writerPeopleResults').style.display = 'none';
+  document.getElementById('writerPeopleSearch').value = '';
+  _loadReportPeople(_editingReportId);
+}
+
+async function _createAndAttachPerson() {
+  if (!_editingReportId) return;
+  var name = (document.getElementById('npName').value || '').trim();
+  if (!name) { showToast('FULL NAME REQUIRED.', 'err'); return; }
+  var statusEl = document.getElementById('newPersonStatus');
+  if (statusEl) statusEl.textContent = 'SAVING...';
+  var data = {
+    full_name: name,
+    dob:      (document.getElementById('npDob').value   || '').trim() || null,
+    phone:    (document.getElementById('npPhone').value || '').trim() || null,
+    address1: (document.getElementById('npAddr1').value || '').trim() || null,
+    address2: (document.getElementById('npAddr2').value || '').trim() || null,
+  };
+  var cr = await rmsCall('createPerson', _token, data);
+  if (!cr.ok) { showToast(cr.error || 'CREATE FAILED.', 'err'); if (statusEl) statusEl.textContent = ''; return; }
+  var role = document.getElementById('npRole').value || 'PATIENT';
+  var ar = await rmsCall('attachPersonToReport', _token, _editingReportId, cr.personId, role);
+  if (!ar.ok) { showToast(ar.error || 'ATTACH FAILED.', 'err'); }
+  // Reset form
+  ['npName','npDob','npPhone','npAddr1','npAddr2'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('newPersonForm').style.display = 'none';
+  if (statusEl) statusEl.textContent = '';
+  _loadReportPeople(_editingReportId);
+}
+
+// ─── Attach report to CAD incident ────────────────────────────────────────────
+async function _attachReportToIncident() {
+  if (!_viewingReportId) return;
+  var r = await rmsCall('attachReportToIncident', _token, _viewingReportId);
+  if (!r.ok) { showToast(r.error || 'ATTACH FAILED.', 'err'); return; }
+  showToast('REPORT ATTACHED TO INCIDENT.', 'ok');
+  var btn = document.getElementById('btnAttachToInc');
+  if (btn) { btn.disabled = true; btn.textContent = '✓ ATTACHED TO INCIDENT'; }
+}
+window._attachReportToIncident = _attachReportToIncident;
 
 // ── Incident reference panel ──
 async function _loadIncidentRef(incidentId) {
@@ -1072,6 +1298,8 @@ document.getElementById('btnSaveDraft').addEventListener('click', async function
   if (!r.ok) { showToast('SAVE FAILED: ' + (r.error || 'UNKNOWN'), 'err'); statusEl.textContent = ''; return; }
   statusEl.textContent = 'SAVED ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
   showToast('DRAFT SAVED.', 'ok');
+  // Show people section now that a report ID exists
+  _loadReportPeople(_editingReportId);
 });
 
 // ── Submit ──
@@ -1174,10 +1402,15 @@ document.getElementById('btnSaveAddendum').addEventListener('click', async funct
 document.getElementById('btnPrintReport').addEventListener('click', async function() {
   var reportId = _viewingReportId;
   if (!reportId) { showToast('NO REPORT LOADED.', 'err'); return; }
-  var r = await rmsCall('getReport', _token, reportId);
+  // Fetch report + people in parallel
+  var [r, pr] = await Promise.all([
+    rmsCall('getReport', _token, reportId),
+    rmsCall('getReportPeople', _token, reportId),
+  ]);
   if (!r.ok) { showToast('FAILED TO LOAD REPORT.', 'err'); return; }
-  var rpt      = r.report;
-  var addenda  = rpt.addenda || [];
+  var rpt     = r.report;
+  var addenda = rpt.addenda || [];
+  var people  = (pr.ok && pr.people) ? pr.people : [];
   var w = window.open('', '_blank', 'width=820,height=700,scrollbars=yes');
   if (!w) { showToast('ALLOW POPUPS TO PRINT.', 'err'); return; }
   var addendaHtml = addenda.length
@@ -1191,7 +1424,7 @@ document.getElementById('btnPrintReport').addEventListener('click', async functi
     : '<p style="color:#888;font-size:12px;">(No follow-up notes)</p>';
 
   var sd = rpt.structured_data || {};
-  w.document.write(_buildRmsReportHtml(rpt, addendaHtml, sd.cadHeader || null, sd.cadNotes || null));
+  w.document.write(_buildRmsReportHtml(rpt, addendaHtml, sd.cadHeader || null, sd.cadNotes || null, people));
   w.document.close();
   setTimeout(function() { try { w.print(); } catch(e) {} }, 400);
 });
@@ -1200,7 +1433,7 @@ function escPrint(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes) {
+function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes, people) {
   function fmtDt(ts) {
     return ts ? new Date(ts).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
   }
@@ -1233,6 +1466,8 @@ function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes) {
     '<div class="narrative">' + escPrint(rpt.narrative || '(No narrative)') + '</div>' +
     (cadHeader ? '<div class="section-hdr">CAD INCIDENT HEADER</div><div class="narrative">' + escPrint(cadHeader) + '</div>' : '') +
     (cadNotes  ? '<div class="section-hdr">CAD INCIDENT NOTES</div><div class="narrative">' + escPrint(cadNotes)  + '</div>' : '') +
+    (people && people.length ? '<div class="section-hdr">INVOLVED PERSONS</div>' +
+      people.map(function(p) { return '<div style="font-family:monospace;font-size:12px;margin-bottom:4px;">' + escPrint(p.person_id) + '  ' + escPrint(p.full_name) + (p.dob ? '  DOB:' + escPrint(p.dob) : '') + '  ' + escPrint(p.role) + '</div>'; }).join('') : '') +
     '<div class="section-hdr">ADDENDA / FOLLOW-UP NOTES</div>' +
     addendaHtml +
     '<div class="footer">Generated ' + new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'}) + ' — HOSCAD RMS — FOR OFFICIAL USE ONLY</div>' +
@@ -1240,9 +1475,42 @@ function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes) {
 }
 
 // window-expose functions called from innerHTML onclick
-window._editReport      = _editReport;
-window._viewReport      = _viewReport;
-window._toggleRefPanel  = _toggleRefPanel;
+window._editReport            = _editReport;
+window._viewReport            = _viewReport;
+window._toggleRefPanel        = _toggleRefPanel;
+window._detachPersonFromReport = _detachPersonFromReport;
+window._attachExistingPerson   = _attachExistingPerson;
+
+// ─── People section buttons (writer) ─────────────────────────────────────────
+(function() {
+  var searchBtn = document.getElementById('btnPeopleSearch');
+  if (searchBtn) {
+    searchBtn.addEventListener('click', _doPeopleSearch);
+  }
+  var searchInput = document.getElementById('writerPeopleSearch');
+  if (searchInput) {
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') _doPeopleSearch();
+    });
+  }
+  var newBtn = document.getElementById('btnNewPerson');
+  if (newBtn) {
+    newBtn.addEventListener('click', function() {
+      document.getElementById('newPersonForm').style.display = '';
+      document.getElementById('writerPeopleResults').style.display = 'none';
+    });
+  }
+  var savePersonBtn = document.getElementById('btnSavePerson');
+  if (savePersonBtn) {
+    savePersonBtn.addEventListener('click', _createAndAttachPerson);
+  }
+  var cancelPersonBtn = document.getElementById('btnCancelPerson');
+  if (cancelPersonBtn) {
+    cancelPersonBtn.addEventListener('click', function() {
+      document.getElementById('newPersonForm').style.display = 'none';
+    });
+  }
+})();
 
 // ════════════════════════════════════════════════════════════════════════
 // RECORDS TAB

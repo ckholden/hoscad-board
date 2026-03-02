@@ -101,6 +101,7 @@
     <button class="tab-btn" onclick="switchTab('hazardFlags')" style="color:#f85149;">HAZARD FLAGS</button>
     <button class="tab-btn" onclick="switchTab('auditLog')">AUDIT LOG</button>
     <button class="tab-btn" onclick="switchTab('rmsReports')" style="color:#4fa3e0;">RMS REPORTS</button>
+    <button class="tab-btn" onclick="switchTab('people')" style="color:#7fffb2;">PEOPLE</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -883,6 +884,36 @@
     <div id="rmsReportsTable"></div>
   </section>
 
+  <!-- PEOPLE TAB (#19) -->
+  <section id="tabPeople" class="tab-section">
+    <h2>PEOPLE DATABASE</h2>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:14px;">Search and manage the canonical people database. People can be linked to incidents and crew reports.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+      <input id="peopleQuery" placeholder="NAME OR ADDRESS…" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:240px;" />
+      <button class="btn-good" style="font-size:11px;" onclick="loadPeopleTab()">SEARCH</button>
+      <button class="btn-secondary" style="font-size:11px;" id="btnAdminNewPerson" onclick="_adminNewPersonForm()">+ NEW PERSON</button>
+      <span id="peopleStatus" class="muted" style="font-size:11px;"></span>
+    </div>
+    <!-- New person inline form -->
+    <div id="adminNewPersonForm" style="display:none;margin-bottom:14px;border:1px solid var(--line);padding:12px;border-radius:4px;background:rgba(255,255,255,.03);">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:8px;">NEW PERSON</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+        <input id="anpName"  placeholder="FULL NAME *" maxlength="80" autocapitalize="words" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <input id="anpDob"   placeholder="DATE OF BIRTH (YYYY-MM-DD)" maxlength="10" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <input id="anpPhone" placeholder="PHONE" maxlength="20" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <input id="anpAddr1" placeholder="PRIMARY ADDRESS" maxlength="120" autocapitalize="characters" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <input id="anpAddr2" placeholder="SECONDARY ADDRESS" maxlength="120" autocapitalize="characters" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+        <input id="anpNotes" placeholder="NOTES" maxlength="500" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-good" style="font-size:11px;" onclick="_adminSavePerson()">SAVE PERSON</button>
+        <button class="btn-secondary" style="font-size:11px;" onclick="document.getElementById('adminNewPersonForm').style.display='none'">CANCEL</button>
+        <span id="anpStatus" class="muted" style="font-size:11px;"></span>
+      </div>
+    </div>
+    <div id="peopleTable"></div>
+  </section>
+
   <!-- ROSTER TAB -->
   <section id="tabRoster" class="tab-section">
     <h2>UNIT ROSTER</h2>
@@ -1414,7 +1445,7 @@
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog','rmsReports'];
+      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog','rmsReports','people'];
       b.classList.toggle('active', tabs[i] === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
@@ -1437,6 +1468,7 @@
     if (name === 'positions') loadPositions();
     if (name === 'auditLog') loadAuditLog(0);
     if (name === 'rmsReports') loadRmsReports();
+    if (name === 'people') loadPeopleTab();
   }
 
   // ── Users Tab ─────────────────────────────────────────────
@@ -3754,6 +3786,128 @@
       loadUsers();
       checkIssueBadge();
     }
+  });
+
+  // ── People Tab ────────────────────────────────────────────
+  async function loadPeopleTab() {
+    const q   = (document.getElementById('peopleQuery')?.value || '').trim();
+    const tbl = document.getElementById('peopleTable');
+    const st  = document.getElementById('peopleStatus');
+    if (!tbl) return;
+    tbl.innerHTML = '<div class="muted">SEARCHING...</div>';
+    if (st) st.textContent = '';
+    const r = await API.searchPeople(_token, q || ' ');  // space = broad match
+    if (!r.ok) { tbl.innerHTML = '<div style="color:var(--red);">ERROR: ' + esc(r.error || 'UNKNOWN') + '</div>'; return; }
+    const people = r.people || [];
+    if (!people.length) { tbl.innerHTML = '<div class="muted">NO RESULTS.</div>'; return; }
+    if (st) st.textContent = people.length + ' RESULT(S)';
+    tbl.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
+      '<thead><tr>' +
+        '<th style="text-align:left;padding:6px 8px;font-size:11px;border-bottom:1px solid var(--line);">PERSON ID</th>' +
+        '<th style="text-align:left;padding:6px 8px;font-size:11px;border-bottom:1px solid var(--line);">NAME</th>' +
+        '<th style="text-align:left;padding:6px 8px;font-size:11px;border-bottom:1px solid var(--line);">DOB</th>' +
+        '<th style="text-align:left;padding:6px 8px;font-size:11px;border-bottom:1px solid var(--line);">ADDRESS</th>' +
+        '<th style="text-align:left;padding:6px 8px;font-size:11px;border-bottom:1px solid var(--line);">CREATED BY</th>' +
+        '<th style="padding:6px 8px;font-size:11px;border-bottom:1px solid var(--line);"></th>' +
+      '</tr></thead><tbody>' +
+      people.map(p =>
+        '<tr style="border-bottom:1px solid var(--line);">' +
+          '<td style="padding:5px 8px;font-size:11px;color:#4fa3e0;font-weight:700;">' + esc(p.person_id) + '</td>' +
+          '<td style="padding:5px 8px;font-size:11px;font-weight:700;">' + esc(p.full_name) + '</td>' +
+          '<td style="padding:5px 8px;font-size:11px;color:var(--muted);">' + esc(p.dob || '—') + '</td>' +
+          '<td style="padding:5px 8px;font-size:11px;">' + esc(p.address1 || p.address2 || '—') + '</td>' +
+          '<td style="padding:5px 8px;font-size:11px;color:var(--muted);">' + esc(p.created_by || '—') + '</td>' +
+          '<td style="padding:5px 8px;">' +
+            '<button class="btn-secondary" style="font-size:10px;padding:2px 7px;" onclick="_adminViewPerson(\'' + esc(p.person_id) + '\')">VIEW</button> ' +
+            ((_role === 'MGR1' || _role === 'MGR2' || _role === 'IT')
+              ? '<button class="btn-danger" style="font-size:10px;padding:2px 7px;" onclick="_adminDeletePerson(\'' + esc(p.person_id) + '\')">DELETE</button>'
+              : '') +
+          '</td>' +
+        '</tr>'
+      ).join('') +
+      '</tbody></table>';
+  }
+
+  window.loadPeopleTab = loadPeopleTab;
+
+  function _adminNewPersonForm() {
+    document.getElementById('adminNewPersonForm').style.display = '';
+  }
+  window._adminNewPersonForm = _adminNewPersonForm;
+
+  async function _adminSavePerson() {
+    const name = (document.getElementById('anpName').value || '').trim();
+    if (!name) { showToast('FULL NAME REQUIRED.'); return; }
+    const st = document.getElementById('anpStatus');
+    if (st) st.textContent = 'SAVING...';
+    const data = {
+      full_name: name,
+      dob:    (document.getElementById('anpDob').value   || '').trim() || null,
+      phone:  (document.getElementById('anpPhone').value || '').trim() || null,
+      address1: (document.getElementById('anpAddr1').value || '').trim() || null,
+      address2: (document.getElementById('anpAddr2').value || '').trim() || null,
+      notes:  (document.getElementById('anpNotes').value || '').trim() || null,
+    };
+    const r = await API.createPerson(_token, data);
+    if (!r.ok) { if (st) st.textContent = 'ERROR: ' + (r.error || 'UNKNOWN'); return; }
+    if (st) st.textContent = 'SAVED: ' + r.personId;
+    showToast('PERSON CREATED: ' + r.personId);
+    ['anpName','anpDob','anpPhone','anpAddr1','anpAddr2','anpNotes'].forEach(function(id) {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('adminNewPersonForm').style.display = 'none';
+    loadPeopleTab();
+  }
+  window._adminSavePerson = _adminSavePerson;
+
+  window._adminViewPerson = async function(personId) {
+    const r = await API.getPerson(_token, personId);
+    if (!r.ok) { showToast('NOT FOUND: ' + personId); return; }
+    const p = r.person;
+    const w = window.open('', '_blank', 'width=640,height=600,scrollbars=yes');
+    if (!w) { showToast('ALLOW POPUPS.'); return; }
+    const esc2 = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>' + esc2(p.person_id) + '</title>' +
+      '<style>body{font-family:monospace;background:#0b1018;color:#e6edf3;padding:24px;font-size:13px;}' +
+      'table{width:100%;border-collapse:collapse;margin-bottom:20px;}' +
+      'td{padding:6px 8px;border:1px solid #30363d;vertical-align:top;}' +
+      'td:first-child{font-weight:700;width:140px;color:#8b949e;background:#161b22;}' +
+      'h2{color:#4fa3e0;}</style></head><body>' +
+      '<h2>' + esc2(p.person_id) + ' — ' + esc2(p.full_name) + '</h2>' +
+      '<table>' +
+        '<tr><td>NAME</td><td>' + esc2(p.full_name) + '</td></tr>' +
+        '<tr><td>DOB</td><td>' + esc2(p.dob || '—') + '</td></tr>' +
+        '<tr><td>PHONE</td><td>' + esc2(p.phone || '—') + '</td></tr>' +
+        '<tr><td>EMAIL</td><td>' + esc2(p.email || '—') + '</td></tr>' +
+        '<tr><td>ADDRESS 1</td><td>' + esc2(p.address1 || '—') + '</td></tr>' +
+        '<tr><td>ADDRESS 2</td><td>' + esc2(p.address2 || '—') + '</td></tr>' +
+        '<tr><td>NOTES</td><td>' + esc2(p.notes || '—') + '</td></tr>' +
+        '<tr><td>CREATED BY</td><td>' + esc2(p.created_by || '—') + '</td></tr>' +
+        '<tr><td>CREATED AT</td><td>' + esc2(p.created_at ? new Date(p.created_at).toLocaleString() : '—') + '</td></tr>' +
+      '</table>' +
+      (p.incidents && p.incidents.length ? '<h2>LINKED INCIDENTS (' + p.incidents.length + ')</h2>' +
+        '<table><thead><tr><td>INCIDENT</td><td>ROLE</td><td>ATTACHED BY</td></tr></thead><tbody>' +
+        p.incidents.map(i => '<tr><td>' + esc2(i.incident_id) + '</td><td>' + esc2(i.role) + '</td><td>' + esc2(i.attached_by) + '</td></tr>').join('') +
+        '</tbody></table>' : '') +
+      (p.reports && p.reports.length ? '<h2>LINKED REPORTS (' + p.reports.length + ')</h2>' +
+        '<table><thead><tr><td>REPORT</td><td>ROLE</td><td>ATTACHED BY</td></tr></thead><tbody>' +
+        p.reports.map(rpt => '<tr><td>' + esc2(rpt.report_id) + '</td><td>' + esc2(rpt.role) + '</td><td>' + esc2(rpt.attached_by) + '</td></tr>').join('') +
+        '</tbody></table>' : '') +
+      '</body></html>');
+    w.document.close();
+  };
+
+  window._adminDeletePerson = async function(personId) {
+    if (!confirm('DELETE PERSON ' + personId + '?\n\nThis will also remove all incident/report links. This cannot be undone.')) return;
+    const r = await API.deletePerson(_token, personId);
+    if (!r.ok) { showToast('DELETE FAILED: ' + (r.error || 'UNKNOWN')); return; }
+    showToast('PERSON DELETED: ' + personId);
+    loadPeopleTab();
+  };
+
+  // People tab search on Enter
+  document.getElementById('peopleQuery')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loadPeopleTab();
   });
 
 </script>

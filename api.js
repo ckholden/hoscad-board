@@ -667,6 +667,52 @@ const API = {
   },
 
   // ============================================================
+  // People Database
+  // ============================================================
+  searchPeople(token, q) {
+    return this.call('searchPeople', token, q || '');
+  },
+  createPerson(token, data) {
+    return this.call('createPerson', token, data);
+  },
+  updatePerson(token, personId, data) {
+    return this.call('updatePerson', token, personId, data);
+  },
+  getPerson(token, personId) {
+    return this.call('getPerson', token, personId);
+  },
+  deletePerson(token, personId) {
+    return this.call('deletePerson', token, personId);
+  },
+  attachPersonToIncident(token, incId, personId, role) {
+    return this.call('attachPersonToIncident', token, incId, personId, role || 'PATIENT');
+  },
+  detachPersonFromIncident(token, incId, personId) {
+    return this.call('detachPersonFromIncident', token, incId, personId);
+  },
+  attachPersonToReport(token, reportId, personId, role) {
+    return this.call('attachPersonToReport', token, reportId, personId, role || 'PATIENT');
+  },
+  detachPersonFromReport(token, reportId, personId) {
+    return this.call('detachPersonFromReport', token, reportId, personId);
+  },
+  getIncidentPeople(token, incId) {
+    return this.call('getIncidentPeople', token, incId);
+  },
+  getReportPeople(token, reportId) {
+    return this.call('getReportPeople', token, reportId);
+  },
+
+  // RMS — crew attach report to incident
+  attachReportToIncident(crewToken, reportId) {
+    return this.call('attachReportToIncident', crewToken, reportId);
+  },
+  // Dispatcher attach report to incident
+  dispatcherAttachReport(token, reportId, incidentId) {
+    return this.call('dispatcherAttachReport', token, reportId, incidentId || null);
+  },
+
+  // ============================================================
   // RMS Admin Actions
   // ============================================================
   adminListReports(token, query, status, reportType, dateFrom, dateTo) {
