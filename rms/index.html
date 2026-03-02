@@ -939,6 +939,7 @@ async function _editReport(reportId) {
   document.getElementById('btnSaveDraft').style.display   = '';
   document.getElementById('btnSubmitReport').style.display = '';
   _loadIncidentRef(rpt.incident_id);
+  _loadReportPeople(rpt.report_id);
   switchTab('writer');
 }
 
