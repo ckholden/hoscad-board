@@ -9977,8 +9977,9 @@ async function _openPersonCard(personId) {
   title.textContent = '[' + p.person_id + '] ' + p.full_name;
 
   const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
-  const attachBtn = (ctxId && ROLE && ROLE !== 'VIEWER')
-    ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="_attachPersonToCurrentInc(\'' + p.person_id + '\')">ATTACH TO ' + esc(ctxId) + '</button>'
+  const attachBtn = (ROLE && ROLE !== 'VIEWER')
+    ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="_attachPersonToCurrentInc(\'' + p.person_id + '\',\'' + esc(ctxId || '') + '\')">'
+        + (ctxId ? 'ATTACH TO ' + esc(ctxId) : 'ATTACH TO INCIDENT') + '</button>'
     : '';
 
   const field = function(label, val) {
@@ -10033,13 +10034,17 @@ _openPersonCard.closeAndOpen = function(incidentId) {
   openIncident(incidentId);
 };
 
-async function _attachPersonToCurrentInc(personId) {
-  const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
-  if (!ctxId) return;
+async function _attachPersonToCurrentInc(personId, renderedCtxId) {
+  const ctxId = renderedCtxId || CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+  if (!ctxId) {
+    showAlert('NO ACTIVE INCIDENT', 'Open an incident modal or bind a context with R <INC#> first, then reopen this person card.');
+    return;
+  }
   const r = await API.attachPersonToIncident(TOKEN, ctxId, personId, 'PATIENT');
-  if (!r.ok) { showAlert('ATTACH FAILED', r.error || 'UNKNOWN'); return; }
+  if (!r.ok) { showAlert('ATTACH FAILED', r.error || 'UNKNOWN ERROR'); return; }
   showToast('PERSON ATTACHED TO ' + ctxId + '.', 'good', 3000);
   document.getElementById('personCardModal').style.display = 'none';
+  refresh();
   _refreshIncidentModal(ctxId);
 }
 
