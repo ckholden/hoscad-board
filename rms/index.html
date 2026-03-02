@@ -1184,12 +1184,15 @@ async function _loadIncidentRef(incidentId) {
       esc(inc.incident_note).replace(/\n/g, '<br>') + '</div>';
   }
   if (audit.length) {
-    html += '<div style="margin-top:8px;font-size:10px;color:var(--muted);letter-spacing:.05em;">LAST ' + audit.length + ' EVENTS:</div>';
-    audit.forEach(function(e) {
-      var aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+    var displayAudit = audit.length > 20 ? audit.slice(-20) : audit;
+    html += '<div style="margin-top:8px;font-size:10px;color:var(--muted);letter-spacing:.05em;">' +
+      (audit.length > 20 ? 'LAST 20 OF ' + audit.length + ' EVENTS:' : audit.length + ' EVENT(S):') + '</div>';
+    displayAudit.forEach(function(e) {
+      var aTime = e.ts ? new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '';
       html += '<div class="ref-note-line" style="font-size:11px;">' +
-        '<span style="color:var(--muted);">' + esc(aTime) + '</span> ' +
-        '<span>' + esc(e.actor || '') + '</span></div>';
+        '<span style="color:var(--muted);min-width:38px;display:inline-block;">' + esc(aTime) + '</span> ' +
+        (e.actor ? '<span style="color:#4fa3e0;">' + esc(e.actor) + '</span> ' : '') +
+        '<span>' + esc(e.message || '') + '</span></div>';
     });
   }
   document.getElementById('incRefPanel').innerHTML = html || '<span style="color:var(--muted);">No notes available.</span>';
@@ -1243,9 +1246,22 @@ document.getElementById('btnAttachAllNotes').addEventListener('click', function(
     showToast('CAD NOTES DETACHED.', 'ok');
     return;
   }
-  var inc  = _loadedIncData;
-  // incident_note contains the full formatted audit trail preserved from dispatch
-  var notesText = inc.incident_note ? inc.incident_note.trim() : '(no notes recorded)';
+  var inc   = _loadedIncData;
+  var audit = _loadedIncAudit || [];
+  var notesText;
+  if (audit.length) {
+    // Build from full audit log (chronological, all entries)
+    notesText = audit.map(function(e) {
+      var d = e.ts ? new Date(e.ts) : null;
+      var dateStr = d ? d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'2-digit'}) : '';
+      var timeStr = d ? d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : '';
+      var prefix = dateStr ? '[' + dateStr + ' ' + timeStr + '] ' : '';
+      var actor  = e.actor ? e.actor + ': ' : '';
+      return prefix + actor + (e.message || '');
+    }).join('\n');
+  } else {
+    notesText = inc.incident_note ? inc.incident_note.trim() : '(no notes recorded)';
+  }
   _attachedCadNotes = notesText;
   this.textContent = '✓ CAD NOTES ATTACHED';
   this.style.color = 'var(--green)';
