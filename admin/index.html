@@ -14,8 +14,10 @@
     #adminPanel { display:none; max-width:1100px; margin:0 auto; padding:20px; }
     .admin-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; border-bottom:2px solid var(--line); padding-bottom:12px; }
     .admin-title { font-size:18px; font-weight:900; color:var(--green); flex:1; }
-    .admin-nav { display:flex; gap:4px; margin-bottom:16px; }
-    .tab-btn { padding:6px 16px; font-size:12px; font-weight:900; background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer; font-family:inherit; text-transform:uppercase; }
+    .admin-nav { display:flex; flex-wrap:wrap; gap:4px; row-gap:6px; align-items:center; margin-bottom:16px; }
+    .tab-group-break { width:100%; height:0; margin:0; padding:0; }
+    .tab-group-sep { font-size:9px; font-weight:900; color:var(--muted); letter-spacing:.1em; opacity:.45; padding:0 8px 0 2px; min-width:52px; flex-shrink:0; }
+    .tab-btn { padding:5px 13px; font-size:11px; font-weight:900; background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer; font-family:inherit; text-transform:uppercase; }
     .tab-btn.active { background:var(--blue); color:#fff; border-color:var(--blue); }
     .tab-section { display:none; }
     .tab-section.active { display:block; }
@@ -83,26 +85,40 @@
   </div>
 
   <nav class="admin-nav">
-    <button class="tab-btn active" onclick="switchTab('users')">USERS</button>
-    <button class="tab-btn" onclick="switchTab('units')">UNITS</button>
-    <button class="tab-btn" onclick="switchTab('sessions')">SESSIONS</button>
-    <button class="tab-btn" onclick="switchTab('tools')">TOOLS</button>
-    <button class="tab-btn" onclick="switchTab('reports')">REPORTS</button>
-    <button class="tab-btn" onclick="switchTab('types')">TYPE CODES</button>
-    <button class="tab-btn" onclick="switchTab('destinations')">DESTINATIONS</button>
-    <button class="tab-btn" onclick="switchTab('addresses')">ADDRESSES</button>
-    <button class="tab-btn" onclick="switchTab('roster')">ROSTER</button>
-    <button class="tab-btn" onclick="switchTab('crew')">CREW</button>
-    <button class="tab-btn" onclick="switchTab('scope')">SCOPE</button>
-    <button class="tab-btn" onclick="switchTab('dc911')">DC911</button>
-    <button class="tab-btn" onclick="switchTab('issues')" style="color:#e09000;">ISSUES <span id="issuesBadge" style="display:none;" class="issue-badge"></span></button>
-    <button class="tab-btn" onclick="switchTab('flags')">FEATURE FLAGS</button>
-    <button class="tab-btn" onclick="switchTab('positions')">POSITIONS</button>
-    <button class="tab-btn" onclick="switchTab('hazardFlags')" style="color:#f85149;">HAZARD FLAGS</button>
-    <button class="tab-btn" onclick="switchTab('auditLog')">AUDIT LOG</button>
-    <button class="tab-btn" onclick="switchTab('rmsReports')" style="color:#4fa3e0;">RMS REPORTS</button>
-    <button class="tab-btn" onclick="switchTab('people')" style="color:#7fffb2;">PEOPLE</button>
-    <button class="tab-btn" onclick="switchTab('schedule')" style="color:#ffd66b;">SCHEDULE</button>
+    <!-- STAFF -->
+    <span class="tab-group-sep">STAFF</span>
+    <button class="tab-btn active" data-tab="users" onclick="switchTab('users')">USERS</button>
+    <button class="tab-btn" data-tab="positions" onclick="switchTab('positions')">POSITIONS</button>
+    <button class="tab-btn" data-tab="sessions" onclick="switchTab('sessions')">SESSIONS</button>
+    <div class="tab-group-break"></div>
+    <!-- FIELD -->
+    <span class="tab-group-sep">FIELD</span>
+    <button class="tab-btn" data-tab="roster" onclick="switchTab('roster')">ROSTER</button>
+    <button class="tab-btn" data-tab="crew" onclick="switchTab('crew')">CREW</button>
+    <button class="tab-btn" data-tab="units" onclick="switchTab('units')">UNITS</button>
+    <button class="tab-btn" data-tab="schedule" style="color:#ffd66b;" onclick="switchTab('schedule')">SCHEDULE</button>
+    <div class="tab-group-break"></div>
+    <!-- INCIDENTS -->
+    <span class="tab-group-sep">INCIDENTS</span>
+    <button class="tab-btn" data-tab="issues" style="color:#e09000;" onclick="switchTab('issues')">ISSUES <span id="issuesBadge" style="display:none;" class="issue-badge"></span></button>
+    <button class="tab-btn" data-tab="rmsReports" style="color:#4fa3e0;" onclick="switchTab('rmsReports')">RMS REPORTS</button>
+    <button class="tab-btn" data-tab="auditLog" onclick="switchTab('auditLog')">AUDIT LOG</button>
+    <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')">REPORTS</button>
+    <div class="tab-group-break"></div>
+    <!-- DATA -->
+    <span class="tab-group-sep">DATA</span>
+    <button class="tab-btn" data-tab="types" onclick="switchTab('types')">TYPE CODES</button>
+    <button class="tab-btn" data-tab="destinations" onclick="switchTab('destinations')">DESTINATIONS</button>
+    <button class="tab-btn" data-tab="addresses" onclick="switchTab('addresses')">ADDRESSES</button>
+    <button class="tab-btn" data-tab="hazardFlags" style="color:#f85149;" onclick="switchTab('hazardFlags')">HAZARD FLAGS</button>
+    <button class="tab-btn" data-tab="people" style="color:#7fffb2;" onclick="switchTab('people')">PEOPLE</button>
+    <div class="tab-group-break"></div>
+    <!-- SYSTEM -->
+    <span class="tab-group-sep">SYSTEM</span>
+    <button class="tab-btn" data-tab="flags" onclick="switchTab('flags')">FEATURE FLAGS</button>
+    <button class="tab-btn" data-tab="dc911" onclick="switchTab('dc911')">DC911</button>
+    <button class="tab-btn" data-tab="scope" onclick="switchTab('scope')">SCOPE</button>
+    <button class="tab-btn" data-tab="tools" onclick="switchTab('tools')">TOOLS</button>
   </nav>
 
   <!-- USERS TAB -->
@@ -1492,9 +1508,8 @@
 
   // ── Tab Navigation ────────────────────────────────────────
   function switchTab(name) {
-    document.querySelectorAll('.tab-btn').forEach((b,i) => {
-      const tabs = ['users','units','sessions','tools','reports','types','destinations','addresses','roster','crew','scope','dc911','issues','flags','positions','hazardFlags','auditLog','rmsReports','people','schedule'];
-      b.classList.toggle('active', tabs[i] === name);
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === name);
     });
     document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
     const el = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
@@ -4056,8 +4071,12 @@
             ? '<span style="font-size:9px;color:var(--muted);">' +
               esc(shift.shift_start.slice(0,5)) + '\u2013' + esc(shift.shift_end.slice(0,5)) + '</span>'
             : '';
-          html += '<td style="cursor:pointer;' + bg + 'color:#7fffb2;vertical-align:top;" ' +
+          html += '<td style="cursor:pointer;' + bg + 'color:#7fffb2;vertical-align:top;position:relative;" ' +
             'onclick="_schedOpenEdit(\'' + ds + '\',\'' + esc(unit.unit_id) + '\')">' +
+            '<button type="button" style="position:absolute;top:2px;right:3px;background:none;border:none;' +
+            'color:rgba(255,107,107,.55);cursor:pointer;font-size:13px;line-height:1;padding:0;" ' +
+            'title="DELETE SHIFT" ' +
+            'onclick="event.stopPropagation();_schedQuickDelete(' + shift.id + ',\'' + esc(unit.unit_id) + '\',\'' + ds + '\')">&times;</button>' +
             (crew || '<span class="muted" style="font-size:10px;">UNCREWED</span>') + timeStr + '</td>';
         } else {
           html += '<td style="cursor:pointer;' + bg + 'color:var(--muted);text-align:center;" ' +
@@ -4068,6 +4087,13 @@
     });
     html += '</tbody></table>';
     document.getElementById('schedGrid').innerHTML = html;
+  }
+
+  async function _schedQuickDelete(shiftId, unitId, dateStr) {
+    if (!confirm('DELETE shift for ' + unitId + ' on ' + dateStr + '?')) return;
+    var r = await API.deleteShift(_token, shiftId);
+    if (!r.ok) { alert('ERROR: ' + (r.error || 'FAILED TO DELETE SHIFT')); return; }
+    await _schedLoadWeek();
   }
 
   function _schedPrevWeek() {
@@ -4215,6 +4241,7 @@
   window._schedPrevWeek = _schedPrevWeek;
   window._schedNextWeek = _schedNextWeek;
   window._schedOpenEdit = _schedOpenEdit;
+  window._schedQuickDelete = _schedQuickDelete;
   window._schedRemoveCrew = _schedRemoveCrew;
   window._schedCrewFilter = _schedCrewFilter;
   window._schedAddCrewById = _schedAddCrewById;

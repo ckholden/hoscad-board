@@ -2698,7 +2698,7 @@ function renderActiveCallsBar() {
       ? acbAirMatches.map(m => '<span class="air-badge" style="font-size:8px;">AIR:' + esc(m[1].trim()) + '</span>').join('')
       : '';
 
-    return '<div class="' + cardCl + '" data-inc-id="' + esc(inc.incident_id) + '" onclick="openIncident(\'' + esc(inc.incident_id) + '\')" title="' + esc(inc.scene_address || '') + '">' +
+    return '<div class="' + cardCl + '" data-inc-id="' + esc(inc.incident_id) + '" onclick="_openIncidentSmart(\'' + esc(inc.incident_id) + '\')" title="' + esc(inc.scene_address || '') + '">' +
       '<div class="acb-id">' + esc(inc.incident_id) + priBadgeHtml + locBadgeAcb + acbMaBadge + acbAirBadge + '</div>' +
       '<div class="acb-type ' + typeCl + '">' + esc(incType || '—') + '</div>' +
       '<div class="' + elCl + '">' + esc(elapsedStr) + ' · ' + assignedUnits.length + ' UNIT' + (assignedUnits.length !== 1 ? 'S' : '') + '</div>' +
@@ -2970,7 +2970,7 @@ function renderIncidentQueue() {
     const relIds = Array.isArray(inc.related_incidents) ? inc.related_incidents : [];
     const relBadge = relIds.map(function(rid) {
       const shortRel = String(rid).replace(/^\d{2}-/, '');
-      return '<span class="rel-badge" title="Linked Incident" onclick="event.stopPropagation();openIncident(\'' + esc(rid) + '\')">REL:' + esc(shortRel) + '</span>';
+      return '<span class="rel-badge" title="Linked Incident" onclick="event.stopPropagation();_openIncidentSmart(\'' + esc(rid) + '\')">REL:' + esc(shortRel) + '</span>';
     }).join('');
     const isPri1 = pri === 'PRI-1' || pri === 'CRITICAL';
     let rowCl = (urgent || isPri1 ? 'inc-urgent' : '') + (isPri1 ? ' inc-pri1-queue' : '') + (hasMutualAid ? ' inc-mutual-aid' : '');
@@ -3011,7 +3011,7 @@ function renderIncidentQueue() {
     const _qSafetyFlags = _qFlags ? _qFlags.filter(f => f.is_active !== false && !['CONTACT-PHONE','ACCESS-CODE-SECURE-ENTRY'].includes(f.category)) : [];
     const flagQBadge = _qSafetyFlags.length > 0 ? `<span class="queue-flag-badge" title="${esc(_qSafetyFlags.map(f => f.category).join(', '))}">⚠</span>` : '';
 
-    html += `<tr class="${rowCl}" data-inc-id="${esc(inc.incident_id)}" onclick="openIncident('${esc(inc.incident_id)}')">`;
+    html += `<tr class="${rowCl}" data-inc-id="${esc(inc.incident_id)}" onclick="_openIncidentSmart('${esc(inc.incident_id)}')">`;
     html += `<td class="inc-id">${urgent ? 'HOT ' : ''}${esc(inc.incident_id)}${priBadge}${locBadge}${flagQBadge}${maBadge}${cbBadge}${relBadge}${staleBadge}${holdBadge}</td>`;
     const incDestResolved = AddressLookup.resolve(inc.destination);
     const incDestDisplay = incDestResolved.recognized ? incDestResolved.addr.name : (inc.destination || 'NO DEST');
@@ -3023,7 +3023,7 @@ function renderIncidentQueue() {
     html += `<td class="${waitCls}">${waitMins}M</td>`;
     html += `<td style="white-space:nowrap;">`;
     html += `<button class="toolbar-btn toolbar-btn-accent" onclick="event.stopPropagation(); assignIncidentToUnit('${esc(inc.incident_id)}')">ASSIGN</button> `;
-    html += `<button class="toolbar-btn" onclick="event.stopPropagation(); openIncident('${esc(inc.incident_id)}')">REVIEW</button> `;
+    html += `<button class="toolbar-btn" onclick="event.stopPropagation(); _openIncidentSmart('${esc(inc.incident_id)}')">REVIEW</button> `;
     html += `<button class="btn-danger mini" style="padding:3px 6px;font-size:10px;" onclick="event.stopPropagation(); closeIncidentFromQueue('${esc(inc.incident_id)}')">CLOSE</button>`;
     html += `</td>`;
     html += '</tr>';
@@ -3367,7 +3367,7 @@ function renderBoard() {
       }
       const stackData = getUnitStackData(u.unit_id);
       const stackBadgeHtml = stackData ? renderStackBadge(stackData.depth, stackData.hasUrgent, u.unit_id) : '';
-      incHtml = dotHtml + '<span class="clickableIncidentNum" onclick="event.stopPropagation(); openIncident(\'' + esc(u.incident) + '\')">' + esc(u.incident) + '</span>' + stackBadgeHtml;
+      incHtml = dotHtml + '<span class="clickableIncidentNum" onclick="event.stopPropagation(); _openIncidentSmart(\'' + esc(u.incident) + '\')">' + esc(u.incident) + '</span>' + stackBadgeHtml;
     }
     // Apply border-left: incident group border takes priority; fall back to unit type accent
     if (groupBorderColor) {
@@ -5210,7 +5210,7 @@ async function openIncidentFromServer(iId) {
       parts.push('<span class="muted" style="font-size:10px;">RELATED: </span>' +
         relIds.map(function(id) {
           const shortRel = id.replace(/^\d{2}-/, '');
-          return '<button type="button" class="related-inc-chip" onclick="openIncident(\'' + esc(id) + '\')">' + esc(id) + '</button>';
+          return '<button type="button" class="related-inc-chip" onclick="_openIncidentSmart(\'' + esc(id) + '\')">' + esc(id) + '</button>';
         }).join(''));
     }
     if (parts.length) {
@@ -7424,7 +7424,7 @@ async function _execCmd(tx) {
     if (!r.ok) return showErr(r);
     showToast('COPIED → ' + (r.incidentId || ''));
     refresh();
-    if (r.incidentId) setTimeout(() => openIncident(r.incidentId), 400);
+    if (r.incidentId) setTimeout(() => _openIncidentSmart(r.incidentId), 400);
     return;
   }
 
@@ -8554,7 +8554,7 @@ async function _execCmd(tx) {
         ? STATE.units.find(x => String(x.unit_id || '').toUpperCase() === bareUnit)
         : null;
       if (bareUnitObj && bareUnitObj.incident) {
-        openIncidentFromServer(bareUnitObj.incident);
+        _openIncidentSmart(bareUnitObj.incident);
         return;
       }
     }
@@ -11970,7 +11970,7 @@ async function start() {
       try { e.source.postMessage({ type: 'HOSCAD_RELAY_TOKEN', token: TOKEN }, window.location.origin); } catch(err){}
     }
     if (e.data && e.data.type === 'HOSCAD_REVIEW_INCIDENT' && e.data.incidentId) {
-      openIncident(e.data.incidentId);
+      _openIncidentSmart(e.data.incidentId);
     }
   });
 
@@ -12231,7 +12231,7 @@ window.addEventListener('load', () => {
       if (incEl) {
         e.stopPropagation();
         const incId = incEl.dataset.inc;
-        if (incId) openIncident(incId);
+        if (incId) _openIncidentSmart(incId);
         return;
       }
 
