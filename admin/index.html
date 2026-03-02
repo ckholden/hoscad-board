@@ -942,9 +942,12 @@
       <div style="margin-bottom:8px;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">ASSIGNED CREW</div>
         <div id="schedCrewList" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;"></div>
-        <select id="schedCrewSelect" onchange="_schedAddCrewFromSelect()" style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:100%;">
-          <option value="">— ADD CREW MEMBER —</option>
-        </select>
+        <div style="position:relative;">
+          <input id="schedCrewSearch" placeholder="SEARCH BY NAME OR CAD ID…" autocomplete="off"
+            oninput="_schedCrewFilter(this.value)"
+            style="padding:4px 8px;background:#0b1018;border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:12px;width:100%;box-sizing:border-box;" />
+          <div id="schedCrewDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0b1018;border:1px solid var(--line);z-index:200;max-height:160px;overflow-y:auto;"></div>
+        </div>
       </div>
       <div style="margin-bottom:10px;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">NOTES (OPTIONAL)</div>
@@ -3720,6 +3723,8 @@
     </table>
     <div class="section-hdr">NARRATIVE</div>
     <div class="narrative">${escHtml(rpt.narrative || '(No narrative)')}</div>
+    ${(rpt.structured_data && rpt.structured_data.cadHeader) ? `<div class="section-hdr">CAD INCIDENT HEADER</div><div class="narrative">${escHtml(rpt.structured_data.cadHeader)}</div>` : ''}
+    ${(rpt.structured_data && rpt.structured_data.cadNotes)  ? `<div class="section-hdr">CAD INCIDENT NOTES</div><div class="narrative">${escHtml(rpt.structured_data.cadNotes)}</div>`  : ''}
     <div class="section-hdr">ADDENDA / FOLLOW-UP NOTES</div>
     ${addendaHtml}
     <div class="footer">Generated ${new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'})} — HOSCAD RMS — FOR OFFICIAL USE ONLY</div>
@@ -3991,7 +3996,8 @@
     if (!_schedWeekStart) _schedWeekStart = _schedGetMonday(new Date());
     if (!_schedUnits.length) {
       var r = await API.getRoster(_token);
-      _schedUnits = (r.roster || []).filter(function(u) { return u.is_active !== false; });
+      // Exclude external/mutual-aid units — only schedule own-agency resources
+      _schedUnits = (r.roster || []).filter(function(u) { return u.is_active !== false && !u.is_external; });
     }
     if (!_schedCrew.length) {
       var cr = await API.call('listCrewRoster', _token);
@@ -4091,12 +4097,10 @@
     document.getElementById('schedNotes').value = existing ? (existing.notes || '') : '';
     document.getElementById('schedStatus').textContent = '';
 
-    var sel = document.getElementById('schedCrewSelect');
-    sel.innerHTML = '<option value="">— ADD CREW MEMBER —</option>' +
-      _schedCrew.map(function(c) {
-        return '<option value="' + esc(c.cad_id) + '">' +
-          esc(c.full_name) + ' (' + esc(c.cert_level || '') + ') [' + esc(c.cad_id) + ']</option>';
-      }).join('');
+    var srch = document.getElementById('schedCrewSearch');
+    if (srch) { srch.value = ''; }
+    var dd = document.getElementById('schedCrewDropdown');
+    if (dd) dd.style.display = 'none';
 
     _schedRenderCrewTags();
     document.getElementById('schedEditForm').style.display = '';
@@ -4126,15 +4130,34 @@
     _schedRenderCrewTags();
   }
 
-  function _schedAddCrewFromSelect() {
-    var sel = document.getElementById('schedCrewSelect');
-    var val = sel.value;
-    if (!val) return;
-    if (!_schedSelectedCrew.includes(val)) {
-      _schedSelectedCrew.push(val);
+  function _schedCrewFilter(q) {
+    var dd = document.getElementById('schedCrewDropdown');
+    if (!q || q.length < 1) { dd.style.display = 'none'; return; }
+    var lower = q.toLowerCase();
+    var matches = _schedCrew.filter(function(c) {
+      return c.full_name.toLowerCase().includes(lower) || c.cad_id.toLowerCase().includes(lower);
+    }).slice(0, 10);
+    if (!matches.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = matches.map(function(c) {
+      return '<div style="padding:5px 8px;cursor:pointer;font-size:11px;" ' +
+        'onmouseover="this.style.background=\'#1e2d1e\'" onmouseout="this.style.background=\'\'" ' +
+        'onclick="_schedAddCrewById(\'' + esc(c.cad_id) + '\')">' +
+        '<strong>' + esc(c.full_name) + '</strong> ' +
+        (c.cert_level ? '<span class="muted">(' + esc(c.cert_level) + ')</span> ' : '') +
+        '<span class="muted">[' + esc(c.cad_id) + ']</span></div>';
+    }).join('');
+    dd.style.display = '';
+  }
+
+  function _schedAddCrewById(cadId) {
+    if (!_schedSelectedCrew.includes(cadId)) {
+      _schedSelectedCrew.push(cadId);
       _schedRenderCrewTags();
     }
-    sel.value = '';
+    var srch = document.getElementById('schedCrewSearch');
+    if (srch) srch.value = '';
+    var dd = document.getElementById('schedCrewDropdown');
+    if (dd) dd.style.display = 'none';
   }
 
   async function _schedSave() {
@@ -4193,7 +4216,8 @@
   window._schedNextWeek = _schedNextWeek;
   window._schedOpenEdit = _schedOpenEdit;
   window._schedRemoveCrew = _schedRemoveCrew;
-  window._schedAddCrewFromSelect = _schedAddCrewFromSelect;
+  window._schedCrewFilter = _schedCrewFilter;
+  window._schedAddCrewById = _schedAddCrewById;
   window._schedSave = _schedSave;
   window._schedClearShift = _schedClearShift;
   window._schedCloseForm = _schedCloseForm;
