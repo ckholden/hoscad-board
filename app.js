@@ -8527,20 +8527,26 @@ async function _execCmd(tx) {
   }
 
   // Parse status + unit commands (D JC, JC OS, etc.)
-  const tk = ma.trim().split(/\s+/).filter(Boolean);
+  // Support optional inline note after , or ; e.g. "EMS1 OS, on scene with patient"
+  // (only extracted here, NOT at top of _execCmd — NC/HOLD use ; as their own separator)
+  const _scSepIdx = tx.search(/[,;]/);
+  const _scInlineNote = _scSepIdx >= 0 ? tx.substring(_scSepIdx + 1).trim().toUpperCase() : '';
+  const _scCmdPart = _scSepIdx >= 0 ? tx.substring(0, _scSepIdx).trim() : null;
+  // When separator present, parse from clean command portion; otherwise use original 2-token ma
+  const tk = (_scCmdPart !== null ? _scCmdPart : ma).trim().split(/\s+/).filter(Boolean);
 
   function parseStatusUnit(t) {
+    // STATUS UNIT [INCIDENT...] — status is first token
     if (t.length >= 2 && VALID_STATUSES.has(t[0].toUpperCase())) {
       return { status: t[0].toUpperCase(), unit: t.slice(1).join(' ') };
     }
+    // UNIT [INCIDENT] STATUS — status is last token
     if (t.length >= 2 && VALID_STATUSES.has(t[t.length - 1].toUpperCase())) {
       return { status: t[t.length - 1].toUpperCase(), unit: t.slice(0, -1).join(' ') };
     }
-    if (t.length === 2 && VALID_STATUSES.has(t[1].toUpperCase())) {
-      return { status: t[1].toUpperCase(), unit: t[0] };
-    }
-    if (t.length === 3 && VALID_STATUSES.has(t[0].toUpperCase())) {
-      return { status: t[0].toUpperCase(), unit: t.slice(1).join(' ') };
+    // UNIT STATUS INCIDENT — status is middle of 3 (e.g. "EMS1 OS 26-00001")
+    if (t.length === 3 && VALID_STATUSES.has(t[1].toUpperCase())) {
+      return { status: t[1].toUpperCase(), unit: t[0] + ' ' + t[2] };
     }
     return null;
   }
@@ -8688,7 +8694,8 @@ async function _execCmd(tx) {
   const dN = displayNameForUnit(u);
   const p = { status: stCmd, displayName: dN };
   // nU='FORCE' and nU=dispo-shortcode are consumed as flags — don't write as unit note
-  const _nuNote = (avForce && (nU.trim().toUpperCase() === 'FORCE' || _avDispoClose)) ? '' : nU;
+  // When inline note present (after , or ;), suppress nU as unit note (goes to incident instead)
+  const _nuNote = _scInlineNote ? '' : ((avForce && (nU.trim().toUpperCase() === 'FORCE' || _avDispoClose)) ? '' : nU);
   if (oosNotePrefix || (_nuNote && !nuUsedAsIncident)) p.note = oosNotePrefix + _nuNote;
   if (incidentId) {
     // Validate incident exists in STATE before dispatching (prevents FK constraint errors)
@@ -8720,6 +8727,13 @@ async function _execCmd(tx) {
     if (!rv.ok) throw new Error(rv.error || 'API error');
   });
   refresh();
+  // Append inline note (after , or ;) to the unit's incident
+  if (_scInlineNote) {
+    const _noteInc = incidentId || (boardUnit && boardUnit.incident) || null;
+    if (_noteInc) {
+      API.appendIncidentNote(TOKEN, _noteInc, '[' + u + '] ' + _scInlineNote).then(() => refresh());
+    }
+  }
   autoFocusCmd();
 }
 
