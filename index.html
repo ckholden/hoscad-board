@@ -160,6 +160,10 @@
   <div class="collapsible-panel" id="incidentQueueCard">
     <div class="collapsible-header" onclick="toggleIncidentQueue()">
       <span>INCIDENT QUEUE <span id="incQueueCount" class="muted" style="font-size:11px;"></span></span>
+      <span style="display:flex;align-items:center;gap:3px;margin-right:8px;">
+        <button onclick="event.stopPropagation();queueZoom(-1)" title="Zoom out" style="background:none;border:1px solid var(--border);color:var(--fg);cursor:pointer;padding:0 6px;font-size:14px;line-height:1.3;border-radius:2px;">−</button>
+        <button onclick="event.stopPropagation();queueZoom(1)"  title="Zoom in"  style="background:none;border:1px solid var(--border);color:var(--fg);cursor:pointer;padding:0 6px;font-size:14px;line-height:1.3;border-radius:2px;">+</button>
+      </span>
       <span class="collapse-arrow" id="incQueueArrow">&#9660;</span>
     </div>
     <div class="collapsible-body" id="incidentQueueBody">

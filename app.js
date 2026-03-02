@@ -68,7 +68,7 @@ let _rtRef = 0;            // Phoenix message ref counter
 // CLI Incident Context — session-local only, never persisted to localStorage.
 // Stale context pointing to a closed incident could silently misdirect commands.
 let CLI_CONTEXT = {
-  incidentId:  null,  // string|null — e.g. "SC26-0042"
+  incidentId:  null,  // string|null — e.g. "26-00042"
   activatedAt: null,  // Date|null
   activatedBy: null,  // string|null — ACTOR at bind time
   lastUpdate:  null,  // string|null — inc.last_update at bind time
@@ -1031,6 +1031,21 @@ function toggleIncidentQueue() {
   applyViewState();
 }
 
+// Incident queue font zoom — persisted in localStorage
+let _queueFontSize = parseInt(localStorage.getItem('hoscad_queue_zoom') || '13', 10);
+function queueZoom(delta) {
+  _queueFontSize = Math.max(9, Math.min(22, _queueFontSize + delta));
+  localStorage.setItem('hoscad_queue_zoom', String(_queueFontSize));
+  const el = document.getElementById('incidentQueue');
+  if (el) el.style.fontSize = _queueFontSize + 'px';
+}
+window.queueZoom = queueZoom;
+// Apply saved zoom on load
+(function() {
+  const el = document.getElementById('incidentQueue');
+  if (el) el.style.fontSize = _queueFontSize + 'px';
+})();
+
 // Toolbar event handlers
 function tbFilterChanged() {
   const val = document.getElementById('tbFilterStatus').value;
@@ -1326,10 +1341,16 @@ function _lhRender() {
       html += '<table class="lh-table"><thead><tr><th>INC#</th><th>DATE</th><th>TYPE</th><th>PRI</th><th>DISPO</th><th>STATUS</th><th>NOTE</th><th></th></tr></thead><tbody>';
       _lhCtx.results.forEach(row => {
         const incIdE = esc(row.incidentId);
-        const ctxBtn = ROLE !== 'VIEWER' && row.status !== 'CLOSED'
-          ? `<button class="btn-xs" onclick="_execCmd('R ${incIdE}');document.getElementById('lhPanel').style.display='none';" title="Open and bind context">CTX</button>`
-          : '';
-        html += `<tr><td>${incIdE}</td><td>${fmtTime24(row.createdAt)}</td><td>${esc(row.incidentType || '—')}</td><td>${esc(row.priority || '—')}</td><td>${esc(row.disposition || '—')}</td><td>${esc(row.status)}</td><td class="lh-snippet">${row.noteSnippet ? esc(row.noteSnippet.substring(0, 80)) : '—'}</td><td><button class="btn-xs" onclick="document.getElementById('lhPanel').style.display='none';_openIncidentSmart('${incIdE}');">OPEN</button>${ctxBtn}</td></tr>`;
+        const isCurrentCall = incIdE === (CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID);
+        let ctxCell;
+        if (isCurrentCall) {
+          ctxCell = `<span style="font-size:9px;font-weight:700;color:#FFD700;letter-spacing:.04em;padding:2px 5px;border:1px solid #FFD700;border-radius:3px;white-space:nowrap;">CURRENT CALL</span>`;
+        } else if (ROLE !== 'VIEWER' && row.status !== 'CLOSED') {
+          ctxCell = `<button class="btn-xs" onclick="_execCmd('R ${incIdE}');document.getElementById('lhPanel').style.display='none';" title="Bind as active context">CTX</button>`;
+        } else {
+          ctxCell = '';
+        }
+        html += `<tr><td>${incIdE}</td><td>${fmtTime24(row.createdAt)}</td><td>${esc(row.incidentType || '—')}</td><td>${esc(row.priority || '—')}</td><td>${esc(row.disposition || '—')}</td><td>${esc(row.status)}</td><td class="lh-snippet">${row.noteSnippet ? esc(row.noteSnippet.substring(0, 80)) : '—'}</td><td><button class="btn-xs" onclick="document.getElementById('lhPanel').style.display='none';_openIncidentSmart('${incIdE}');">OPEN</button>${ctxCell}</td></tr>`;
       });
       html += '</tbody></table>';
       if (_lhCtx.hasMore) {
@@ -2896,7 +2917,8 @@ function renderIncidentQueue() {
   incidents.forEach(inc => {
     const urgent = inc.incident_note && inc.incident_note.includes('[URGENT]');
     const pri = inc.priority || '';
-    let rawNote = inc.incident_note || '';
+    let rawNote = (inc.incident_note || '').split('\n')[0] || '';  // first line = current dispatcher note
+    const _noteHistory = (inc.incident_note || '').split('\n').map(l => l.replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim()).filter(Boolean);
     // Parse [MA:AGENCY:STATUS] tags (new) + legacy [MA] tag
     const maTagMatches = [...rawNote.matchAll(/\[MA:([^\]:]+):([^\]]+)\]/gi)];
     const maTags = maTagMatches.map(m => ({ agency: m[1].trim(), status: m[2].trim().toUpperCase() }));
@@ -2963,7 +2985,8 @@ function renderIncidentQueue() {
     const incDestDisplay = incDestResolved.recognized ? incDestResolved.addr.name : (inc.destination || 'NO DEST');
     html += `<td class="inc-dest${incDestResolved.recognized ? ' dest-recognized' : ''}">${esc(incDestDisplay)}</td>`;
     html += `<td>${incType ? '<span class="inc-type ' + typeCl + '">' + esc(incType) + '</span>' : '<span class="muted">--</span>'}</td>`;
-    html += `<td class="inc-note" title="${esc(note)}">${esc(note || '--')}</td>`;
+    const noteTip = _noteHistory.length > 1 ? _noteHistory.join('\n─────────────\n') : (_noteHistory[0] || '');
+    html += `<td class="inc-note" title="${esc(noteTip)}">${esc(note || '--')}</td>`;
     html += `<td style="font-size:11px;color:var(--muted);">${esc(sceneDisplay)}</td>`;
     html += `<td class="${waitCls}">${waitMins}M</td>`;
     html += `<td style="white-space:nowrap;">`;
@@ -3277,7 +3300,7 @@ function renderBoard() {
     let noteText = '';
     if (u.incident) {
       const incObj = (STATE.incidents || []).find(i => i.incident_id === u.incident);
-      if (incObj && incObj.incident_note) noteText = incObj.incident_note.replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
+      if (incObj && incObj.incident_note) noteText = (incObj.incident_note.split('\n')[0] || '').replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
     }
     if (!noteText) noteText = (u.note || '').replace(/^\[OOS:[^\]]+\]\s*/, '').replace(/\[LOC:[^\]]*\]\s*/g, '').replace(/\[ETA:\d+\]\s*/g, '');
     noteText = noteText.toUpperCase();
@@ -3576,7 +3599,7 @@ function renderBoardDiff() {
     let noteText = '';
     if (u.incident) {
       const incObj = incidentMap.get(u.incident);
-      if (incObj && incObj.incident_note) noteText = incObj.incident_note.replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
+      if (incObj && incObj.incident_note) noteText = (incObj.incident_note.split('\n')[0] || '').replace(/\[[^\]]*\]/g, '').replace(/\s{2,}/g, ' ').trim();
     }
     if (!noteText) noteText = (u.note || '').replace(/^\[OOS:[^\]]+\]\s*/, '').replace(/\[LOC:[^\]]*\]\s*/g, '').replace(/\[ETA:\d+\]\s*/g, '');
     noteText = noteText.toUpperCase();
@@ -4850,7 +4873,8 @@ function assignIncidentToUnit(incidentId) {
 // in clickable anchors. Returns an HTML string (non-matching text is esc()-d).
 function _linkifyIncIds(rawText) {
   const text = String(rawText || '');
-  const re = /\b(SC\d{2}-\d{4}|INC[-\s]?\d{2}[-\s]?\d{4}|INC\d{4})\b/gi;
+  // Match: 26-00001, INC 26-00001, INC26-00001, 00001
+  const re = /\b(\d{2}-\d{5}|INC[-\s]?\d{2}[-\s]?\d{5}|INC\d{5})\b/gi;
   const activeIds = new Set((STATE?.incidents || []).map(i => i.incident_id));
   let result = '';
   let lastIdx = 0;
@@ -4860,12 +4884,12 @@ function _linkifyIncIds(rawText) {
     const raw = match[0];
     const stripped = raw.replace(/^INC[-\s]*/i, '').replace(/[-\s]/g, '').trim().toUpperCase();
     let normId = null;
-    if (/^\d{4}$/.test(stripped)) {
+    if (/^\d{5}$/.test(stripped)) {
       const found = (STATE?.incidents || []).find(i => i.incident_id.endsWith('-' + stripped));
-      normId = found ? found.incident_id : ('SC' + String(new Date().getFullYear()).slice(-2) + '-' + stripped);
-    } else if (/^SC\d{2}\d{4}$/.test(stripped)) {
-      normId = stripped.slice(0, 4) + '-' + stripped.slice(4);
-    } else if (/^SC\d{2}-\d{4}$/.test(raw.toUpperCase())) {
+      normId = found ? found.incident_id : (String(new Date().getFullYear()).slice(-2) + '-' + stripped);
+    } else if (/^\d{2}\d{5}$/.test(stripped)) {
+      normId = stripped.slice(0, 2) + '-' + stripped.slice(2);
+    } else if (/^\d{2}-\d{5}$/.test(raw.toUpperCase())) {
       normId = raw.toUpperCase();
     }
     if (normId && activeIds.has(normId)) {
@@ -7235,8 +7259,6 @@ async function _execCmd(tx) {
       }
       CLI_CONTEXT = { incidentId: rIncId, activatedAt: new Date(), activatedBy: ACTOR, lastUpdate: rInc.last_update || null };
       _updateContextBanner();
-      // Fire-and-forget audit on new incident
-      API.appendIncidentNote(TOKEN, rIncId, '[SYS] CONTEXT BOUND BY ' + ACTOR).catch(() => {});
     } else if (rInc && rInc.status === 'CLOSED') {
       showToast('INC CLOSED — CONTEXT NOT BOUND', 'warn');
     }
@@ -7267,7 +7289,7 @@ async function _execCmd(tx) {
   if (mU.startsWith('CB ')) {
     const cbArg = ma.substring(3).trim().toUpperCase();
     const cbPhone = nU.trim().toUpperCase();
-    const isIncId = /^INC\d+$/.test(cbArg) || /^[A-Z]{1,4}\d{2}-\d{4}$/.test(cbArg) || /^\d{2}-\d{4}$/.test(cbArg) || /^\d{3,4}$/.test(cbArg);
+    const isIncId = /^INC\d+$/i.test(cbArg) || /^\d{2}-\d{5}$/.test(cbArg) || /^\d{1,5}$/.test(cbArg);
     let cbIncId, cbNum;
     if (isIncId && cbPhone) {
       cbIncId = cbArg;
@@ -7309,7 +7331,7 @@ async function _execCmd(tx) {
   // U <NOTE>        — uses currently-open incident panel (no ID required)
   if (mU.startsWith('U ')) {
     const iR = ma.substring(2).trim().toUpperCase();
-    const isIncId = /^INC\d+$/.test(iR) || /^[A-Z]{1,4}\d{2}-\d{4}$/.test(iR) || /^\d{2}-\d{4}$/.test(iR) || /^\d{3,4}$/.test(iR);
+    const isIncId = /^INC\d+$/i.test(iR) || /^\d{2}-\d{5}$/.test(iR) || /^\d{1,5}$/.test(iR);
     if (isIncId) {
       if (!nU) { showConfirm('ERROR', 'USAGE: U INC0001 MESSAGE', () => { }); return; }
       setLive(true, 'LIVE • ADD NOTE');
@@ -9510,7 +9532,7 @@ async function _doSearchPanel() {
   }
 
   // Kick off all server-side history fetches early (parallel with client-side work)
-  const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
+  const incPat = /^(?:INC[-\s]?)?\d{2}-\d{5}$|^(?:INC[-\s]?)?\d{5}$/i;
   const [incIdPromise, locHistPromise, fullSearchPromise, f3PeoplePromise] = (TOKEN && q.length >= 3) ? [
     (incPat.test(q) && q.length >= 4) ? API.searchIncidents(TOKEN, q, 6).catch(() => null) : Promise.resolve(null),
     API.getLocationHistory(TOKEN, q, 6).catch(() => null),
@@ -9798,7 +9820,7 @@ async function _doUniversalQuery() {
   // Historical incidents + people — server-side, all searches in parallel
   if (TOKEN && q.length >= 3) {
     const capturedQ = q;
-    const incPat = /^(?:INC[-\s]?)?(?:\d{2}-?)?\d{4}$|^SC\d/i;
+    const incPat = /^(?:INC[-\s]?)?\d{2}-\d{5}$|^(?:INC[-\s]?)?\d{5}$/i;
     const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
 
     // Run all applicable searches in parallel (including people)
