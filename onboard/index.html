@@ -282,6 +282,20 @@
 <!-- ─── Scripts ────────────────────────────────────────────────── -->
 <script src="../api.js"></script>
 <script>
+  // ── Access restriction — only allow on admin.hoscad.net or localhost ──
+  (function() {
+    var host = window.location.hostname;
+    var allowed = (host === 'admin.hoscad.net' || host === 'localhost' || host === '127.0.0.1');
+    if (!allowed) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;">' +
+        '<div class="card" style="text-align:center;padding:40px;">' +
+        '<h3 style="color:#f85149;margin:0 0 10px;">ACCESS DENIED</h3>' +
+        '<p class="muted">Platform administration is only available at<br><strong>admin.hoscad.net</strong></p>' +
+        '</div></div>';
+      return;
+    }
+  })();
+
   var _token = '';
 
   // ── Login / Logout ──────────────────────────────────────────
