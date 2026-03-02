@@ -9681,7 +9681,8 @@ async function _doSearchPanel() {
     if (f3PeopleRes?.ok && f3PeopleRes.people?.length) {
       html += '<div style="padding:6px 16px 4px;font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);margin-top:4px;">PEOPLE (' + f3PeopleRes.people.length + ')</div>';
       f3PeopleRes.people.slice(0, 8).forEach(p => {
-        html += '<div class="search-result-row">' +
+        const pidQ = JSON.stringify(p.person_id);
+        html += '<div class="search-result-row" style="cursor:pointer;" onclick="closeSearchPanel();_openPersonCard(' + pidQ + ')">' +
           '<div class="search-result-label">' +
             '<span style="font-weight:900;color:#4fa3e0;">[' + esc(p.person_id) + ']</span>' +
             ' <span style="font-weight:700;">' + esc(p.full_name) + '</span>' +
@@ -9949,11 +9950,101 @@ function _uqSelect(el) {
   closeUniversalQuery();
   if (type === 'incident') {
     _execCmd('R ' + id);
+  } else if (type === 'person') {
+    _openPersonCard(id);
   } else {
     const cmd = document.getElementById('cmd');
     if (cmd) { cmd.value = id; cmd.focus(); }
   }
 }
+
+// ── Person Card Modal ────────────────────────────────────────────────────────
+async function _openPersonCard(personId) {
+  const modal = document.getElementById('personCardModal');
+  const body  = document.getElementById('personCardBody');
+  const title = document.getElementById('personCardTitle');
+  if (!modal) return;
+  title.textContent = personId;
+  body.innerHTML = '<span style="color:var(--muted);">LOADING...</span>';
+  modal.style.display = 'flex';
+
+  const r = await API.getPerson(TOKEN, personId);
+  if (!r.ok) {
+    body.innerHTML = '<span style="color:var(--red);">LOAD FAILED: ' + esc(r.error || 'UNKNOWN') + '</span>';
+    return;
+  }
+  const p = r.person;
+  title.textContent = '[' + p.person_id + '] ' + p.full_name;
+
+  const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+  const attachBtn = (ctxId && IS_DISPATCHER && ROLE !== 'VIEWER')
+    ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="_attachPersonToCurrentInc(' + JSON.stringify(p.person_id) + ')">ATTACH TO ' + esc(ctxId) + '</button>'
+    : '';
+
+  const field = function(label, val) {
+    if (!val) return '';
+    return '<div style="display:flex;gap:8px;margin-bottom:3px;"><span style="min-width:110px;color:var(--muted);font-size:11px;">' + label + '</span><span>' + esc(val) + '</span></div>';
+  };
+
+  const incidents = p.incidents || [];
+  const reports   = p.reports   || [];
+
+  const incHtml = incidents.length
+    ? incidents.map(function(i) {
+        return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:3px;font-size:11px;">' +
+          '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openPersonCard.closeAndOpen(' + JSON.stringify(i.incident_id) + ')">' + esc(i.incident_id) + '</span>' +
+          '<span style="color:#7fffb2;">' + esc(i.role) + '</span>' +
+          '<span style="color:var(--muted);">' + fmtTime(i.attached_at) + '</span>' +
+          '</div>';
+      }).join('')
+    : '<span style="color:var(--muted);font-size:11px;">NONE ON RECORD</span>';
+
+  const rptHtml = reports.length
+    ? reports.map(function(rep) {
+        return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:3px;font-size:11px;">' +
+          '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openReportPopout(' + JSON.stringify(rep.report_id) + ')">' + esc(rep.report_id) + '</span>' +
+          '<span style="color:#7fffb2;">' + esc(rep.role) + '</span>' +
+          '<span style="color:var(--muted);">' + fmtTime(rep.attached_at) + '</span>' +
+          '</div>';
+      }).join('')
+    : '<span style="color:var(--muted);font-size:11px;">NONE ON RECORD</span>';
+
+  body.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+      '<span style="font-size:13px;font-weight:700;">' + esc(p.full_name) + '</span>' +
+      attachBtn +
+    '</div>' +
+    field('DATE OF BIRTH', p.dob) +
+    field('PHONE', p.phone) +
+    field('EMAIL', p.email) +
+    field('ADDRESS', p.address1) +
+    field('ALT ADDRESS', p.address2) +
+    (p.aka_names && p.aka_names.length ? field('AKA', p.aka_names.join(', ')) : '') +
+    (p.notes ? '<div style="margin:8px 0 4px;"><span style="color:var(--muted);font-size:11px;">NOTES</span><div style="white-space:pre-wrap;font-size:11px;margin-top:3px;border-left:2px solid var(--border);padding-left:8px;">' + esc(p.notes) + '</div></div>' : '') +
+    '<div style="border-top:1px solid var(--border);margin:10px 0 6px;padding-top:8px;font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--muted);">ASSOCIATED INCIDENTS</div>' +
+    incHtml +
+    '<div style="border-top:1px solid var(--border);margin:10px 0 6px;padding-top:8px;font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--muted);">ASSOCIATED REPORTS</div>' +
+    rptHtml +
+    '<div style="color:var(--muted);font-size:10px;margin-top:12px;">ID: ' + esc(p.person_id) + ' · CREATED BY: ' + esc(p.created_by || '') + '</div>';
+}
+
+_openPersonCard.closeAndOpen = function(incidentId) {
+  document.getElementById('personCardModal').style.display = 'none';
+  openIncident(incidentId);
+};
+
+async function _attachPersonToCurrentInc(personId) {
+  const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+  if (!ctxId) return;
+  const r = await API.attachPersonToIncident(TOKEN, ctxId, personId, 'PATIENT');
+  if (!r.ok) { showAlert('ATTACH FAILED', r.error || 'UNKNOWN'); return; }
+  showToast('PERSON ATTACHED TO ' + ctxId + '.', 'good', 3000);
+  document.getElementById('personCardModal').style.display = 'none';
+  _refreshIncidentModal(ctxId);
+}
+
+window._openPersonCard          = _openPersonCard;
+window._attachPersonToCurrentInc = _attachPersonToCurrentInc;
 
 async function _f3AddToCall(incId, addrText) {
   const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
