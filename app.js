@@ -5248,7 +5248,7 @@ async function openIncidentFromServer(iId) {
             '<span style="color:' + (rpt.status === 'SUBMITTED' ? '#7fffb2' : '#ffd66b') + ';font-size:10px;">' + esc(rpt.status) + '</span>' +
             '<span class="muted">' + fmtTime(rpt.submitted_at || rpt.created_at) + '</span>' +
             '<button style="font-size:10px;padding:2px 7px;" class="btn-secondary" onclick="_openReportPopout(\'' + rIdE + '\')">VIEW</button>' +
-            (IS_DISPATCHER && rpt.status === 'SUBMITTED'
+            (ROLE !== 'VIEWER' && rpt.status === 'SUBMITTED'
               ? '<button style="font-size:10px;padding:2px 7px;" class="btn-secondary" id="incAttachBtn-' + rIdE + '" onclick="_dispAttachReportFromModal(\'' + rIdE + '\',\'' + esc(iId) + '\')">ATTACH TO INC</button>'
               : '') +
             '</div>';
@@ -9977,7 +9977,7 @@ async function _openPersonCard(personId) {
   title.textContent = '[' + p.person_id + '] ' + p.full_name;
 
   const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
-  const attachBtn = (ctxId && IS_DISPATCHER && ROLE !== 'VIEWER')
+  const attachBtn = (ctxId && ROLE && ROLE !== 'VIEWER')
     ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="_attachPersonToCurrentInc(' + JSON.stringify(p.person_id) + ')">ATTACH TO ' + esc(ctxId) + '</button>'
     : '';
 
@@ -12022,8 +12022,8 @@ function _schedModalToday() {
 }
 
 function _renderScheduleModal() {
-  // canEdit: any dispatcher (ROLE check via IS_DISPATCHER or role != VIEWER)
-  var canEdit = IS_DISPATCHER && ROLE !== 'VIEWER';
+  // canEdit: any dispatcher (ROLE check via ROLE !== 'VIEWER' or role != VIEWER)
+  var canEdit = ROLE && ROLE !== 'VIEWER';
   var shiftMap = {};
   _schedModalShifts.forEach(function(s) { shiftMap[s.unit_id] = s; });
 
