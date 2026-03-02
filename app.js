@@ -1328,7 +1328,7 @@ function _lhRender() {
         const ctxBtn = ROLE !== 'VIEWER' && row.status !== 'CLOSED'
           ? `<button class="btn-xs" onclick="_execCmd('R ${incIdE}');document.getElementById('lhPanel').style.display='none';" title="Open and bind context">CTX</button>`
           : '';
-        html += `<tr><td>${incIdE}</td><td>${fmtTime24(row.createdAt)}</td><td>${esc(row.incidentType || '—')}</td><td>${esc(row.priority || '—')}</td><td>${esc(row.disposition || '—')}</td><td>${esc(row.status)}</td><td class="lh-snippet">${row.noteSnippet ? esc(row.noteSnippet.substring(0, 80)) : '—'}</td><td><button class="btn-xs" onclick="openIncidentFromServer('${incIdE}');document.getElementById('lhPanel').style.display='none';">OPEN</button>${ctxBtn}</td></tr>`;
+        html += `<tr><td>${incIdE}</td><td>${fmtTime24(row.createdAt)}</td><td>${esc(row.incidentType || '—')}</td><td>${esc(row.priority || '—')}</td><td>${esc(row.disposition || '—')}</td><td>${esc(row.status)}</td><td class="lh-snippet">${row.noteSnippet ? esc(row.noteSnippet.substring(0, 80)) : '—'}</td><td><button class="btn-xs" onclick="document.getElementById('lhPanel').style.display='none';_openIncidentSmart('${incIdE}');">OPEN</button>${ctxBtn}</td></tr>`;
       });
       html += '</tbody></table>';
       if (_lhCtx.hasMore) {
@@ -7768,9 +7768,10 @@ async function _execCmd(tx) {
   }
 
   // RQ - Requeue incident (back to QUEUED, clears unit assignment)
-  if (mU.startsWith('RQ ')) {
-    const inc = ma.substring(3).trim().toUpperCase();
-    if (!inc) { showConfirm('ERROR', 'USAGE: RQ INC0001', () => { }); return; }
+  if (mU === 'RQ' || mU.startsWith('RQ ')) {
+    const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    const inc = mU.startsWith('RQ ') ? ma.substring(3).trim().toUpperCase() : _ctxId;
+    if (!inc) { showAlert('ERROR', 'USAGE: RQ <INC> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
     showConfirm('REQUEUE INCIDENT', `REQUEUE INC ${inc}?\n\nThis clears the current unit assignment and sets the incident back to QUEUED for reassignment.`, async () => {
       const r = await API.requeueIncident(TOKEN, inc);
       if (!r.ok) return showErr(r);
@@ -7780,9 +7781,10 @@ async function _execCmd(tx) {
   }
 
   // RO - Reopen incident (CLOSED → ACTIVE, keeps existing units)
-  if (mU.startsWith('RO ')) {
-    const inc = ma.substring(3).trim().toUpperCase();
-    if (!inc) { showConfirm('ERROR', 'USAGE: RO INC0001', () => { }); return; }
+  if (mU === 'RO' || mU.startsWith('RO ')) {
+    const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
+    const inc = mU.startsWith('RO ') ? ma.substring(3).trim().toUpperCase() : _ctxId;
+    if (!inc) { showAlert('ERROR', 'USAGE: RO <INC> — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
     const r = await API.reopenIncident(TOKEN, inc);
     if (!r.ok) return showErr(r);
     refresh();
