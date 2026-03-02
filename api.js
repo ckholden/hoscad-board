@@ -733,6 +733,7 @@ const API = {
     return this.call('setShift', token, shiftDate, unitId, crewCadIds, start, end, notes||'');
   },
   deleteShift(token, shiftId)                           { return this.call('deleteShift', token, shiftId); },
+  getScheduleData(token, dateStr)                       { return this.call('getScheduleData', token, dateStr); },
 };
 
 // Export for module systems (if used)

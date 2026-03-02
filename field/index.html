@@ -1703,6 +1703,7 @@
         <!-- Field-originated call creation -->
         <button class="field-nc-open-btn" id="fieldNcOpenBtn" onclick="_openFieldNcPanel()" style="display:none;">+ CREATE CALL</button>
         <a id="btnWriteReport" href="/rms/" target="_blank" style="display:none;font-size:11px;padding:4px 10px;text-decoration:none;" class="btn-secondary">DOCUMENT CALL</a>
+        <button id="btnFieldSchedule" onclick="_openFieldSchedule()" style="display:none;font-size:11px;padding:4px 10px;" class="btn-secondary">SCHEDULE</button>
         <div id="fieldNcPanel" class="field-nc-panel" style="display:none;">
           <div class="field-nc-header">
             FIELD-ORIGINATED CALL
@@ -4055,6 +4056,8 @@
         rptBtn.style.display = 'none';
       }
     }
+    var schedBtn = document.getElementById('btnFieldSchedule');
+    if (schedBtn) schedBtn.style.display = (_cadToken && _cadCallsign) ? '' : 'none';
   }
 
   // Close typeahead when tapping outside
@@ -6913,5 +6916,89 @@
     </div>
   </div>
 </div>
+
+<!-- Field Schedule Modal (read-only) -->
+<div id="fieldSchedModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;">
+  <div style="background:#0b1018;border:1px solid #2a3a4a;display:flex;flex-direction:column;width:min(520px,97vw);max-height:88vh;border-radius:4px;">
+    <div style="background:#111;border-bottom:1px solid #2a3a4a;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <button onclick="_fieldSchedNav(-1)" style="padding:3px 10px;background:transparent;border:1px solid #2a3a4a;color:#8090a0;font-family:inherit;font-size:11px;cursor:pointer;">&#9664;</button>
+      <button onclick="_fieldSchedNav(0)" style="padding:3px 10px;background:transparent;border:1px solid #2a3a4a;color:#8090a0;font-family:inherit;font-size:11px;cursor:pointer;">TODAY</button>
+      <button onclick="_fieldSchedNav(1)" style="padding:3px 10px;background:transparent;border:1px solid #2a3a4a;color:#8090a0;font-family:inherit;font-size:11px;cursor:pointer;">&#9654;</button>
+      <span id="fieldSchedTitle" style="flex:1;text-align:center;font-size:12px;font-weight:700;color:#c0d0e0;letter-spacing:.05em;"></span>
+      <button onclick="document.getElementById('fieldSchedModal').style.display='none'" style="padding:3px 10px;background:transparent;border:1px solid #2a3a4a;color:#8090a0;font-family:inherit;font-size:11px;cursor:pointer;">&#xD7; CLOSE</button>
+    </div>
+    <div id="fieldSchedBody" style="flex:1;overflow-y:auto;padding:0;"></div>
+  </div>
+</div>
+
+<script>
+var _fieldSchedDate = null;
+
+function _openFieldSchedule() {
+  _fieldSchedDate = new Date();
+  _fieldSchedLoad();
+}
+
+function _fieldSchedNav(dir) {
+  if (dir === 0) { _fieldSchedDate = new Date(); }
+  else { var d = new Date(_fieldSchedDate); d.setDate(d.getDate() + dir); _fieldSchedDate = d; }
+  _fieldSchedLoad();
+}
+
+function _fieldSchedDateStr(d) {
+  return d.toISOString().slice(0,10);
+}
+
+async function _fieldSchedLoad() {
+  var modal = document.getElementById('fieldSchedModal');
+  modal.style.display = 'flex';
+  var d = _fieldSchedDate;
+  document.getElementById('fieldSchedTitle').textContent =
+    d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'}).toUpperCase();
+  document.getElementById('fieldSchedBody').innerHTML =
+    '<div style="padding:20px;color:#6080a0;text-align:center;font-size:12px;">LOADING…</div>';
+
+  var tok = window._crewSessionToken || (window.API && window.API._crewToken) || '';
+  // Use field app's crew session token or dispatcher token
+  var r = await API.getScheduleData(tok || _cadToken, _fieldSchedDateStr(d));
+  if (!r.ok) {
+    document.getElementById('fieldSchedBody').innerHTML =
+      '<div style="padding:20px;color:#e05050;font-size:12px;">ERROR: ' + (r.error||'UNKNOWN') + '</div>';
+    return;
+  }
+  var units = r.units || [];
+  var shiftMap = {};
+  (r.shifts || []).forEach(function(s) { shiftMap[s.unit_id] = s; });
+
+  if (!units.length) {
+    document.getElementById('fieldSchedBody').innerHTML =
+      '<div style="padding:20px;color:#6080a0;text-align:center;font-size:12px;">NO UNITS FOUND.</div>';
+    return;
+  }
+
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+  units.forEach(function(unit) {
+    var shift = shiftMap[unit.unit_id];
+    var crew = shift && shift.crew_members && shift.crew_members.length
+      ? shift.crew_members.map(function(m) {
+          return '<div style="font-size:11px;">' + m.full_name +
+            (m.cert_level ? ' <span style="color:#6080a0;">(' + m.cert_level + ')</span>' : '') +
+            ' <span style="color:#4a6080;">[' + m.cad_id + ']</span></div>';
+        }).join('')
+      : '<span style="color:#405060;">—</span>';
+    var shiftStr = shift
+      ? '<span style="color:#6080a0;font-size:10px;">' +
+        (shift.shift_start||'').slice(0,5) + '–' + (shift.shift_end||'').slice(0,5) + '</span>'
+      : '<span style="color:#405060;font-size:10px;">—</span>';
+    html += '<tr style="border-bottom:1px solid #1a2535;">' +
+      '<td style="padding:7px 10px;white-space:nowrap;font-weight:700;color:#c0d0e0;vertical-align:top;">' + unit.unit_id + '</td>' +
+      '<td style="padding:7px 10px;vertical-align:top;">' + crew + '</td>' +
+      '<td style="padding:7px 10px;vertical-align:top;white-space:nowrap;">' + shiftStr + '</td>' +
+      '</tr>';
+  });
+  html += '</table>';
+  document.getElementById('fieldSchedBody').innerHTML = html;
+}
+</script>
 </body>
 </html>

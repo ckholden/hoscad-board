@@ -631,6 +631,20 @@
   </div>
 </div>
 
+<!-- Schedule Modal -->
+<div id="scheduleModal" style="display:none;position:fixed;inset:0;z-index:7600;background:rgba(0,0,0,.82);align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);display:flex;flex-direction:column;width:min(700px,96vw);max-height:88vh;border-radius:3px;">
+    <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <button class="btn-secondary" style="font-size:11px;padding:2px 8px;" onclick="_schedModalNav(-1)">&#9664;</button>
+      <button class="btn-secondary" style="font-size:11px;padding:2px 8px;" onclick="_schedModalToday()">TODAY</button>
+      <button class="btn-secondary" style="font-size:11px;padding:2px 8px;" onclick="_schedModalNav(1)">&#9654;</button>
+      <span id="schedModalTitle" style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--hi);flex:1;text-align:center;"></span>
+      <button class="btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="_closeScheduleModal()">&#xD7; CLOSE</button>
+    </div>
+    <div id="schedModalBody" style="flex:1;overflow-y:auto;padding:0;"></div>
+  </div>
+</div>
+
 <!-- Map Modal -->
 <div id="mapModalBack" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:8000;align-items:center;justify-content:center;">
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;width:560px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
