@@ -9978,7 +9978,7 @@ async function _openPersonCard(personId) {
 
   const ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
   const attachBtn = (ctxId && ROLE && ROLE !== 'VIEWER')
-    ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="_attachPersonToCurrentInc(' + JSON.stringify(p.person_id) + ')">ATTACH TO ' + esc(ctxId) + '</button>'
+    ? '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="_attachPersonToCurrentInc(\'' + p.person_id + '\')">ATTACH TO ' + esc(ctxId) + '</button>'
     : '';
 
   const field = function(label, val) {
@@ -9992,7 +9992,7 @@ async function _openPersonCard(personId) {
   const incHtml = incidents.length
     ? incidents.map(function(i) {
         return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:3px;font-size:11px;">' +
-          '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openPersonCard.closeAndOpen(' + JSON.stringify(i.incident_id) + ')">' + esc(i.incident_id) + '</span>' +
+          '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openPersonCard.closeAndOpen(\'' + esc(i.incident_id) + '\')">' + esc(i.incident_id) + '</span>' +
           '<span style="color:#7fffb2;">' + esc(i.role) + '</span>' +
           '<span style="color:var(--muted);">' + fmtTime(i.attached_at) + '</span>' +
           '</div>';
@@ -10002,7 +10002,7 @@ async function _openPersonCard(personId) {
   const rptHtml = reports.length
     ? reports.map(function(rep) {
         return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:3px;font-size:11px;">' +
-          '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openReportPopout(' + JSON.stringify(rep.report_id) + ')">' + esc(rep.report_id) + '</span>' +
+          '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openReportPopout(\'' + esc(rep.report_id) + '\')">' + esc(rep.report_id) + '</span>' +
           '<span style="color:#7fffb2;">' + esc(rep.role) + '</span>' +
           '<span style="color:var(--muted);">' + fmtTime(rep.attached_at) + '</span>' +
           '</div>';
