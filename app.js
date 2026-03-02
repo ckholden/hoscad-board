@@ -4878,16 +4878,13 @@ function _linkifyIncIds(rawText) {
   return result;
 }
 
-async function _clickIncLink(el) {
+function _clickIncLink(el) {
   const incId = el.dataset.incId;
   if (!incId) return;
+  // If already context-bound to a different incident, review without disrupting
   if (CLI_CONTEXT.incidentId && CLI_CONTEXT.incidentId !== incId) {
-    const ok = await new Promise(res => showConfirm(
-      'SWITCH CONTEXT?',
-      'LEAVE ' + CLI_CONTEXT.incidentId + ' AND OPEN ' + incId + '?',
-      () => res(true), () => res(false)
-    ));
-    if (!ok) return;
+    _openIncidentReview(incId);
+    return;
   }
   _execCmd('R ' + incId);
 }
@@ -9552,7 +9549,7 @@ async function _doSearchPanel() {
           '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
         '</div>' +
         '<div class="search-result-actions">' +
-          '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+          '<button class="btn-sm" onclick="closeSearchPanel();_openIncidentSmart(' + incIdQ + ')">OPEN</button>' +
           (status !== 'ACTIVE' && inc.scene_address ? '<button class="btn-sm" onclick="searchPanelNc(' + addrQ + ')">NC→</button>' : '') +
         '</div>' +
       '</div>';
@@ -9597,7 +9594,7 @@ async function _doSearchPanel() {
               '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
             '</div>' +
             '<div class="search-result-actions">' +
-              '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+              '<button class="btn-sm" onclick="closeSearchPanel();_openIncidentSmart(' + incIdQ + ')">OPEN</button>' +
               _f3AddBtn(inc.incident_id, addrText) +
             '</div>' +
           '</div>';
@@ -9639,7 +9636,7 @@ async function _doSearchPanel() {
                 '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
               '</div>' +
               '<div class="search-result-actions">' +
-                '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+                '<button class="btn-sm" onclick="closeSearchPanel();_openIncidentSmart(' + incIdQ + ')">OPEN</button>' +
                 _f3AddBtn(r.incidentId, addrText) +
               '</div>' +
             '</div>';
@@ -9669,7 +9666,7 @@ async function _doSearchPanel() {
               '<br><span style="font-size:11px;">' + esc(addrText) + '</span>' +
             '</div>' +
             '<div class="search-result-actions">' +
-              '<button class="btn-sm" onclick="openIncident(' + incIdQ + ');closeSearchPanel()">OPEN</button>' +
+              '<button class="btn-sm" onclick="closeSearchPanel();_openIncidentSmart(' + incIdQ + ')">OPEN</button>' +
               _f3AddBtn(inc.incident_id, addrText) +
             '</div>' +
           '</div>';
@@ -9949,7 +9946,12 @@ function _uqSelect(el) {
   const id   = el.dataset.id;
   closeUniversalQuery();
   if (type === 'incident') {
-    _execCmd('R ' + id);
+    // If context-bound, review without disrupting the active call
+    if (CLI_CONTEXT.incidentId) {
+      _openIncidentReview(id);
+    } else {
+      _execCmd('R ' + id);
+    }
   } else if (type === 'person') {
     _openPersonCard(id);
   } else {
@@ -9957,6 +9959,179 @@ function _uqSelect(el) {
     if (cmd) { cmd.value = id; cmd.focus(); }
   }
 }
+
+// Opens a historical incident in read-only mode without touching CLI_CONTEXT or CURRENT_INCIDENT_ID
+let _incReviewData = null;
+
+async function _openIncidentReview(incId) {
+  const modal = document.getElementById('incReviewModal');
+  const body  = document.getElementById('incReviewBody');
+  const title = document.getElementById('incReviewTitle');
+  const acts  = document.getElementById('incReviewActions');
+  if (!modal) { openIncident(incId); return; } // fallback if modal missing
+  title.textContent = 'LOADING ' + incId + '…';
+  body.innerHTML = '<div style="padding:20px;color:var(--muted);">LOADING...</div>';
+  acts.innerHTML = '';
+  modal.style.display = 'flex';
+  _incReviewData = null;
+
+  const [rInc, rRpts, rPpl] = await Promise.all([
+    API.getIncident(TOKEN, incId),
+    API.listIncidentReports(TOKEN, incId).catch(() => ({ ok: false })),
+    API.getIncidentPeople(TOKEN, incId).catch(() => ({ ok: false })),
+  ]);
+
+  if (!rInc.ok) {
+    body.innerHTML = '<div style="padding:20px;color:var(--red);">INCIDENT NOT FOUND: ' + esc(incId) + '</div>';
+    return;
+  }
+
+  const inc     = rInc.incident;
+  const audit   = rInc.audit || [];
+  const reports = (rRpts.ok && rRpts.reports) || [];
+  const people  = (rPpl.ok  && rPpl.people)  || [];
+  const ctxId   = CLI_CONTEXT.incidentId;
+
+  _incReviewData = { inc, ctxId };
+
+  title.textContent = inc.incident_id + ' — ' + (inc.incident_type || 'UNKNOWN TYPE');
+
+  // Context action buttons (shown when dispatcher has an active call)
+  if (ctxId && ROLE && ROLE !== 'VIEWER') {
+    acts.innerHTML =
+      '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="_incReviewAddIntel()">ADD INTEL TO ' + esc(ctxId) + '</button>' +
+      '<button class="btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="_incReviewLink()">LINK TO ' + esc(ctxId) + '</button>';
+  }
+
+  // Metadata section
+  const statusColor = inc.status === 'ACTIVE' ? 'var(--green)' : inc.status === 'QUEUED' ? 'var(--yellow)' : 'var(--muted)';
+  const priColors = { 'P1':'#ff4d4d','P2':'#ffa040','P3':'var(--hi)','P4':'var(--muted)' };
+  const priColor = priColors[inc.priority] || 'var(--muted)';
+
+  let metaHtml =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 16px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;">' +
+      '<div><span style="color:var(--muted);">STATUS</span> <b style="color:' + statusColor + ';">' + esc(inc.status || '') + '</b></div>' +
+      (inc.priority ? '<div><span style="color:var(--muted);">PRIORITY</span> <b style="color:' + priColor + ';">' + esc(inc.priority) + '</b></div>' : '') +
+      (inc.scene_address ? '<div style="grid-column:1/-1;"><span style="color:var(--muted);">ADDRESS</span> ' + esc(inc.scene_address) + '</div>' : '') +
+      (inc.unit_id ? '<div><span style="color:var(--muted);">UNIT</span> ' + esc(inc.unit_id) + '</div>' : '') +
+      (inc.created_at ? '<div><span style="color:var(--muted);">CREATED</span> ' + fmtTime(inc.created_at) + '</div>' : '') +
+      (inc.closed_at  ? '<div><span style="color:var(--muted);">CLOSED</span> '  + fmtTime(inc.closed_at)  + '</div>' : '') +
+    '</div>';
+
+  // Notes
+  const notesHtml = inc.incident_note
+    ? '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;">NOTES</div>' +
+        '<div style="white-space:pre-wrap;font-size:11px;line-height:1.5;">' + esc(inc.incident_note) + '</div>' +
+      '</div>'
+    : '';
+
+  // People
+  let pplHtml = '';
+  if (people.length) {
+    const canAttach = ctxId && ROLE && ROLE !== 'VIEWER';
+    pplHtml =
+      '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;">INVOLVED PERSONS</div>' +
+        people.map(function(p) {
+          return '<div style="font-size:11px;display:flex;gap:8px;align-items:center;margin-bottom:3px;flex-wrap:wrap;">' +
+            '<span style="color:#4fa3e0;font-weight:700;cursor:pointer;" onclick="_openPersonCard(\'' + esc(p.person_id) + '\')">[' + esc(p.person_id) + ']</span>' +
+            '<b>' + esc(p.full_name) + '</b>' +
+            (p.dob ? '<span style="color:var(--muted);">' + esc(p.dob) + '</span>' : '') +
+            '<span style="color:#7fffb2;">' + esc(p.role) + '</span>' +
+            (canAttach ? '<button class="btn-secondary" style="font-size:9px;padding:1px 5px;" onclick="_incReviewAttachPerson(\'' + esc(p.person_id) + '\')">ATTACH TO ' + esc(ctxId) + '</button>' : '') +
+          '</div>';
+        }).join('') +
+      '</div>';
+  }
+
+  // Reports
+  let rptHtml = '';
+  if (reports.length) {
+    rptHtml =
+      '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;">REPORTS (' + reports.length + ')</div>' +
+        reports.map(function(r) {
+          const rIdE = esc(r.report_id);
+          return '<div style="font-size:11px;display:flex;gap:8px;align-items:center;margin-bottom:2px;">' +
+            '<span style="color:#4fa3e0;font-weight:700;">' + rIdE + '</span>' +
+            '<span class="muted">' + esc(r.report_type) + '</span>' +
+            '<span>' + esc(r.author_name) + '</span>' +
+            '<span style="color:' + (r.status === 'SUBMITTED' ? '#7fffb2' : '#ffd66b') + ';font-size:10px;">' + esc(r.status) + '</span>' +
+            '<button style="font-size:10px;padding:1px 6px;" class="btn-secondary" onclick="_openReportPopout(\'' + rIdE + '\')">VIEW</button>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+  }
+
+  // Audit log
+  const auditHtml =
+    '<div style="padding:8px 14px;">' +
+      '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;">CALL HISTORY</div>' +
+      (audit.length
+        ? audit.map(function(r) {
+            const ts = r.ts ? fmtTime24(r.ts) : '—';
+            const aC = getRoleColor(r.actor);
+            const isSys = String(r.message || '').startsWith('[SYS]');
+            return '<div style="border-bottom:1px solid var(--line);padding:6px 0;">' +
+              '<div class="muted ' + aC + '" style="font-size:10px;">' + esc(ts) + ' · ' + esc((r.actor || '').toUpperCase()) + '</div>' +
+              '<div style="font-size:11px;' + (isSys ? 'color:var(--muted);font-style:italic;' : 'color:var(--yellow);font-weight:700;') + '">' +
+                _formatAuditMessage(String(r.message || '')) +
+              '</div>' +
+            '</div>';
+          }).join('')
+        : '<div style="color:var(--muted);font-size:11px;">NO HISTORY.</div>') +
+    '</div>';
+
+  body.innerHTML = metaHtml + notesHtml + pplHtml + rptHtml + auditHtml;
+}
+
+function _incReviewAddIntel() {
+  if (!_incReviewData) return;
+  const { inc, ctxId } = _incReviewData;
+  if (!ctxId) return;
+  const note = ('[INTEL] RELATED INCIDENT: ' + inc.incident_id + ' — ' +
+    (inc.incident_type || '') + (inc.scene_address ? ' @ ' + inc.scene_address : '') + ' · ' + (inc.status || '')).toUpperCase().substring(0, 300);
+  API.appendIncidentNote(TOKEN, ctxId, note).then(function(r) {
+    if (!r.ok) { showAlert('FAILED', r.error || 'ERROR'); return; }
+    showToast('INTEL ADDED TO ' + ctxId + '.', 'good', 3000);
+    refresh();
+    _refreshIncidentModal(ctxId);
+  });
+}
+
+function _incReviewLink() {
+  if (!_incReviewData) return;
+  const { inc, ctxId } = _incReviewData;
+  if (!ctxId) return;
+  API.linkIncidents(TOKEN, ctxId, inc.incident_id).then(function(r) {
+    if (!r.ok) { showAlert('LINK FAILED', r.error || 'ERROR'); return; }
+    showToast('INCIDENTS LINKED: ' + ctxId + ' ↔ ' + inc.incident_id + '.', 'good', 3000);
+    refresh();
+    _refreshIncidentModal(ctxId);
+  });
+}
+
+function _incReviewAttachPerson(personId) {
+  if (!_incReviewData) return;
+  const { ctxId } = _incReviewData;
+  if (!ctxId) return;
+  _attachPersonToCurrentInc(personId, ctxId);
+}
+
+function _openIncidentSmart(incId) {
+  if (CLI_CONTEXT.incidentId) {
+    _openIncidentReview(incId);
+  } else {
+    openIncident(incId);
+  }
+}
+
+window._openIncidentReview    = _openIncidentReview;
+window._openIncidentSmart     = _openIncidentSmart;
+window._incReviewAddIntel     = _incReviewAddIntel;
+window._incReviewLink         = _incReviewLink;
+window._incReviewAttachPerson = _incReviewAttachPerson;
 
 // ── Person Card Modal ────────────────────────────────────────────────────────
 async function _openPersonCard(personId) {
@@ -10030,8 +10205,8 @@ async function _openPersonCard(personId) {
 }
 
 _openPersonCard.closeAndOpen = function(incidentId) {
-  document.getElementById('personCardModal').style.display = 'none';
-  openIncident(incidentId);
+  // Open in review mode so person card context is preserved and active call isn't disrupted
+  _openIncidentReview(incidentId);
 };
 
 async function _attachPersonToCurrentInc(personId, renderedCtxId) {

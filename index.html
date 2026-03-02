@@ -631,6 +631,19 @@
   </div>
 </div>
 
+<!-- Incident Review Modal (read-only, context-safe) -->
+<div id="incReviewModal" style="display:none;position:fixed;inset:0;z-index:8300;background:rgba(0,0,0,.88);align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border:1px solid var(--border);display:flex;flex-direction:column;width:min(700px,96vw);max-height:92vh;border-radius:3px;">
+    <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+      <span id="incReviewTitle" style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--hi);"></span>
+      <span style="font-size:9px;font-weight:900;letter-spacing:.08em;color:var(--yellow);border:1px solid var(--yellow);padding:1px 5px;border-radius:2px;">READ ONLY</span>
+      <div id="incReviewActions" style="display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;"></div>
+      <button class="btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="document.getElementById('incReviewModal').style.display='none'">&#xD7; CLOSE</button>
+    </div>
+    <div id="incReviewBody" style="flex:1;overflow-y:auto;padding:0;"></div>
+  </div>
+</div>
+
 <!-- Person Card Modal -->
 <div id="personCardModal" style="display:none;position:fixed;inset:0;z-index:8100;background:rgba(0,0,0,.86);align-items:center;justify-content:center;">
   <div style="background:var(--bg);border:1px solid var(--border);display:flex;flex-direction:column;width:min(560px,96vw);max-height:88vh;border-radius:3px;">
