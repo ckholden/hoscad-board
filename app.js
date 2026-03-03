@@ -599,6 +599,26 @@ const AddressLookup = {
     return exact.concat(starts, contains).slice(0, limit);
   },
 
+  /** Find a named location whose address matches a GIS street address */
+  matchByAddress(streetAddr, city) {
+    if (!streetAddr || !this._loaded) return null;
+    const norm = String(streetAddr).trim().toUpperCase().replace(/\s+/g, ' ');
+    const cityU = city ? String(city).trim().toUpperCase() : '';
+    for (let i = 0; i < this._cache.length; i++) {
+      const a = this._cache[i];
+      const aAddr = (a.address || '').toUpperCase().replace(/\s+/g, ' ');
+      if (!aAddr) continue;
+      // Exact street address match (ignore city for brevity — same address implies same place)
+      if (norm === aAddr) return a;
+      // Also match if GIS address starts with the named location's address (handles "2500 NE NEFF RD" vs "2500 NE NEFF")
+      if (norm.indexOf(aAddr) === 0 || aAddr.indexOf(norm) === 0) {
+        // But city must match if both are present
+        if (!cityU || !a.city || cityU === a.city.toUpperCase()) return a;
+      }
+    }
+    return null;
+  },
+
   resolve(destValue) {
     if (!destValue) return { recognized: false, addr: null, displayText: '' };
     const v = String(destValue).trim().toUpperCase();
@@ -1757,13 +1777,18 @@ async function _runAddrTypeahead(val) {
   }
   const gisOffset = localResults.length;
   html += (gisResults).map((res, i) => {
-    const sub = [res.city, res.county ? res.county + ' Co.' : ''].filter(Boolean).join(' · ');
+    // Auto-merge: check if this GIS address matches a named location
+    const namedMatch = AddressLookup.matchByAddress(res.full_address, res.city);
+    const nameTag = namedMatch ? ' <span class="addr-ta-tag">VERIFIED</span>' : '';
+    const nameLine = namedMatch ? esc(namedMatch.name) + ' — ' : '';
+    const sub = [namedMatch ? namedMatch.name + ' (' + namedMatch.id + ')' : null,
+      res.city, res.county ? res.county + ' Co.' : ''].filter(Boolean).join(' · ');
     return '<div class="addr-ta-row' + (!gisOffset && i === 0 ? ' active' : '') + '" ' +
       'data-type="gis" data-full="' + esc(res.full_address) + '" ' +
       'data-canonical="' + esc(res.canonical || '') + '" ' +
       'data-lat="' + (res.lat || '') + '" data-lon="' + (res.lon || '') + '" ' +
       'data-city="' + esc(res.city || '') + '" data-id="' + (res.id || '') + '">' +
-      '<div class="addr-ta-main">' + esc(res.full_address) + '</div>' +
+      '<div class="addr-ta-main">' + nameLine + esc(res.full_address) + nameTag + '</div>' +
       (sub ? '<div class="addr-ta-sub">' + esc(sub) + '</div>' : '') +
       '</div>';
   }).join('');
