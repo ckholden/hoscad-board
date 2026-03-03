@@ -3,7 +3,7 @@
  * Caches field app shell for offline resilience, handles push notifications.
  */
 
-const CACHE_NAME = 'hoscad-field-v89';
+const CACHE_NAME = 'hoscad-field-v90';
 // Audio files intentionally excluded — browser Range requests return 206 which
 // cache.addAll() rejects atomically, breaking the entire pre-cache install.
 // Audio is served from network on demand and cached at runtime by the fetch handler.
@@ -26,7 +26,9 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL).catch(() => {});
+      return cache.addAll(APP_SHELL).catch((err) => {
+        console.warn('[SW-FIELD] Pre-cache failed:', err);
+      });
     })
   );
   self.skipWaiting();
@@ -57,7 +59,7 @@ self.addEventListener('fetch', (event) => {
   if (url.endsWith('/manifest.json') || url.endsWith('/manifest-field.json')) return;
 
   // Skip external APIs and CDNs — let the page handle these directly (avoids CORS issues)
-  if (url.includes('supabase.co') || url.includes('script.google.com') || url.includes('googleapis') ||
+  if (url.includes('supabase.co') || url.includes('googleapis') ||
       url.includes('nominatim.openstreetmap.org') || url.includes('tile.openstreetmap.org') ||
       url.includes('unpkg.com') || url.includes('cdn.sheetjs.com') ||
       url.includes('api.adsb.lol') || url.includes('ckholden.github.io')) {
@@ -75,7 +77,20 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request).then(r => r || new Response('OFFLINE', { status: 503 })))
+      .catch(() => {
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          // For navigation requests, serve the cached field app shell (not a blank 503)
+          if (event.request.mode === 'navigate') {
+            return caches.match('/field/').then((shell) => {
+              return shell || new Response('OFFLINE — FIELD APP NOT CACHED', {
+                status: 503, headers: { 'Content-Type': 'text/plain' }
+              });
+            });
+          }
+          return new Response('OFFLINE', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+        });
+      })
   );
 });
 

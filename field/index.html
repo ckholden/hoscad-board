@@ -30,6 +30,7 @@
       --purple: #c084fc;
       --orange: #ffaa5b;
       --font-mono: Consolas, Menlo, Monaco, "Courier New", monospace;
+      --font-bump: 0px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,7 +42,7 @@
       color: var(--text);
       font-family: var(--font-mono);
       text-transform: uppercase;
-      font-size: 13px;
+      font-size: calc(13px + var(--font-bump));
       letter-spacing: 0.3px;
       overflow: hidden;
     }
@@ -115,15 +116,17 @@
     .cad-status-F   { background: rgba(255,170,91,0.2);  color: #ffaa5b; border-color: #6a4520; }
     .cad-status-FD  { background: rgba(255,170,91,0.2);  color: #ffaa5b; border-color: #6a4520; }
 
-    .offline-indicator {
+    .conn-indicator {
       padding: 3px 8px;
       font-weight: 900;
-      font-size: 11px;
-      background: rgba(255,107,107,0.2);
-      color: var(--red);
-      border: 2px solid #5b2727;
+      font-size: 10px;
+      border: 2px solid;
       display: none;
     }
+    .conn-connected  { background: rgba(127,255,178,0.15); color: #7fffb2; border-color: #214434; }
+    .conn-degraded   { background: rgba(255,214,107,0.15); color: #ffd66b; border-color: #6a5220; }
+    .conn-offline    { background: rgba(255,107,107,0.2);  color: #ff6b6b; border-color: #5b2727; }
+    .conn-syncing    { background: rgba(255,214,107,0.15); color: #ffd66b; border-color: #6a5220; animation: pendingPulse 1s ease-in-out infinite; }
 
     .pending-badge {
       padding: 3px 8px;
@@ -436,14 +439,14 @@
     .inc-nature {
       font-weight: 900;
       color: var(--hi);
-      font-size: 15px;
+      font-size: calc(15px + var(--font-bump));
     }
 
     /* Address - THE MOST IMPORTANT ELEMENT */
     .inc-address {
       font-weight: 900;
       color: var(--hi);
-      font-size: 22px;
+      font-size: calc(22px + var(--font-bump));
       line-height: 1.2;
       margin-bottom: 6px;
       background: rgba(255,255,255,0.03);
@@ -488,7 +491,7 @@
     .inc-notes-text {
       color: var(--yellow);
       font-weight: 700;
-      font-size: 12px;
+      font-size: calc(12px + var(--font-bump));
       line-height: 1.4;
       white-space: pre-wrap;
       word-break: break-word;
@@ -830,10 +833,75 @@
       color: var(--red);
     }
 
-    /* Night mode — dims field panel for night driving; overlays outside #fieldPanel are unaffected */
+    /* Night mode — dims field panel for night driving; overlays outside #fieldPanel are unaffected.
+       Safety-critical elements (address, alert banners, status buttons) stay full brightness. */
     body.night-mode #fieldPanel {
       filter: brightness(0.45) saturate(0.7);
     }
+    body.night-mode .inc-address,
+    body.night-mode .alert-banner,
+    body.night-mode .cad-unit-status,
+    body.night-mode .field-status-btn,
+    body.night-mode .inc-priority,
+    body.night-mode #fieldNextStatusArea,
+    body.night-mode .dispatch-ack-btn {
+      filter: brightness(2.2) saturate(1.4);
+    }
+
+    /* Contextual next-status button on MY CALL tab */
+    .next-status-btn {
+      width: 100%;
+      min-height: 72px;
+      padding: 14px 20px;
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      border: 3px solid;
+      cursor: pointer;
+      margin-bottom: 4px;
+      transition: opacity 0.15s;
+    }
+    .next-status-btn:active { opacity: 0.7; }
+    .next-status-btn-de  { background: rgba(255,214,107,0.15); color: #ffd66b; border-color: #8a7020; }
+    .next-status-btn-os  { background: rgba(255,107,107,0.15); color: #ff6b6b; border-color: #7a3030; }
+    .next-status-btn-t   { background: rgba(192,132,252,0.15); color: #c084fc; border-color: #5a3090; }
+    .next-status-btn-th  { background: rgba(0,200,200,0.15);   color: #00cccc; border-color: #1a5555; }
+    .next-status-btn-av  { background: rgba(127,255,178,0.15); color: #7fffb2; border-color: #306040; }
+    .next-status-sec {
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      border: 2px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .next-status-ready {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      padding: 10px;
+      letter-spacing: .08em;
+    }
+    @keyframes pulseEnroute {
+      0%,100% { border-color: #8a7020; } 50% { border-color: #ffd66b; }
+    }
+    .next-status-btn-de.pulsing { animation: pulseEnroute 1.2s ease-in-out infinite; }
+
+    /* Elapsed timer color escalation */
+    .elapsed-green  { color: #7fffb2 !important; }
+    .elapsed-yellow { color: #ffd66b !important; }
+    .elapsed-red    { color: #ff6b6b !important; }
+    .elapsed-flash  { color: #ff6b6b !important; animation: pendingPulse 1s ease-in-out infinite; }
 
     /* Mobile sizing */
     @media (max-width: 600px) {
@@ -1573,7 +1641,7 @@
     <div class="field-slim-header" id="fieldSlimHeader">
       <span class="callsign-label" id="callsignLabel"></span>
       <span class="cad-unit-status cad-status-AV" id="cadUnitStatus">AV</span>
-      <span class="offline-indicator" id="offlineIndicator">OFFLINE</span>
+      <span class="conn-indicator" id="connIndicator" style="display:none;"></span>
       <span id="gpsAutoBadge" style="display:none;font-size:10px;font-weight:700;letter-spacing:.06em;color:#4caf50;padding:2px 5px;border:1px solid #4caf50;">GPS&#9650;</span>
       <span class="pending-badge" id="pendingBadge" style="display:none;"></span>
       <span style="flex:1;"></span>
@@ -1601,6 +1669,9 @@
         <div id="fieldLocationBar" style="display:none;padding:4px 16px;background:rgba(30,40,60,0.7);border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.04em;flex-shrink:0;">
           <span style="color:#8b949e;">LOC: </span><span id="fieldLocationText" style="color:#7fb3ff;font-weight:700;"></span>
         </div>
+
+        <!-- Offline watermark — shown when offline with active incident -->
+        <div id="offlineWatermark" style="display:none;padding:4px 16px;background:rgba(255,107,107,0.1);border-bottom:2px solid #5b2727;font-size:10px;font-weight:900;color:#ff6b6b;letter-spacing:.08em;text-align:center;">OFFLINE \u2014 DATA MAY BE STALE</div>
 
         <!-- INCIDENT DISPLAY PANEL -->
         <div id="incidentPanel" class="incident-panel no-incident">
@@ -1653,6 +1724,9 @@
             <button id="btnHandoff" class="btn-handoff" style="display:none;">PATIENT HANDOFF</button>
           </div>
         </div>
+
+        <!-- CONTEXTUAL NEXT STATUS — one-tap status progression from MY CALL tab -->
+        <div id="fieldNextStatusArea" style="padding:6px 12px 4px;flex-shrink:0;"></div>
 
         <!-- NEXT CALL strip -->
         <div id="nextCallPanel" style="display:none;" class="next-call-panel">
@@ -2204,7 +2278,7 @@
   const cadUnitStatus = document.getElementById('cadUnitStatus');
   const cmdFeed = document.getElementById('cmdFeed');
   const cmdInput = document.getElementById('cmdInput');
-  const offlineIndicator = document.getElementById('offlineIndicator');
+  const connIndicator = document.getElementById('connIndicator');
 
   // ════════════════════════════════════════════════════════════════════════════
   // PHASE 1: TAB NAVIGATION STATE
@@ -2816,6 +2890,7 @@
   let _lastState = null;
   let _isOnline = true;
   let _offlineQueue = [];
+  let _forceFullSync = false;  // Set true on reconnect to skip delta and get full state
   let _nightOverride = null;
   let _incidentTimes = {}; // { dispatched, enroute, onscene } — local fallback only
   let _lastStack = [];           // Phase 2E: queued assignment stack
@@ -3194,8 +3269,27 @@
     updatePendingBadge();
   }
 
+  function queueAckDispatch(incidentId) {
+    _offlineQueue.push({ type: 'ack', incidentId: incidentId, ts: Date.now() });
+    saveOfflineQueue();
+    updatePendingBadge();
+  }
+
+  function queueCloseIncident(incidentId, disposition) {
+    _offlineQueue.push({ type: 'close', incidentId: incidentId, disposition: disposition, ts: Date.now() });
+    saveOfflineQueue();
+    updatePendingBadge();
+  }
+
+  function queueSelfAssign(incidentId, statusCode) {
+    _offlineQueue.push({ type: 'selfAssign', incidentId: incidentId, status: statusCode, ts: Date.now() });
+    saveOfflineQueue();
+    updatePendingBadge();
+  }
+
   async function flushOfflineQueue() {
     if (!_isOnline || !_cadToken || !_cadCallsign) return;
+    let flushed = 0, skipped = 0;
     while (_offlineQueue.length > 0) {
       const item = _offlineQueue[0];
       let result;
@@ -3211,17 +3305,42 @@
         } else if (item.type === 'note') {
           result = await API.appendIncidentNote(_cadToken, item.incidentId, item.message);
           if (result.ok) feedSys('QUEUED NOTE FOR INC ' + item.incidentId + ' SENT');
+        } else if (item.type === 'ack') {
+          result = await API.ackDispatch(_cadToken, item.incidentId);
+          if (result.ok) feedSys('QUEUED ACK FOR INC ' + item.incidentId + ' SENT');
+        } else if (item.type === 'close') {
+          result = await API.closeIncident(_cadToken, item.incidentId, item.disposition);
+          if (result.ok) feedSys('QUEUED CLOSE FOR INC ' + item.incidentId + ' SENT');
+        } else if (item.type === 'selfAssign') {
+          result = await API.upsertUnit(_cadToken, _cadCallsign, { status: item.status, incident: item.incidentId });
+          if (result.ok) feedSys('QUEUED SELF-ASSIGN TO INC ' + item.incidentId + ' SENT');
         } else {
           // Unknown item type — remove and skip
           result = { ok: true };
         }
         if (result && result.ok) {
-          _offlineQueue.shift(); // Remove only on success
+          _offlineQueue.shift();
+          flushed++;
           saveOfflineQueue();
           updatePendingBadge();
         } else {
-          // Server returned an error — stop flushing, leave remaining items
-          feedErr('QUEUED ITEM FAILED: ' + (result && result.error || 'SERVER ERROR'));
+          const errMsg = result && result.error || 'SERVER ERROR';
+          // Auth failure — stop flushing entirely, session may be invalid
+          if (errMsg.includes('TOKEN EXPIRED') || errMsg.includes('NOT AUTHENTICATED')) {
+            feedErr('SESSION EXPIRED \u2014 ' + _offlineQueue.length + ' ITEMS STILL QUEUED');
+            break;
+          }
+          // Conflict/stale — skip this item, continue with next
+          if (errMsg.includes('CONFLICT') || errMsg.includes('STALE') || errMsg.includes('NOT FOUND')) {
+            feedErr('QUEUED ' + (item.type || '').toUpperCase() + ' SKIPPED: ' + errMsg);
+            _offlineQueue.shift();
+            skipped++;
+            saveOfflineQueue();
+            updatePendingBadge();
+            continue;
+          }
+          // Other error — stop flushing, preserve remaining items
+          feedErr('QUEUED ITEM FAILED: ' + errMsg);
           break;
         }
       } catch(e) {
@@ -3229,13 +3348,68 @@
         break;
       }
     }
+    if (flushed || skipped) {
+      feedSys('SYNC COMPLETE: ' + flushed + ' SENT' + (skipped ? ', ' + skipped + ' SKIPPED' : ''));
+    }
     updatePendingBadge();
   }
 
+  // Connectivity states: CONNECTED, DEGRADED, OFFLINE, SYNCING
+  let _connState = 'CONNECTED';
+  let _lastSyncTs = null;
+  let _wasOffline = false;
+
+  function setConnState(state) {
+    _connState = state;
+    _isOnline = (state !== 'OFFLINE');
+    if (!connIndicator) return;
+    connIndicator.className = 'conn-indicator';
+    if (state === 'CONNECTED') {
+      connIndicator.style.display = 'none'; // Hide when fully connected (green is visual noise)
+    } else if (state === 'DEGRADED') {
+      connIndicator.style.display = 'inline-block';
+      connIndicator.classList.add('conn-degraded');
+      connIndicator.textContent = 'POLL ONLY';
+    } else if (state === 'OFFLINE') {
+      connIndicator.style.display = 'inline-block';
+      connIndicator.classList.add('conn-offline');
+      connIndicator.textContent = 'OFFLINE';
+      _wasOffline = true;
+      // Show stale data watermark if crew has an active incident
+      var wmEl = document.getElementById('offlineWatermark');
+      if (wmEl && _currentIncident) wmEl.style.display = '';
+    } else if (state === 'SYNCING') {
+      connIndicator.style.display = 'inline-block';
+      connIndicator.classList.add('conn-syncing');
+      connIndicator.textContent = 'SYNCING\u2026';
+    }
+  }
+
+  // Backward-compatible wrapper — called throughout existing code
   function setOnline(online) {
-    _isOnline = online;
-    offlineIndicator.style.display = online ? 'none' : 'inline-block';
-    if (online && _offlineQueue.length) {
+    if (online) {
+      if (_wasOffline) {
+        // Transitioning from offline → syncing → connected
+        setConnState('SYNCING');
+        _wasOffline = false;
+        // Force full state refresh (no sinceTs) to catch missed updates
+        _forceFullSync = true;
+        pollOnce().then(function() {
+          // Determine final state based on WS
+          var wsUp = _fieldRT && _fieldRT.readyState === WebSocket.OPEN;
+          setConnState(wsUp ? 'CONNECTED' : 'DEGRADED');
+          _lastSyncTs = new Date();
+        });
+        if (_offlineQueue.length) flushOfflineQueue();
+      } else {
+        var wsUp = _fieldRT && _fieldRT.readyState === WebSocket.OPEN;
+        setConnState(wsUp ? 'CONNECTED' : 'DEGRADED');
+        _lastSyncTs = new Date();
+      }
+    } else {
+      setConnState('OFFLINE');
+    }
+    if (online && _offlineQueue.length && _connState !== 'SYNCING') {
       flushOfflineQueue();
     }
   }
@@ -3271,6 +3445,7 @@
     _updateHandoffBtn();
     _updateContextButtons(code);
     _updatePersistStrip();
+    _updateNextStatusButton();
   }
 
   function _updateContextButtons(code) {
@@ -3287,6 +3462,71 @@
         btn.style.fontWeight = '';
       }
     });
+  }
+
+  // Render contextual next-status button on MY CALL tab (one-tap status progression)
+  function _updateNextStatusButton() {
+    var area = document.getElementById('fieldNextStatusArea');
+    if (!area) return;
+    var code = _currentStatus;
+    var hasInc = !!_currentIncident;
+
+    // Status → what comes next
+    var html = '';
+    if (code === 'D' && hasInc) {
+      html = '<button class="next-status-btn next-status-btn-de pulsing" onclick="updateFieldStatus(\'DE\')">&#9654; ENROUTE</button>';
+    } else if (code === 'DE' && hasInc) {
+      html = '<button class="next-status-btn next-status-btn-os" onclick="updateFieldStatus(\'OS\')">&#9673; ON SCENE</button>';
+    } else if (code === 'OS' && hasInc) {
+      html = '<button class="next-status-btn next-status-btn-t" onclick="_fieldTapTransport()">&#9654; TRANSPORT</button>' +
+             '<button class="next-status-sec" onclick="goAvailable()">AVAILABLE (CLOSE CALL)</button>';
+    } else if (code === 'T' && hasInc) {
+      html = '<button class="next-status-btn next-status-btn-th" onclick="_fieldTapTH()">&#9724; AT HOSPITAL</button>';
+    } else if (code === 'TH') {
+      html = '<button class="next-status-btn next-status-btn-av" onclick="goAvailable()">&#10003; AVAILABLE</button>';
+    } else if (code === 'AV' || code === 'IQ') {
+      html = '<div class="next-status-ready">\u25CF READY FOR DISPATCH</div>';
+    } else if (code === 'OOS' || code === 'BRK') {
+      html = '<button class="next-status-btn next-status-btn-av" onclick="updateFieldStatus(\'AV\')">&#10003; RETURN TO SERVICE</button>';
+    } else {
+      html = '';
+    }
+    area.innerHTML = html;
+  }
+
+  // Wrapper for transport tap from next-status button (mirrors the STATUS tab T button logic)
+  async function _fieldTapTransport() {
+    _pendingStatus = 'T';
+    var dest = await promptTransportDest();
+    if (dest === undefined) { _pendingStatus = null; return; }
+    var updates = { status: 'T' };
+    if (dest) updates.destination = dest;
+    try {
+      var res = await API.upsertUnit(_cadToken, _cadCallsign, updates);
+      if (res.ok) {
+        _stopDispatchAlert();
+        _toneStatus();
+        updateStatusBadge('T');
+        _updateHandoffBtn();
+        _updateNextStatusButton();
+        setOnline(true);
+        feedSys('STATUS: TRANSPORT' + (dest ? ' \u2192 ' + dest : ''));
+      } else {
+        _pendingStatus = null;
+        feedErr(res.error || 'STATUS UPDATE FAILED.');
+      }
+    } catch(e) {
+      _pendingStatus = null;
+      setOnline(false);
+      feedErr('OFFLINE \u2014 STATUS NOT SENT.');
+    }
+  }
+
+  // Wrapper for TH tap from next-status button
+  async function _fieldTapTH() {
+    var ok = await showConfirm('AT HOSPITAL', 'CONFIRM ARRIVAL AT HOSPITAL?');
+    if (!ok) return;
+    updateFieldStatus('TH');
   }
 
   function _updateHandoffBtn() {
@@ -3611,6 +3851,13 @@
           else if (st === 'TH') elapsedTs = inc.at_hospital_time;
           if (elapsedTs) {
             elapsedEl.textContent = elapsedStr(elapsedTs);
+            // Color escalation: green <10min, yellow 10-30min, red >30min, flashing >45min
+            var _elMin = Math.floor((Date.now() - new Date(elapsedTs).getTime()) / 60000);
+            elapsedEl.className = 'inc-time-value ' + (
+              _elMin < 10 ? 'elapsed-green' :
+              _elMin < 30 ? 'elapsed-yellow' :
+              _elMin < 45 ? 'elapsed-red' : 'elapsed-flash'
+            );
             elapsedRowEl.style.display = '';
           } else {
             elapsedRowEl.style.display = 'none';
@@ -3665,9 +3912,10 @@
       hasIncView.style.display = 'none';
     }
 
-    // Update handoff button and destination quick-select after incident state changes
+    // Update handoff button, destination quick-select, and next-status button after incident state changes
     _updateHandoffBtn();
     _updateDestQuickRow(state);
+    _updateNextStatusButton();
   }
 
   function _updateDestQuickRow(state) {
@@ -4600,6 +4848,20 @@
     _updateFieldNcBtn();   // Show CREATE CALL button for logged-in field units
     loadAddresses();
 
+    // Load tenant font-bump setting (async, non-blocking)
+    API.getTenantSettings(_cadToken).then(function(r) {
+      if (!r || !r.ok || !r.settings) return;
+      var bump = r.settings.font_bump;
+      if (bump && !isNaN(Number(bump))) {
+        document.documentElement.style.setProperty('--font-bump', bump + 'px');
+      }
+    }).catch(function() {});
+    // Also load any local font-bump override (saved via MORE tab)
+    var _localBump = localStorage.getItem('hoscadfield_fontbump');
+    if (_localBump && !isNaN(Number(_localBump))) {
+      document.documentElement.style.setProperty('--font-bump', _localBump + 'px');
+    }
+
     // Notification permission is requested via the WAKE button (must be a direct user gesture on iOS)
     loadNightOverride();
     checkNightMode();
@@ -4638,7 +4900,8 @@
 
   function _fieldRtConnect() {
     if (_fieldRT && (_fieldRT.readyState === WebSocket.OPEN || _fieldRT.readyState === WebSocket.CONNECTING)) return;
-    var url = 'wss://vnqiqxffedudfsdoadqg.supabase.co/realtime/v1/websocket?apikey=' + API._apiKey + '&vsn=1.0.0';
+    var _supaHost = (new URL(API.baseUrl)).hostname.replace(/\.supabase\.co$/, '') + '.supabase.co';
+    var url = 'wss://' + _supaHost + '/realtime/v1/websocket?apikey=' + API._apiKey + '&vsn=1.0.0';
     try { _fieldRT = new WebSocket(url); } catch(e) { return; }
     _fieldRT.onopen = function() {
       _fieldRtRef = 0;
@@ -4716,6 +4979,8 @@
   async function pollOnce() {
     if (!_cadToken || _pollInFlight) return;
     _pollInFlight = true;
+    const isReconnect = _forceFullSync;
+    _forceFullSync = false;
     try {
       const state = await API.getState(_cadToken);
       if (!state.ok) {
@@ -4733,7 +4998,27 @@
         return;
       }
 
-      setOnline(true);
+      // On reconnect: detect what changed while offline before merging
+      if (isReconnect) {
+        var _reconChanges = 0;
+        // Count new messages since last known
+        var freshMsgs = (state.messages || []).filter(function(m) { return !_knownMsgIds.has(m.message_id); });
+        if (freshMsgs.length > 0) {
+          _reconChanges += freshMsgs.length;
+          _toneMessage(); // single tone for batch of missed messages
+        }
+        if (_reconChanges > 0 || _offlineQueue.length > 0) {
+          feedSys('RECONNECTED \u2014 ' + (_reconChanges > 0 ? _reconChanges + ' UPDATES' : '') +
+            (_offlineQueue.length > 0 ? (_reconChanges > 0 ? ', ' : '') + _offlineQueue.length + ' PENDING' : ''));
+        } else {
+          feedSys('RECONNECTED \u2014 ALL CURRENT');
+        }
+        // Remove stale watermark
+        var staleEl = document.getElementById('offlineWatermark');
+        if (staleEl) staleEl.style.display = 'none';
+      }
+
+      if (!isReconnect) setOnline(true);
       _lastState = state;
       // Merge new state into persistent caches BEFORE reading myUnit.
       // This ensures that if this poll is a delta and the field unit's own row
@@ -6747,6 +7032,10 @@
   window.handleSelfAssign = handleSelfAssign;
   window.cadLogout = cadLogout;
   window.ackDispatch = ackDispatch;
+  window.updateFieldStatus = updateFieldStatus;
+  window.goAvailable = goAvailable;
+  window._fieldTapTransport = _fieldTapTransport;
+  window._fieldTapTH = _fieldTapTH;
   window.toggleNightMode = toggleNightMode;
   window.showInfoOverlay = showInfoOverlay;
   window.closeInfoOverlay = closeInfoOverlay;
