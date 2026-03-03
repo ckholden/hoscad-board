@@ -68,10 +68,12 @@ Backend repo: `hoscad` (Supabase edge functions)
 ### Phase 0 — Quick Wins
 (No frontend changes needed — Phase 0 is backend-only)
 
-### Phase 2c — Frontend Tenant Isolation
-- [x] **Per-tenant branding** — `getTenantSettings` returns tenant core info. Board + field MDT apply display name and accent color dynamically.
-- [ ] **Tenant detection** — In `api.js`, extract tenant slug from `window.location.hostname.split('.')[0]`. Pass to login. Store in sessionStorage.
-- [ ] **Per-tenant position dropdown** — Already dynamic from `init()` endpoint. Will auto-scope once backend is tenant-aware.
+### Phase 2c — Frontend Tenant Isolation *(Completed 2026-03-03)*
+- [x] **Per-tenant branding** — `getTenantSettings` returns tenant core info. All surfaces apply display name, accent color, logo dynamically.
+- [x] **Tenant detection** — `api.js` extracts slug from hostname regex (`scmc.hoscad.net → SCMC`). Stored in `sessionStorage`. Fallback to `SCMC`.
+- [x] **Pre-auth branding** — `init()` endpoint returns tenant branding before auth. Board, admin, field MDT, and RMS all call `init()` on page load. Cached to localStorage for zero-flash reload.
+- [x] **RMS branding** — `rms/index.html` now has full branding: login title, topbar title, accent color, logo, print template — all dynamic from tenant config.
+- [x] **Per-tenant position dropdown** — Already dynamic from `init()` endpoint. Backend is fully tenant-aware.
 
 ### Phase 3 — Operational Readiness
 - [ ] **Service worker cache versioning** — Automate version bumps in CI (currently manual in sw.js/sw-field.js)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>HOSCAD RMS — Crew Portal</title>
+  <title>Crew Portal</title>
   <style>
     :root {
       --bg:      #0b1018;
@@ -244,7 +244,7 @@
 ════════════════════════════════════════════════════════════ -->
 <div id="loginScreen">
   <div class="login-card">
-    <h1>HOSCAD RMS<span>CREW PORTAL</span></h1>
+    <h1 id="rmsLoginTitle">CREW PORTAL<span id="rmsLoginSubtitle">CREW REPORTING</span></h1>
     <div class="field-group">
       <div class="field-label">CAD ID</div>
       <input id="loginCadId" type="text" inputmode="numeric" placeholder="E.G. 101" maxlength="6"
@@ -265,7 +265,7 @@
 ════════════════════════════════════════════════════════════ -->
 <div id="appShell">
   <div class="topbar">
-    <div class="topbar-title">HOSCAD RMS</div>
+    <div class="topbar-title" id="rmsTopbarTitle">CREW PORTAL</div>
     <div class="topbar-user" id="topbarUser"></div>
     <button class="btn btn-secondary" style="font-size:10px;padding:5px 10px;" id="btnLogout">LOG OUT</button>
   </div>
@@ -561,6 +561,99 @@ const LS_TOKEN  = 'hoscad_crew_token';
 const LS_CADID  = 'hoscad_crew_cadid';
 const LS_NAME   = 'hoscad_crew_name';
 const LS_CERT   = 'hoscad_crew_cert';
+const LS_BRAND  = 'hoscad_rms_branding';
+
+// Tenant slug from subdomain (e.g. scmc.hoscad.net → SCMC)
+const RMS_TENANT = (function() {
+  var h = window.location.hostname || '';
+  var m = h.match(/^([a-z0-9-]+)\.hoscad\.net$/i);
+  return m ? m[1].toUpperCase() : 'SCMC';
+})();
+
+// ════════════════════════════════════════════════════════════════════════
+// Branding
+// ════════════════════════════════════════════════════════════════════════
+function _rmsBrandName() {
+  try {
+    var cached = JSON.parse(localStorage.getItem(LS_BRAND) || 'null');
+    if (cached && cached.settings && cached.settings.display_name) return cached.settings.display_name;
+    if (cached && cached.tenant && cached.tenant.displayName) return cached.tenant.displayName;
+  } catch(_) {}
+  return RMS_TENANT;
+}
+
+function _applyRmsBranding(tenant, settings) {
+  var name = '';
+  if (settings && settings.display_name) name = settings.display_name;
+  else if (tenant && tenant.displayName) name = tenant.displayName;
+  if (!name) name = RMS_TENANT;
+
+  // Login screen
+  var loginTitle = document.getElementById('rmsLoginTitle');
+  if (loginTitle) loginTitle.childNodes[0].textContent = name + ' RMS';
+  var loginSub = document.getElementById('rmsLoginSubtitle');
+  if (loginSub) loginSub.textContent = 'CREW REPORTING';
+
+  // Topbar
+  var topTitle = document.getElementById('rmsTopbarTitle');
+  if (topTitle) topTitle.textContent = name + ' RMS';
+
+  // Page title
+  document.title = name + ' — Crew Portal';
+
+  // Accent color
+  var accent = '';
+  if (settings && settings.accent_color) accent = settings.accent_color;
+  else if (tenant && tenant.accentColor) accent = tenant.accentColor;
+  if (accent) document.documentElement.style.setProperty('--blue', accent);
+
+  // Logo (show on login if available)
+  var logoUrl = '';
+  if (settings && settings.logo_url) logoUrl = settings.logo_url;
+  else if (tenant && tenant.logoUrl) logoUrl = tenant.logoUrl;
+  if (logoUrl) {
+    var loginCard = document.querySelector('.login-card');
+    if (loginCard && !document.getElementById('rmsLoginLogo')) {
+      var img = document.createElement('img');
+      img.id = 'rmsLoginLogo';
+      img.src = logoUrl;
+      img.alt = name;
+      img.style.cssText = 'display:block;max-width:120px;max-height:60px;margin:0 auto 14px;opacity:.85;';
+      loginCard.insertBefore(img, loginCard.firstChild);
+    }
+  }
+
+  // Cache for instant reload
+  try {
+    localStorage.setItem(LS_BRAND, JSON.stringify({ tenant: tenant, settings: settings, ts: Date.now() }));
+  } catch(_) {}
+}
+
+// Apply cached branding instantly (before API responds)
+(function() {
+  try {
+    var cached = JSON.parse(localStorage.getItem(LS_BRAND) || 'null');
+    if (cached && cached.ts && (Date.now() - cached.ts < 86400000)) {
+      _applyRmsBranding(cached.tenant, cached.settings);
+    }
+  } catch(_) {}
+})();
+
+// Fetch pre-auth branding from init endpoint
+(function() {
+  var body = new URLSearchParams({ action: 'init', params: JSON.stringify([]) });
+  fetch(RMS_API_BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'apikey': RMS_API_KEY,
+      'Authorization': 'Bearer ' + RMS_API_KEY
+    },
+    body: body.toString()
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.ok) _applyRmsBranding(data.tenant, data.brandingSettings);
+  }).catch(function() {});
+})();
 
 // ════════════════════════════════════════════════════════════════════════
 // State
@@ -1455,7 +1548,7 @@ function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes, people) {
     return ts ? new Date(ts).toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
   }
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"/>' +
-    '<title>HOSCAD — ' + escPrint(rpt.report_id) + '</title>' +
+    '<title>' + escPrint(_rmsBrandName()) + ' — ' + escPrint(rpt.report_id) + '</title>' +
     '<style>' +
     'body{font-family:"Courier New",monospace;background:#fff;color:#111;padding:30px;font-size:13px;}' +
     'h1{font-size:16px;letter-spacing:.06em;margin:0 0 2px;}' +
@@ -1467,7 +1560,7 @@ function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes, people) {
     '.footer{font-size:10px;color:#999;margin-top:20px;border-top:1px solid #eee;padding-top:8px;}' +
     '@media print{body{padding:10px;}}' +
     '</style></head><body>' +
-    '<h1>HOSCAD — CREW REPORT</h1>' +
+    '<h1>' + escPrint(_rmsBrandName()) + ' — CREW REPORT</h1>' +
     '<div style="font-size:11px;color:#888;margin-bottom:10px;">FOR OFFICIAL USE ONLY — CONFIDENTIAL</div>' +
     '<table class="meta-table">' +
     '<tr><td>RPT ID</td><td>' + escPrint(rpt.report_id) + '</td></tr>' +
@@ -1487,7 +1580,7 @@ function _buildRmsReportHtml(rpt, addendaHtml, cadHeader, cadNotes, people) {
       people.map(function(p) { return '<div style="font-family:monospace;font-size:12px;margin-bottom:4px;">' + escPrint(p.person_id) + '  ' + escPrint(p.full_name) + (p.dob ? '  DOB:' + escPrint(p.dob) : '') + '  ' + escPrint(p.role) + '</div>'; }).join('') : '') +
     '<div class="section-hdr">ADDENDA / FOLLOW-UP NOTES</div>' +
     addendaHtml +
-    '<div class="footer">Generated ' + new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'}) + ' — HOSCAD RMS — FOR OFFICIAL USE ONLY</div>' +
+    '<div class="footer">Generated ' + new Date().toLocaleString('en-US',{dateStyle:'long',timeStyle:'short'}) + ' — ' + escPrint(_rmsBrandName()) + ' RMS — FOR OFFICIAL USE ONLY</div>' +
     '</body></html>';
 }
 

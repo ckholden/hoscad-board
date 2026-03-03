@@ -171,7 +171,103 @@ function _populateLoginRoleDropdown(positions) {
 // Populate dropdown immediately with fallback so it's never empty on page load
 document.addEventListener('DOMContentLoaded', function() {
   _populateLoginRoleDropdown(POSITIONS_FALLBACK.filter(p => p.is_dispatcher));
+
+  // Pre-auth: fetch live positions + tenant branding from init() (non-blocking)
+  API.init().then(function(r) {
+    if (!r || !r.ok) return;
+    // Apply live positions
+    if (Array.isArray(r.positions) && r.positions.length > 0) {
+      POSITIONS_META = r.positions;
+      _populateLoginRoleDropdown(r.positions.filter(function(p) { return p.is_dispatcher; }));
+    }
+    // Apply pre-auth tenant branding (login screen, header, accent color)
+    _applyTenantBranding(r.tenant, r.brandingSettings);
+  }).catch(function() {});
 });
+
+/**
+ * Apply tenant branding from init() or getTenantSettings() response.
+ * Works pre-auth (login screen) and post-auth (board header).
+ * Caches branding to localStorage for instant display on next load.
+ */
+function _applyTenantBranding(tenant, settings) {
+  const s = settings || {};
+  const t = tenant || {};
+
+  // Merge: settings override tenant table values
+  const displayName = s.display_name || t.displayName;
+  const logoUrl     = s.logo_url     || t.logoUrl;
+  const accentColor = s.accent_color || t.accentColor;
+  const fontBump    = s.font_bump;
+
+  // Cache for instant display on reload (before API responds)
+  try {
+    localStorage.setItem('hoscad_branding', JSON.stringify({
+      displayName: displayName || null,
+      logoUrl: logoUrl || null,
+      accentColor: accentColor || null,
+      fontBump: fontBump || null,
+    }));
+  } catch(_) {}
+
+  // Apply display name to header
+  const titleEl = document.getElementById('boardTitle');
+  if (titleEl && displayName) titleEl.textContent = displayName;
+
+  // Apply accent color
+  if (accentColor && accentColor !== '#1a73e8' && accentColor !== '#2563EB' && accentColor !== '#2060e0') {
+    document.documentElement.style.setProperty('--blue', accentColor);
+  }
+
+  // Apply font-bump
+  if (fontBump && !isNaN(Number(fontBump))) {
+    document.documentElement.style.setProperty('--font-bump', fontBump + 'px');
+  }
+
+  // Apply logo to header
+  if (logoUrl && titleEl) {
+    const brandEl = titleEl.parentElement;
+    if (brandEl && !brandEl.querySelector('.brand-logo')) {
+      const img = document.createElement('img');
+      img.className = 'brand-logo';
+      img.src = logoUrl;
+      img.alt = displayName || 'Logo';
+      img.onerror = function() { this.style.display = 'none'; };
+      brandEl.insertBefore(img, titleEl);
+    }
+  }
+
+  // Apply logo to login screen
+  if (logoUrl) {
+    const loginLogoEl = document.getElementById('loginLogo');
+    if (loginLogoEl && !loginLogoEl.querySelector('img')) {
+      const limg = document.createElement('img');
+      limg.src = logoUrl;
+      limg.alt = displayName || 'Logo';
+      limg.className = 'brand-logo';
+      limg.style.cssText = 'height:32px;width:auto;';
+      limg.onerror = function() { loginLogoEl.style.display = 'none'; };
+      loginLogoEl.appendChild(limg);
+      loginLogoEl.style.display = 'block';
+    }
+  }
+}
+
+// Apply cached branding instantly (before API responds) for zero-flash reload
+(function() {
+  try {
+    var cached = JSON.parse(localStorage.getItem('hoscad_branding') || 'null');
+    if (!cached) return;
+    var titleEl = document.getElementById('boardTitle');
+    if (titleEl && cached.displayName) titleEl.textContent = cached.displayName;
+    if (cached.accentColor && cached.accentColor !== '#2060e0') {
+      document.documentElement.style.setProperty('--blue', cached.accentColor);
+    }
+    if (cached.fontBump && !isNaN(Number(cached.fontBump))) {
+      document.documentElement.style.setProperty('--font-bump', cached.fontBump + 'px');
+    }
+  } catch(_) {}
+})();
 
 // Unit display name mappings
 const UNIT_LABELS = {
@@ -12437,59 +12533,14 @@ function _rtDisconnect() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function start() {
-  // Refresh positions from live DB (fallback already applied at DOMContentLoaded)
-  try {
-    const initRes = await API.init();
-    if (initRes && initRes.ok && Array.isArray(initRes.positions) && initRes.positions.length > 0) {
-      POSITIONS_META = initRes.positions;
-      _populateLoginRoleDropdown(initRes.positions.filter(p => p.is_dispatcher));
-    }
-  } catch (_) {}
-  // Load tenant font scale setting (non-blocking)
+  // Load full tenant settings (post-auth — includes map center/zoom and all settings)
   API.getTenantSettings(TOKEN).then(r => {
     if (!r?.ok) return;
     const s = r.settings || {};
     const t = r.tenant || {};
-    // Apply font-bump from tenant settings
-    const bump = s.font_bump;
-    if (bump && !isNaN(Number(bump))) {
-      document.documentElement.style.setProperty('--font-bump', bump + 'px');
-    }
-    // Apply accent color — settings override, then tenant table, then default
-    const accent = s.accent_color || t.accentColor;
-    if (accent && accent !== '#1a73e8' && accent !== '#2563EB') {
-      document.documentElement.style.setProperty('--blue', accent);
-    }
-    // Apply display name — settings override, then tenant table
-    const displayName = s.display_name || t.displayName;
-    const titleEl = document.getElementById('boardTitle');
-    if (titleEl && displayName) titleEl.textContent = displayName;
-    // Apply logo — settings key, then tenant table
-    const logoUrl = s.logo_url || t.logoUrl;
-    if (logoUrl) {
-      const brandEl = titleEl?.parentElement;
-      if (brandEl && !brandEl.querySelector('.brand-logo')) {
-        const img = document.createElement('img');
-        img.className = 'brand-logo';
-        img.src = logoUrl;
-        img.alt = displayName || 'Logo';
-        img.onerror = function() { this.style.display = 'none'; };
-        brandEl.insertBefore(img, titleEl);
-      }
-      // Also apply logo to login modal
-      const loginLogoEl = document.getElementById('loginLogo');
-      if (loginLogoEl && !loginLogoEl.querySelector('img')) {
-        const limg = document.createElement('img');
-        limg.src = logoUrl;
-        limg.alt = displayName || 'Logo';
-        limg.className = 'brand-logo';
-        limg.style.cssText = 'height:32px;width:auto;';
-        limg.onerror = function() { loginLogoEl.style.display = 'none'; };
-        loginLogoEl.appendChild(limg);
-        loginLogoEl.style.display = 'block';
-      }
-    }
-    // Apply map center/zoom from settings
+    // Apply branding via centralized function
+    _applyTenantBranding(t, s);
+    // Apply map center/zoom from settings (post-auth only)
     if (s.default_map_center) {
       const parts = s.default_map_center.split(',').map(Number);
       if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {

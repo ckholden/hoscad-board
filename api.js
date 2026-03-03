@@ -19,6 +19,19 @@ const API = {
   _apiKey: 'sb_publishable_FbP38-Tm_9iIV2QHI0Ewdw_TZfEVCJc',
 
   /**
+   * Tenant slug — extracted from subdomain (scmc.hoscad.net → SCMC).
+   * Backend detects this from Origin header; frontend uses for branding logic.
+   * Falls back to 'SCMC' for localhost and bare domains.
+   */
+  tenantSlug: (function() {
+    var h = (typeof window !== 'undefined') ? window.location.hostname : '';
+    var m = h.match(/^([a-z0-9-]+)\.hoscad\.net$/i);
+    var slug = m ? m[1].toUpperCase() : 'SCMC';
+    try { sessionStorage.setItem('hoscad_tenant', slug); } catch(e) {}
+    return slug;
+  })(),
+
+  /**
    * Make an API call to the Supabase Edge Function backend.
    * @param {string} action - The API function name (e.g., 'login', 'getState')
    * @param {...any} params - Parameters to pass to the API function
