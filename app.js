@@ -12168,19 +12168,35 @@ async function start() {
   // Load tenant font scale setting (non-blocking)
   API.getTenantSettings(TOKEN).then(r => {
     if (!r?.ok) return;
+    const s = r.settings || {};
+    const t = r.tenant || {};
     // Apply font-bump from tenant settings
-    const bump = r.settings?.font_bump;
+    const bump = s.font_bump;
     if (bump && !isNaN(Number(bump))) {
       document.documentElement.style.setProperty('--font-bump', bump + 'px');
     }
-    // Apply tenant display name + accent color
-    const tenant = r.tenant;
-    if (tenant) {
-      if (tenant.accentColor && tenant.accentColor !== '#1a73e8') {
-        document.documentElement.style.setProperty('--blue', tenant.accentColor);
+    // Apply accent color — settings override, then tenant table, then default
+    const accent = s.accent_color || t.accentColor;
+    if (accent && accent !== '#1a73e8' && accent !== '#2563EB') {
+      document.documentElement.style.setProperty('--blue', accent);
+    }
+    // Apply display name — settings override, then tenant table
+    const displayName = s.display_name || t.displayName;
+    const titleEl = document.getElementById('boardTitle');
+    if (titleEl && displayName) titleEl.textContent = displayName;
+    // Apply logo — settings key, then tenant table
+    const logoUrl = s.logo_url || t.logoUrl;
+    if (logoUrl) {
+      const brandEl = titleEl?.parentElement;
+      if (brandEl && !brandEl.querySelector('.brand-logo')) {
+        const img = document.createElement('img');
+        img.className = 'brand-logo';
+        img.src = logoUrl;
+        img.alt = displayName || 'Logo';
+        img.style.cssText = 'height:22px;width:auto;vertical-align:middle;margin-right:6px;';
+        img.onerror = function() { this.style.display = 'none'; };
+        brandEl.insertBefore(img, titleEl);
       }
-      const titleEl = document.getElementById('boardTitle');
-      if (titleEl && tenant.displayName) titleEl.textContent = tenant.displayName;
     }
   }).catch(() => {});
   loadViewState();

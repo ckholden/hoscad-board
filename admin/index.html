@@ -1725,15 +1725,34 @@
     const name = document.getElementById('agDisplayName').value || 'AGENCY';
     const accent = document.getElementById('agAccentHex').value || '#2563EB';
     const accentText = document.getElementById('agAccentText').value || '#FFFFFF';
+    const logoUrl = document.getElementById('agLogoUrl').value || '';
     document.getElementById('agPreviewSwatch').style.background = accent;
     document.getElementById('agPreviewSwatch').style.color = accentText;
     document.getElementById('agPreviewSwatch').textContent = name.substring(0, 2).toUpperCase();
+    // Show logo in preview if URL provided, otherwise show swatch
+    if (logoUrl) {
+      document.getElementById('agPreviewSwatch').style.display = 'none';
+      let logoEl = document.getElementById('agPreviewLogo');
+      if (!logoEl) {
+        logoEl = document.createElement('img');
+        logoEl.id = 'agPreviewLogo';
+        logoEl.style.cssText = 'height:32px;width:auto;';
+        logoEl.onerror = function() { this.style.display = 'none'; document.getElementById('agPreviewSwatch').style.display = ''; };
+        document.getElementById('agBrandingPreview').insertBefore(logoEl, document.getElementById('agBrandingPreview').children[1]);
+      }
+      logoEl.src = logoUrl;
+      logoEl.style.display = '';
+    } else {
+      document.getElementById('agPreviewSwatch').style.display = '';
+      const logoEl = document.getElementById('agPreviewLogo');
+      if (logoEl) logoEl.style.display = 'none';
+    }
     document.getElementById('agPreviewName').textContent = name.toUpperCase();
   }
 
   // Live preview updates
   document.addEventListener('DOMContentLoaded', () => {
-    ['agDisplayName', 'agAccentHex', 'agAccentText'].forEach(id => {
+    ['agDisplayName', 'agAccentHex', 'agAccentText', 'agLogoUrl'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', updateBrandingPreview);
     });
@@ -1763,8 +1782,8 @@
     if (errors.length) {
       stat.textContent = 'ERRORS: ' + errors.join(', '); stat.style.color = '#f85149';
     } else {
-      stat.textContent = 'SAVED'; stat.style.color = 'var(--green)';
-      showToast('BRANDING SAVED.', 'success');
+      stat.textContent = 'SAVED — BOARD WILL UPDATE ON NEXT REFRESH'; stat.style.color = 'var(--green)';
+      showToast('BRANDING SAVED. BOARD WILL UPDATE ON NEXT REFRESH.', 'success');
       // Update the admin header to reflect new display name
       const dn = settings.display_name;
       if (dn) document.querySelector('.admin-title').textContent = dn + ' — ADMIN';
