@@ -12087,6 +12087,14 @@ async function start() {
       _populateLoginRoleDropdown(initRes.positions.filter(p => p.is_dispatcher));
     }
   } catch (_) {}
+  // Load tenant font scale setting (non-blocking)
+  API.getTenantSettings(TOKEN).then(r => {
+    if (!r?.ok || !r.settings) return;
+    const bump = r.settings.font_bump;
+    if (bump && !isNaN(Number(bump))) {
+      document.documentElement.style.setProperty('--font-bump', bump + 'px');
+    }
+  }).catch(() => {});
   loadViewState();
   refresh();
   AddressLookup.load(); // async, non-blocking — autocomplete works once data arrives

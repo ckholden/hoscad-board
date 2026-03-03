@@ -1077,6 +1077,17 @@
           <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">CONTACT EMAIL</label>
           <input id="agContactEmail" type="email" placeholder="admin@agency.org" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:none;" />
         </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">BOARD FONT SIZE BUMP (PX)</label>
+          <select id="agFontBump" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+            <option value="0">DEFAULT (0)</option>
+            <option value="1">+1px — SLIGHTLY LARGER</option>
+            <option value="2">+2px — LARGER</option>
+            <option value="3">+3px — MUCH LARGER</option>
+            <option value="4">+4px — EXTRA LARGE</option>
+          </select>
+          <div style="font-size:9px;color:#4a5568;margin-top:1px;">Increases font size of board unit rows, status codes, incident queue, and viewer text.</div>
+        </div>
       </div>
       <div style="margin-top:10px;">
         <button class="btn-good" style="font-size:11px;" onclick="saveAgencyDefaults()">SAVE DEFAULTS</button>
@@ -1699,6 +1710,7 @@
       document.getElementById('agMapZoom').value = _agencySettings.default_map_zoom || '13';
       document.getElementById('agTimezone').value = _agencySettings.timezone || 'America/Los_Angeles';
       document.getElementById('agContactEmail').value = _agencySettings.contact_email || '';
+      document.getElementById('agFontBump').value = _agencySettings.font_bump || '0';
 
       // Update branding preview
       updateBrandingPreview();
@@ -1767,6 +1779,7 @@
       default_map_zoom: (document.getElementById('agMapZoom').value || '').trim(),
       timezone: document.getElementById('agTimezone').value || '',
       contact_email: (document.getElementById('agContactEmail').value || '').trim(),
+      font_bump: document.getElementById('agFontBump').value || '0',
     };
     let errors = [];
     for (const [k, v] of Object.entries(settings)) {

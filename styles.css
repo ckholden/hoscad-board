@@ -20,6 +20,10 @@
   --muted:   #8090a0;
   --hi:      #e8f0fa;
 
+  /* UI font scale — set via tenant admin or data-font-scale attribute.
+     0 = default (current), 1 = +1px, 2 = +2px, 3 = +3px */
+  --font-bump: 0px;
+
   /* Status colors — saturated, readable on dark bg */
   --blue:    #2060e0;
   --yellow:  #e8b830;
@@ -323,13 +327,13 @@ header {
 .acb-card:hover { border-color: #5ba3e6; border-left-color: #5ba3e6; background: #0f1e30; }
 .acb-card.acb-urgent { border-left-color: #f85149; background: rgba(248,81,73,.06); }
 .acb-card.acb-urgent:hover { border-left-color: #ff7b76; }
-.acb-id   { font-size: 11px; font-weight: 900; color: #c9d1d9; letter-spacing: .06em; }
-.acb-type { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #8b949e; margin-top: 1px; }
-.acb-elapsed { font-size: 10px; color: #6e7681; }
+.acb-id   { font-size: calc(11px + var(--font-bump)); font-weight: 900; color: #c9d1d9; letter-spacing: .06em; }
+.acb-type { font-size: calc(10px + var(--font-bump)); font-weight: 700; letter-spacing: .04em; color: #8b949e; margin-top: 1px; }
+.acb-elapsed { font-size: calc(10px + var(--font-bump)); color: #6e7681; }
 .acb-elapsed.warn { color: #ffa500; }
 .acb-elapsed.stale { color: #f85149; font-weight: 700; }
-.acb-units { font-size: 10px; color: #8b949e; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.acb-pri { font-size: 9px; font-weight: 900; margin-left: 5px; vertical-align: middle; }
+.acb-units { font-size: calc(10px + var(--font-bump)); color: #8b949e; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acb-pri { font-size: calc(9px + var(--font-bump)); font-weight: 900; margin-left: 5px; vertical-align: middle; }
 
 /* ── Banners ───────────────────────────────────────────────── */
 .banner {
@@ -545,8 +549,9 @@ header {
 .col-resize-handle:hover { background: rgba(64,144,216,.35); border-radius: 1px; }
 .col-resize-handle.is-resizing { background: rgba(64,144,216,.6); }
 .board-table tbody tr {
-  height: 28px;
+  height: calc(28px + var(--font-bump) * 1.5);
   min-height: 0;
+  font-size: calc(12px + var(--font-bump));
 }
 /* Hover — minimal. Just a slight brightness lift. No color change. */
 .board-table tbody tr:hover { filter: brightness(1.08); }
@@ -562,7 +567,7 @@ header {
 .col-elapsed { width: 52px;  text-align: right; }
 .col-dest    { width: 160px; }
 .col-note    { }              /* flex fill */
-.col-type    { width: 90px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.col-type    { width: 90px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(10px + var(--font-bump)); }
 .col-inc     { width: 70px;  }
 .col-updated { width: 90px;  }
 
@@ -577,7 +582,7 @@ header {
 .unit {
   font-weight: 900;
   color: var(--hi);
-  font-size: 13px;
+  font-size: calc(13px + var(--font-bump));
   letter-spacing: .5px;
 }
 .muted { color: var(--muted); font-size: 10px; }
@@ -592,7 +597,7 @@ header {
 /* Status code text — large, bold, the dominant column element */
 .statusCode {
   font-weight: 900;
-  font-size: 14px;
+  font-size: calc(14px + var(--font-bump));
   letter-spacing: 1px;
   display: inline-block;
   min-width: 28px;
@@ -615,18 +620,18 @@ tr.status-BRK { background: var(--tint-brk); }
 tr.status-OOS { background: var(--tint-oos); }
 
 /* Status code colors — high saturation, instantly readable */
-.status-text-D   { color: #5090ff; font-size: 13px; font-weight: 900; }
-.status-text-DE  { color: #f0c040; font-size: 13px; font-weight: 900; }
-.status-text-OS  { color: #f05050; font-size: 13px; font-weight: 900; }
-.status-text-F   { color: #f05050; font-size: 13px; font-weight: 900; }
-.status-text-FD  { color: #e08030; font-size: 13px; font-weight: 900; }
-.status-text-T   { color: #c080ff; font-size: 13px; font-weight: 900; }
-.status-text-TH  { color: #50b0ff; font-size: 13px; font-weight: 900; }
-.status-text-AV  { color: #30d080; font-size: 13px; font-weight: 900; }
-.status-text-IQ  { color: #30d080; font-size: 13px; font-weight: 900; }
-.status-text-UV  { color: #8090a0; font-size: 13px; font-weight: 900; }
-.status-text-BRK { color: #f0c040; font-size: 13px; font-weight: 900; }
-.status-text-OOS { color: #8090a0; font-size: 13px; font-weight: 900; }
+.status-text-D   { color: #5090ff; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-DE  { color: #f0c040; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-OS  { color: #f05050; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-F   { color: #f05050; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-FD  { color: #e08030; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-T   { color: #c080ff; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-TH  { color: #50b0ff; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-AV  { color: #30d080; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-IQ  { color: #30d080; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-UV  { color: #8090a0; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-BRK { color: #f0c040; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
+.status-text-OOS { color: #8090a0; font-size: calc(13px + var(--font-bump)); font-weight: 900; }
 
 /* ── DISPATCHED — flashing row (highest urgency) ───────────── */
 tr.status-D {
