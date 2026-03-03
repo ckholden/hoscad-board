@@ -3,7 +3,7 @@
  * Caches field app shell for offline resilience, handles push notifications.
  */
 
-const CACHE_NAME = 'hoscad-field-v91';
+const CACHE_NAME = 'hoscad-field-v92';
 // Audio files intentionally excluded — browser Range requests return 206 which
 // cache.addAll() rejects atomically, breaking the entire pre-cache install.
 // Audio is served from network on demand and cached at runtime by the fetch handler.
@@ -13,6 +13,7 @@ const CACHE_NAME = 'hoscad-field-v91';
 const APP_SHELL = [
   '/field/',
   '/api.js',
+  '/styles.css',
   '/download.png',
   '/icons/favicon.ico',
   '/icons/icon-32.png',
@@ -22,12 +23,24 @@ const APP_SHELL = [
   '/icons/apple-touch-icon.png'
 ];
 
-// Install — cache app shell
+// Install — cache app shell individually (partial cache beats empty cache)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL).catch((err) => {
-        console.warn('[SW-FIELD] Pre-cache failed:', err);
+      return Promise.allSettled(
+        APP_SHELL.map((resource) =>
+          cache.add(resource).then(() => {
+            console.log('[SW-FIELD] Cached:', resource);
+            return { resource, status: 'ok' };
+          }).catch((err) => {
+            console.warn('[SW-FIELD] Failed to cache:', resource, err.message || err);
+            return { resource, status: 'failed' };
+          })
+        )
+      ).then((results) => {
+        const ok = results.filter((r) => r.value && r.value.status === 'ok').length;
+        const failed = results.filter((r) => r.value && r.value.status === 'failed').length;
+        console.log(`[SW-FIELD] Pre-cache complete: ${ok}/${APP_SHELL.length} cached, ${failed} failed`);
       });
     })
   );
@@ -72,6 +85,22 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         // Only cache full 200 responses — partial (206) and error responses must not be cached
         if (response.status === 200) {
+          // For HTML responses, check for Cloudflare Access challenge pages before caching.
+          // CF Access intercepts can return 200 with a redirect/challenge page instead of our app.
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('text/html')) {
+            const clone = response.clone();
+            return clone.text().then((body) => {
+              const isCFChallenge = body.includes('<meta http-equiv="refresh"') ||
+                                    body.includes('cloudflareaccess.com');
+              if (isCFChallenge) {
+                console.warn('[SW-FIELD] Skipped caching CF Access challenge page:', event.request.url);
+              } else {
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+              }
+              return response;
+            }).catch(() => response);
+          }
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
@@ -83,8 +112,12 @@ self.addEventListener('fetch', (event) => {
           // For navigation requests, serve the cached field app shell (not a blank 503)
           if (event.request.mode === 'navigate') {
             return caches.match('/field/').then((shell) => {
-              return shell || new Response('OFFLINE — FIELD APP NOT CACHED', {
-                status: 503, headers: { 'Content-Type': 'text/plain' }
+              if (shell) return shell;
+              // Fallback: try without trailing slash
+              return caches.match('/field').then((shellAlt) => {
+                return shellAlt || new Response('OFFLINE — FIELD APP NOT CACHED', {
+                  status: 503, headers: { 'Content-Type': 'text/plain' }
+                });
               });
             });
           }

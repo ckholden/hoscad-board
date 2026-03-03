@@ -30,7 +30,7 @@ Backend repo: `hoscad` (Supabase edge functions)
 
 ### Service Workers
 - `sw.js` — Board service worker
-- `sw-field.js` — Field MDT service worker (currently cache `v91`)
+- `sw-field.js` — Field MDT service worker (currently cache `v92`)
 - Bump cache version string manually when deploying field MDT changes
 
 ### Multi-Tenant Branding
