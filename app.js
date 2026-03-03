@@ -1595,24 +1595,32 @@ let _addrVerified = false; // true if address was selected from typeahead or val
 
 function _onNcSceneKeydown(e) {
   const dd = document.getElementById('addrTypeaheadDrop');
-  if (!dd) return;
+  if (!dd || dd.style.display === 'none') return;
   const rows = dd.querySelectorAll('.addr-ta-row');
+  if (!rows.length) return;
   const cur  = dd.querySelector('.addr-ta-row.active');
   const idx  = cur ? [...rows].indexOf(cur) : -1;
   if (e.key === 'ArrowDown') {
     e.preventDefault();
+    e.stopPropagation();
     const next = rows[idx + 1] || rows[0];
     rows.forEach(r => r.classList.remove('active'));
-    if (next) next.classList.add('active');
+    if (next) { next.classList.add('active'); next.scrollIntoView({ block: 'nearest' }); }
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
+    e.stopPropagation();
     const prev = rows[idx - 1] || rows[rows.length - 1];
     rows.forEach(r => r.classList.remove('active'));
-    if (prev) prev.classList.add('active');
-  } else if (e.key === 'Enter') {
+    if (prev) { prev.classList.add('active'); prev.scrollIntoView({ block: 'nearest' }); }
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
     const active = dd.querySelector('.addr-ta-row.active');
-    if (active) { e.preventDefault(); active.click(); }
+    if (active) {
+      e.preventDefault();
+      e.stopPropagation();
+      active.click();
+    }
   } else if (e.key === 'Escape') {
+    e.preventDefault();
     _closeAddrTypeahead();
   }
 }
@@ -1690,12 +1698,15 @@ async function _runAddrTypeahead(val) {
   if (!TOKEN || val.length < 3) { _closeAddrTypeahead(); return; }
   const capturedVal = val;
   const r = await API.searchAddressPoints(TOKEN, val, 8).catch(() => null);
-  // Stale check
+  // Stale check — input value changed while we were fetching
   const current = (document.getElementById('newIncScene')?.value || '').trim().toUpperCase();
-  if (current !== capturedVal || !r?.ok || !r.results?.length) {
-    _closeAddrTypeahead();
-    return;
-  }
+  if (current !== capturedVal) { _closeAddrTypeahead(); return; }
+  // Check if we have ANY results (GIS or local named locations)
+  const gisResults = (r?.ok && r.results?.length) ? r.results : [];
+  const localCheck = AddressLookup._loaded ? AddressLookup.search(capturedVal, 4) : [];
+  if (!gisResults.length && !localCheck.length) { _closeAddrTypeahead(); return; }
+  // Override r.results with what we have (may be empty if API failed)
+  if (r) r.results = gisResults;
   const inp = document.getElementById('newIncScene');
   if (!inp) return;
   const rect = inp.getBoundingClientRect();
@@ -1705,23 +1716,58 @@ async function _runAddrTypeahead(val) {
     dd.id = 'addrTypeaheadDrop';
     dd.className = 'addr-ta-drop';
     document.body.appendChild(dd);
+    // Prevent blur when clicking inside dropdown — critical for click selection
+    dd.addEventListener('mousedown', (ev) => ev.preventDefault());
+    // Event-delegated click handler (replaces inline onclick)
+    dd.addEventListener('click', (ev) => {
+      const row = ev.target.closest('.addr-ta-row');
+      if (!row) return;
+      if (row.dataset.type === 'named') {
+        const addr = row.dataset.addr || '';
+        const full = addr || row.dataset.full;
+        _selectAddrPoint(full, '', parseFloat(row.dataset.lat) || null,
+          parseFloat(row.dataset.lon) || null, row.dataset.city || '', null);
+      } else {
+        _selectAddrPoint(row.dataset.full, row.dataset.canonical || '',
+          parseFloat(row.dataset.lat) || null, parseFloat(row.dataset.lon) || null,
+          row.dataset.city || '', parseInt(row.dataset.id) || null);
+      }
+    });
   }
   dd.style.display = 'block';
   dd.style.left    = rect.left + 'px';
   dd.style.top     = (rect.bottom + window.scrollY + 2) + 'px';
-  dd.style.width   = rect.width + 'px';
-  dd.innerHTML = r.results.map((res, i) => {
+  dd.style.width   = Math.max(rect.width, 380) + 'px';
+
+  // Merge local named locations (AddressLookup) above GIS street results
+  const localResults = AddressLookup._loaded ? AddressLookup.search(capturedVal, 4) : [];
+  let html = '';
+  if (localResults.length) {
+    html += localResults.map((loc, i) => {
+      const addr = (loc.address ? loc.address + ', ' + (loc.city || '') : loc.city || '').toUpperCase();
+      return '<div class="addr-ta-row' + (i === 0 ? ' active' : '') + '" ' +
+        'data-type="named" data-full="' + esc(loc.name) + '" ' +
+        'data-addr="' + esc(addr) + '" data-id="' + esc(loc.id || '') + '" ' +
+        'data-lat="' + (loc.lat || '') + '" data-lon="' + (loc.lon || '') + '" ' +
+        'data-city="' + esc(loc.city || '') + '">' +
+        '<div class="addr-ta-main">' + esc(loc.name) + ' <span class="addr-ta-tag">NAMED</span></div>' +
+        '<div class="addr-ta-sub">' + esc(loc.id + (addr ? ' · ' + addr : '')) + '</div>' +
+        '</div>';
+    }).join('');
+  }
+  const gisOffset = localResults.length;
+  html += (gisResults).map((res, i) => {
     const sub = [res.city, res.county ? res.county + ' Co.' : ''].filter(Boolean).join(' · ');
-    return '<div class="addr-ta-row' + (i === 0 ? ' active' : '') + '" ' +
-      'onclick="_selectAddrPoint(' + JSON.stringify(res.full_address) + ',' +
-        JSON.stringify(res.canonical || '') + ',' +
-        (res.lat || 'null') + ',' + (res.lon || 'null') + ',' +
-        JSON.stringify(res.city || '') + ',' +
-        (res.id || 'null') + ')">' +
+    return '<div class="addr-ta-row' + (!gisOffset && i === 0 ? ' active' : '') + '" ' +
+      'data-type="gis" data-full="' + esc(res.full_address) + '" ' +
+      'data-canonical="' + esc(res.canonical || '') + '" ' +
+      'data-lat="' + (res.lat || '') + '" data-lon="' + (res.lon || '') + '" ' +
+      'data-city="' + esc(res.city || '') + '" data-id="' + (res.id || '') + '">' +
       '<div class="addr-ta-main">' + esc(res.full_address) + '</div>' +
       (sub ? '<div class="addr-ta-sub">' + esc(sub) + '</div>' : '') +
       '</div>';
   }).join('');
+  dd.innerHTML = html;
   _addrTypeaheadActive = true;
 }
 
@@ -8505,7 +8551,14 @@ async function _execCmd(tx) {
     const r = await API.pingUnit(TOKEN, pingUnit);
     setLive(false);
     if (!r.ok) return showErr(r);
-    showToast('PING ' + pingUnit + '... SENT', 'info', 5000);
+    // Show last-seen info if available
+    let pingMsg = 'PING ' + pingUnit + '... SENT — WAITING FOR PONG';
+    if (r.lastUpdated) {
+      const ago = Math.round((Date.now() - new Date(r.lastUpdated).getTime()) / 60000);
+      const agoStr = ago < 1 ? 'JUST NOW' : ago < 60 ? ago + 'm AGO' : Math.round(ago / 60) + 'h AGO';
+      pingMsg += '\nLAST ACTIVITY: ' + agoStr + ' (STATUS: ' + (r.lastStatus || '?') + ')';
+    }
+    showToast(pingMsg, 'info', 8000);
     // Set a 30s timeout — if no PONG arrives, warn the dispatcher
     const _pingTimeoutKey = '_pingTimeout_' + pingUnit;
     if (window[_pingTimeoutKey]) clearTimeout(window[_pingTimeoutKey]);
@@ -12202,23 +12255,8 @@ window.addEventListener('load', () => {
   AddrAutocomplete.attach(document.getElementById('mDestination'));
   AddrAutocomplete.attach(document.getElementById('incDestEdit'));
 
-  // Attach address autocomplete to scene fields — onSelect fills street address
-  AddrAutocomplete.attach(document.getElementById('newIncScene'), {
-    onSelect: function(addr) {
-      var el = document.getElementById('newIncScene');
-      if (el && addr.address) {
-        el.value = (addr.address + ', ' + addr.city + ', ' + addr.state + ' ' + addr.zip).toUpperCase();
-      }
-    }
-  });
-  AddrAutocomplete.attach(document.getElementById('incSceneAddress'), {
-    onSelect: function(addr) {
-      var el = document.getElementById('incSceneAddress');
-      if (el && addr.address) {
-        el.value = (addr.address + ', ' + addr.city + ', ' + addr.state + ' ' + addr.zip).toUpperCase();
-      }
-    }
-  });
+  // Scene fields use the GIS typeahead (inline oninput/onkeydown) — do NOT attach
+  // AddrAutocomplete here, it conflicts with the GIS typeahead keyboard/click handling.
 
   // Incident modal: Ctrl+Enter saves note
   document.getElementById('incNote').addEventListener('keydown', (e) => {

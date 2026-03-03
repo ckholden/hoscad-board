@@ -2115,6 +2115,11 @@ span.inc-link:hover { color: var(--hi); }
   letter-spacing: .05em; font-family: monospace;
 }
 .addr-ta-sub { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: .03em; }
+.addr-ta-tag {
+  font-size: 8px; font-weight: 900; letter-spacing: .06em; padding: 1px 4px;
+  background: rgba(91,163,230,.15); border: 1px solid rgba(91,163,230,.35);
+  color: var(--blue); vertical-align: middle; margin-left: 4px;
+}
 /* Legacy inline city span */
 .addr-ta-city { font-size: 10px; font-weight: 400; color: var(--muted); margin-left: 6px; }
 
