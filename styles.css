@@ -1288,10 +1288,62 @@ body.night-mode .confirmDialog     { filter: brightness(1.4); }
 /* ============================================================
    RESPONSIVE — Topbar Overflow
    ============================================================ */
+#searchWrap { position: relative; }
 #search {
-  min-width: 120px;
-  max-width: 200px;
-  width: 14vw;
+  min-width: 160px;
+  max-width: 240px;
+  width: 16vw;
+}
+#searchDrop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 420px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(0,0,0,.6);
+  z-index: 9500;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+#searchDrop .sd-cat {
+  padding: 5px 12px 3px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+#searchDrop .sd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,.03);
+}
+#searchDrop .sd-row:hover,
+#searchDrop .sd-row.sd-active {
+  background: rgba(32,96,224,.15);
+}
+#searchDrop .sd-label { font-weight: 900; }
+#searchDrop .sd-sub { font-size: 10px; color: var(--muted); margin-left: 6px; }
+#searchDrop .sd-status { font-size: 10px; font-weight: 900; margin-left: 4px; }
+#searchDrop .sd-badge {
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 5px;
+  letter-spacing: .04em;
+  display: inline-block;
+  margin-left: 4px;
+}
+#searchDrop .sd-hint {
+  padding: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
 }
 @media (max-width: 1200px) {
   #lfnSyncBadge,

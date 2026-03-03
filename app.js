@@ -2496,6 +2496,18 @@ async function refresh(forceFull) {
 
     const anyChange = _changedSections.units || _changedSections.incidents || _changedSections.banners || _changedSections.messages;
 
+    // Auto-refresh open incident modal on poll when incidents or units change
+    if ((_changedSections.incidents || _changedSections.units) && CURRENT_INCIDENT_ID) {
+      const _incModal = document.getElementById('incBack');
+      if (_incModal && _incModal.style.display === 'flex') {
+        _refreshIncidentModal(CURRENT_INCIDENT_ID);
+      }
+    }
+    // Keep context banner in sync with latest incident data
+    if (_changedSections.incidents && CLI_CONTEXT.incidentId) {
+      _updateContextBanner();
+    }
+
     if (anyChange) {
       if (document.hidden) {
         _pendingRender = true;
@@ -5251,6 +5263,31 @@ async function _refreshIncidentModal(incId) {
     const incUnitsEl = document.getElementById('incUnits');
     if (incUnitsEl) incUnitsEl.textContent = (inc.units||[]).join(', ') || '—';
 
+    // Live unit status detail (status badges, ETAs, notes)
+    const incUnitsDetailEl = document.getElementById('incUnitsDetail');
+    if (incUnitsDetailEl && STATE && STATE.units) {
+      const liveUnits = (STATE.units || []).filter(u => u.active && String(u.incident || '').toUpperCase() === String(incId).toUpperCase());
+      if (liveUnits.length > 0) {
+        incUnitsDetailEl.innerHTML = liveUnits.map(u => {
+          const stCode = u.status || '?';
+          const stBadge = '<span class="S-' + esc(stCode) + '" style="display:inline-block;min-width:28px;text-align:center;font-size:10px;font-weight:900;padding:1px 4px;margin-right:4px;">' + esc(stCode) + '</span>';
+          const rawNote = (u.note || '').replace(/\[(ETA|PAT|LOC|OOS|PP|ACK):[^\]]*\]\s*/gi, '').trim();
+          const etaM = ((u.note || '').match(/\[ETA:(\d+)\]/) || [])[1];
+          const patM = ((u.note || '').match(/\[PAT:([^\]]+)\]/) || [])[1];
+          const extras = [etaM ? 'ETA:' + etaM + 'M' : '', patM ? 'PAT:' + patM : ''].filter(Boolean).join(' ');
+          const noteDisplay = [rawNote, extras].filter(Boolean).join(' | ');
+          return '<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05);">' +
+            stBadge +
+            '<span style="color:#8b949e;min-width:64px;display:inline-block;">' + esc(u.unit_id || '') + '</span>' +
+            (noteDisplay ? '<span style="color:#c9d1d9;"> — ' + esc(noteDisplay) + '</span>' : '') +
+            '</div>';
+        }).join('');
+        incUnitsDetailEl.style.display = 'block';
+      } else {
+        incUnitsDetailEl.style.display = 'none';
+      }
+    }
+
     // Priority (skip if focused)
     const priEl = document.getElementById('incPriorityEdit');
     if (priEl && priEl !== active) priEl.value = inc.priority || '';
@@ -5266,7 +5303,31 @@ async function _refreshIncidentModal(incId) {
     const updEl = document.getElementById('incUpdated');
     if (updEl) updEl.textContent = inc.updated_at ? fmtTime24(inc.updated_at) : '—';
     const byEl = document.getElementById('incBy');
-    if (byEl) byEl.textContent = (inc.updated_by || '—').toUpperCase();
+    if (byEl) {
+      byEl.textContent = (inc.updated_by || '—').toUpperCase();
+      byEl.className = getRoleColor(inc.updated_by);
+    }
+
+    // Disposition / closed banner
+    const dispBadgeEl = document.getElementById('incDispositionBadge');
+    if (dispBadgeEl) {
+      const rawNote = (inc.incident_note || '').toUpperCase();
+      const dM = rawNote.match(/\[DISP:([^\]]+)\]/i);
+      const dispCode = dM ? dM[1].toUpperCase() : (inc.disposition || '').toUpperCase();
+      const _st = (inc.status || '').toUpperCase();
+      if (_st === 'CLOSED') {
+        let closedText = 'CLOSED';
+        if (inc.closed_at) closedText += ' · ' + fmtTime24(inc.closed_at);
+        if (dispCode) closedText += ' · DISPO: ' + dispCode;
+        dispBadgeEl.innerHTML = '<span style="color:#f85149;font-weight:900;">■ ' + esc(closedText) + '</span>';
+        dispBadgeEl.style.cssText = 'display:block;margin:4px 0 2px;font-size:11px;font-weight:900;letter-spacing:.06em;font-family:monospace;padding:4px 8px;background:rgba(212,48,48,.12);border-left:3px solid #f85149;';
+      } else if (dispCode) {
+        dispBadgeEl.textContent = 'DISPOSITION: ' + dispCode;
+        dispBadgeEl.style.cssText = 'display:block;margin:4px 0 2px;font-size:11px;font-weight:900;letter-spacing:.06em;color:#79c0ff;font-family:monospace;';
+      } else {
+        dispBadgeEl.style.display = 'none';
+      }
+    }
 
     // Audit trail (always safe — read only)
     renderIncidentAudit(r.audit || []);
@@ -9765,6 +9826,212 @@ function updatePopoutStats() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ── Topbar Search Dropdown (inline universal search) ─────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+let _sdActiveIdx = -1;
+
+function _closeSearchDrop() {
+  const el = document.getElementById('searchDrop');
+  if (el) el.style.display = 'none';
+  _sdActiveIdx = -1;
+}
+
+function _sdKeydown(e) {
+  const drop = document.getElementById('searchDrop');
+  if (!drop || drop.style.display === 'none') {
+    if (e.key === 'Escape') { e.target.value = ''; renderBoardDiff(); return; }
+    return;
+  }
+  const rows = drop.querySelectorAll('.sd-row');
+  if (e.key === 'Escape') { e.preventDefault(); _closeSearchDrop(); return; }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _sdActiveIdx = Math.min(_sdActiveIdx + 1, rows.length - 1);
+    rows.forEach((r, i) => r.classList.toggle('sd-active', i === _sdActiveIdx));
+    if (rows[_sdActiveIdx]) rows[_sdActiveIdx].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _sdActiveIdx = Math.max(_sdActiveIdx - 1, -1);
+    rows.forEach((r, i) => r.classList.toggle('sd-active', i === _sdActiveIdx));
+    if (_sdActiveIdx >= 0 && rows[_sdActiveIdx]) rows[_sdActiveIdx].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_sdActiveIdx >= 0 && rows[_sdActiveIdx]) {
+      _sdSelectRow(rows[_sdActiveIdx]);
+    }
+  }
+}
+
+function _sdSelectRow(el) {
+  const type = el.dataset.type;
+  const id   = el.dataset.id;
+  _closeSearchDrop();
+  document.getElementById('search').value = '';
+  renderBoardDiff();
+
+  if (type === 'unit') {
+    // Scroll to unit on the board and flash it
+    const row = document.querySelector('tr[data-uid="' + id + '"]');
+    if (row) {
+      row.scrollIntoView({ block: 'center' });
+      row.style.outline = '2px solid rgba(64,160,255,.85)';
+      setTimeout(() => { row.style.outline = ''; }, 2000);
+    }
+  } else if (type === 'incident') {
+    _openIncidentSmart(id);
+  } else if (type === 'address') {
+    // Put address into command for NC shortcut
+    const cmd = document.getElementById('cmd');
+    if (cmd) { cmd.value = 'NC ' + id; cmd.focus(); }
+  } else if (type === 'person') {
+    _openPersonCard(id);
+  } else if (type === 'destination') {
+    const cmd = document.getElementById('cmd');
+    if (cmd) { cmd.value = id; cmd.focus(); }
+  }
+}
+
+async function _doSearchDropdown() {
+  const inp = document.getElementById('search');
+  const drop = document.getElementById('searchDrop');
+  if (!inp || !drop) return;
+  const q = inp.value.trim().toUpperCase();
+
+  if (q.length < 2) { drop.style.display = 'none'; return; }
+
+  let html = '';
+  let idx = 0;
+
+  // ── Units (client-side, instant) ──
+  const units = (STATE?.units || []).filter(u => {
+    const haystack = (u.unit_id + ' ' + (u.display_name || '') + ' ' + (u.note || '') + ' ' + (u.destination || '') + ' ' + (u.incident || '')).toUpperCase();
+    return haystack.includes(q);
+  }).slice(0, 8);
+  if (units.length) {
+    html += '<div class="sd-cat">UNITS (' + units.length + ')</div>';
+    units.forEach(u => {
+      const stCode = u.status || '?';
+      const note = (u.note || '').replace(/\[(ETA|PAT|LOC|OOS|PP|ACK):[^\]]*\]\s*/gi, '').trim();
+      const dest = u.destination || '';
+      const sub = [stCode, dest, note].filter(Boolean).join(' · ').substring(0, 80);
+      html += '<div class="sd-row" data-idx="' + idx + '" data-type="unit" data-id="' + esc(u.unit_id) + '" onclick="_sdSelectRow(this)">' +
+        '<span class="sd-label"><span class="S-' + esc(stCode) + '" style="display:inline-block;min-width:24px;text-align:center;font-size:9px;font-weight:900;padding:0 3px;margin-right:4px;">' + esc(stCode) + '</span>' + esc(u.unit_id) + '</span>' +
+        '<span class="sd-sub">' + esc(sub) + '</span>' +
+        '</div>';
+      idx++;
+    });
+  }
+
+  // ── Active Incidents (client-side) ──
+  const incs = (STATE?.incidents || [])
+    .filter(i => {
+      const h = ((i.incident_id||'') + ' ' + (i.scene_address||'') + ' ' + (i.incident_type||'') + ' ' + (i.destination||'') + ' ' + (i.incident_note||'')).toUpperCase();
+      return h.includes(q);
+    })
+    .sort((a, b) => new Date(_normalizeTs(b.created_at)) - new Date(_normalizeTs(a.created_at)))
+    .slice(0, 6);
+  if (incs.length) {
+    html += '<div class="sd-cat">ACTIVE INCIDENTS (' + incs.length + ')</div>';
+    incs.forEach(i => {
+      const sc = i.status === 'ACTIVE' ? 'color:var(--green)' : i.status === 'QUEUED' ? 'color:var(--yellow)' : 'color:var(--muted)';
+      const sub = [(i.incident_type||''), (i.scene_address||'')].filter(Boolean).join(' · ').substring(0, 80);
+      html += '<div class="sd-row" data-idx="' + idx + '" data-type="incident" data-id="' + esc(i.incident_id) + '" onclick="_sdSelectRow(this)">' +
+        '<span class="sd-label" style="' + sc + '">' + esc(i.incident_id) + '</span>' +
+        '<span class="sd-status" style="' + sc + '">' + esc(i.status||'') + '</span>' +
+        '<span class="sd-sub">' + esc(sub) + '</span>' +
+        '</div>';
+      idx++;
+    });
+  }
+
+  // ── Addresses (client-side cache) ──
+  const addrs = AddressLookup.search ? AddressLookup.search(q, 5) : [];
+  if (addrs.length) {
+    html += '<div class="sd-cat">ADDRESSES (' + addrs.length + ')</div>';
+    addrs.forEach(a => {
+      const label = a.code || a.name || '';
+      const addr = a.addr || a.address || '';
+      html += '<div class="sd-row" data-idx="' + idx + '" data-type="address" data-id="' + esc(addr || label) + '" onclick="_sdSelectRow(this)">' +
+        '<span class="sd-label">' + esc(label) + '</span>' +
+        '<span class="sd-sub">' + esc(addr) + '</span>' +
+        '</div>';
+      idx++;
+    });
+  }
+
+  // Show client-side results immediately
+  if (html) {
+    drop.innerHTML = html;
+    drop.style.display = 'block';
+  }
+
+  // ── Server-side history (async — appends to dropdown) ──
+  if (TOKEN && q.length >= 3) {
+    const capturedQ = q;
+    const incPat = /^(?:INC[-\s]?)?\d{2}-\d{5}$|^(?:INC[-\s]?)?\d{5}$/i;
+    const already = new Set((STATE?.incidents||[]).map(i => i.incident_id));
+
+    const [fullSearchRes, peopleRes] = await Promise.all([
+      API.searchIncidentsFull(TOKEN, q, 6).catch(() => null),
+      API.searchPeople(TOKEN, q).catch(() => null),
+    ]);
+
+    const currentQ = (document.getElementById('search')?.value||'').trim().toUpperCase();
+    if (currentQ !== capturedQ) return; // query changed while waiting
+
+    const histSeen = new Set();
+    let serverHtml = '';
+
+    // Historical incidents
+    if (fullSearchRes?.ok && fullSearchRes.incidents?.length) {
+      const hist = fullSearchRes.incidents.filter(i => !already.has(i.incident_id) && !histSeen.has(i.incident_id));
+      hist.forEach(i => histSeen.add(i.incident_id));
+      if (hist.length) {
+        serverHtml += '<div class="sd-cat">HISTORICAL (' + hist.length + ')</div>';
+        hist.slice(0, 6).forEach(i => {
+          const sc = i.status === 'ACTIVE' ? 'color:var(--green)' : i.status === 'QUEUED' ? 'color:var(--yellow)' : 'color:var(--muted)';
+          const sub = [(i.incident_type||''), (i.unit_id||''), (i.scene_address||'')].filter(Boolean).join(' · ').substring(0, 80);
+          serverHtml += '<div class="sd-row" data-idx="' + idx + '" data-type="incident" data-id="' + esc(i.incident_id) + '" onclick="_sdSelectRow(this)">' +
+            '<span class="sd-label" style="' + sc + '">' + esc(i.incident_id) + '</span>' +
+            '<span class="sd-status" style="' + sc + '">' + esc(i.status||'') + '</span>' +
+            '<span class="sd-sub">' + esc(sub) + '</span>' +
+            '</div>';
+          idx++;
+        });
+      }
+    }
+
+    // People
+    if (peopleRes?.ok && peopleRes.people?.length) {
+      serverHtml += '<div class="sd-cat">PEOPLE (' + peopleRes.people.length + ')</div>';
+      peopleRes.people.slice(0, 5).forEach(p => {
+        const sub = [(p.dob ? 'DOB:' + p.dob : ''), (p.address1||'')].filter(Boolean).join(' · ');
+        serverHtml += '<div class="sd-row" data-idx="' + idx + '" data-type="person" data-id="' + esc(p.person_id) + '" onclick="_sdSelectRow(this)">' +
+          '<span class="sd-label" style="color:#4fa3e0;">' + esc(p.full_name) + '</span>' +
+          '<span class="sd-sub">' + esc(sub) + '</span>' +
+          '</div>';
+        idx++;
+      });
+    }
+
+    if (serverHtml) {
+      drop.innerHTML = (html || '') + serverHtml;
+      drop.style.display = 'block';
+    }
+  }
+
+  if (!html && idx === 0) {
+    drop.innerHTML = '<div class="sd-hint">NO RESULTS FOR "' + esc(q) + '"</div>';
+    drop.style.display = 'block';
+  } else if (!html) {
+    drop.style.display = 'none';
+  }
+
+  _sdActiveIdx = -1;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // ── Search Panel (F3 / Ctrl+F) ───────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -12244,9 +12511,22 @@ async function start() {
   updateClock();
   var _clockInterval = setInterval(updateClock, 1000);
   let _searchDebounce;
-  document.getElementById('search').addEventListener('input', () => {
+  let _sdDebounce;
+  const _searchEl = document.getElementById('search');
+  _searchEl.addEventListener('input', () => {
     clearTimeout(_searchDebounce);
     _searchDebounce = setTimeout(renderBoardDiff, 180);
+    clearTimeout(_sdDebounce);
+    _sdDebounce = setTimeout(_doSearchDropdown, 350);
+  });
+  _searchEl.addEventListener('focus', () => {
+    const q = _searchEl.value.trim();
+    if (q.length >= 2) _doSearchDropdown();
+  });
+  _searchEl.addEventListener('keydown', _sdKeydown);
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('searchWrap');
+    if (wrap && !wrap.contains(e.target)) _closeSearchDrop();
   });
   document.getElementById('showInactive').addEventListener('change', renderBoardDiff);
   setupColumnSort();

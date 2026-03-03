@@ -28,7 +28,10 @@
     <div class="pill">USER: <span id="userLabel">-</span></div>
     <div id="msgBadge" class="msgBadge" onclick="openMessages()" style="display:none;">MSG (<span id="msgCount">0</span>)</div>
     <div class="row right">
-      <input id="search" placeholder="SEARCH UNIT / NOTE" />
+      <div id="searchWrap" style="position:relative;">
+        <input id="search" placeholder="SEARCH UNITS / CALLS / HISTORY" autocomplete="off" />
+        <div id="searchDrop" style="display:none;"></div>
+      </div>
       <label class="pill" style="display:flex;gap:8px;align-items:center;">
         <input id="showInactive" type="checkbox" style="width:16px;height:16px;" />
         SHOW INACTIVE
