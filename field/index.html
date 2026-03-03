@@ -31,6 +31,22 @@
       --orange: #ffaa5b;
       --font-mono: Consolas, Menlo, Monaco, "Courier New", monospace;
       --font-bump: 0px;
+
+      /* Z-index scale — centralized for overlay stacking clarity */
+      --z-persist-strip: 10;
+      --z-bottom-nav: 20;
+      --z-typeahead: 200;
+      --z-map-controls: 1000;
+      --z-info-overlay: 8000;
+      --z-overlays: 9000;       /* transport, clear-note, del-reason, pin-change, schedule */
+      --z-call-detail: 9300;
+      --z-field-map: 9400;      /* field map + inc-history overlays */
+      --z-inc-note: 9450;
+      --z-dispo-detail: 9500;   /* dispo sheet + incident detail */
+      --z-bug-report: 9600;
+      --z-password-warn: 9800;
+      --z-confirm: 9900;
+      --z-session-expired: 9999;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -215,6 +231,7 @@
     }
 
     .login-card .field-label {
+      display: block;
       font-size: 10px;
       color: var(--muted);
       margin-bottom: 4px;
@@ -671,7 +688,7 @@
     }
     .field-nc-status { font-size: 11px; margin-top: 6px; min-height: 16px; }
     .field-nc-ta {
-      position: absolute; left: 0; right: 0; z-index: 200;
+      position: absolute; left: 0; right: 0; z-index: var(--z-typeahead);
       background: #0d1420; border: 1px solid rgba(91,163,230,.6);
       box-shadow: 0 8px 24px rgba(0,0,0,.9); max-height: 180px; overflow-y: auto;
     }
@@ -781,7 +798,7 @@
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 50;
+      z-index: var(--z-confirm);
       padding: 20px;
     }
 
@@ -1122,7 +1139,7 @@
       padding: 8px 10px; font-size: 12px; font-weight: 900; min-height: 48px;
     }
     .info-overlay {
-      position: fixed; inset: 0; z-index: 8000; background: rgba(0,0,0,.88);
+      position: fixed; inset: 0; z-index: var(--z-info-overlay); background: rgba(0,0,0,.88);
       display: flex; flex-direction: column;
     }
     .info-overlay-header {
@@ -1323,7 +1340,7 @@
       background: var(--panel2);
       border-top: 2px solid var(--line);
       padding-bottom: max(0px, env(safe-area-inset-bottom));
-      z-index: 20;
+      z-index: var(--z-bottom-nav);
     }
     .bottom-nav.visible { display: flex; }
 
@@ -1495,14 +1512,14 @@
       display: none;
       position: fixed;
       inset: 0;
-      z-index: 9299;
+      z-index: var(--z-call-detail);
       background: rgba(0,0,0,.5);
     }
     #callDetailSheet {
       display: none;
       position: fixed;
       left: 0; right: 0; bottom: 0;
-      z-index: 9300;
+      z-index: var(--z-call-detail);
       background: var(--panel2);
       border-top: 2px solid var(--blue);
       max-height: 80vh;
@@ -1568,7 +1585,7 @@
 </head>
 <body>
 
-<div id="sessionExpiredBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#7f0000;color:#fff;font-weight:900;font-size:15px;font-family:inherit;padding:12px 16px;align-items:center;justify-content:space-between;letter-spacing:0.05em;">
+<div id="sessionExpiredBanner" role="alert" aria-live="assertive" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#7f0000;color:#fff;font-weight:900;font-size:15px;font-family:inherit;padding:12px 16px;align-items:center;justify-content:space-between;letter-spacing:0.05em;">
   <span>⚠ SESSION EXPIRED — TAP TO LOG OUT AND RECONNECT</span>
   <button onclick="cadLogout().then(function(){location.reload();})" style="background:#fff;color:#7f0000;border:none;padding:6px 14px;font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;">LOG OUT</button>
 </div>
@@ -1579,16 +1596,16 @@
     <div class="login-card">
       <h2>HOSCAD FIELD</h2>
       <div class="field">
-        <div class="field-label">CALLSIGN</div>
+        <label class="field-label" for="loginCallsign">CALLSIGN</label>
         <input id="loginCallsign" type="text" placeholder="ENTER CALLSIGN (E.G. EMS12, CC1)" autocomplete="off" autocorrect="off" autocapitalize="characters" />
       </div>
       <div class="field">
-        <div class="field-label">FLEET / TRUCK # <span style="font-size:10px;font-weight:400;color:var(--muted);">(OPTIONAL)</span></div>
+        <label class="field-label" for="loginFleetNumber">FLEET / TRUCK # <span style="font-size:10px;font-weight:400;color:var(--muted);">(OPTIONAL)</span></label>
         <input id="loginFleetNumber" type="text" placeholder="E.G. 301, MEDIC-7" autocomplete="off" autocorrect="off" autocapitalize="characters" maxlength="20" />
       </div>
       <div id="crewPinLoginSection">
       <div class="field">
-        <div class="field-label">CREW 1 (REQUIRED)</div>
+        <label class="field-label" for="loginCrew1CadId">CREW 1 (REQUIRED)</label>
         <div id="crew1PinRow" style="display:flex;gap:6px;align-items:center;">
           <input id="loginCrew1CadId" type="text" inputmode="numeric" placeholder="CAD ID" autocomplete="off" autocorrect="off" style="width:72px;" maxlength="6" />
           <input id="loginCrew1Pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" style="width:60px;" maxlength="6" />
@@ -1607,7 +1624,7 @@
         </div>
       </div>
       <div class="field">
-        <div class="field-label">CREW 2 (OPTIONAL)</div>
+        <label class="field-label" for="loginCrew2CadId">CREW 2 (OPTIONAL)</label>
         <div id="crew2PinRow" style="display:flex;gap:6px;align-items:center;">
           <input id="loginCrew2CadId" type="text" inputmode="numeric" placeholder="CAD ID" autocomplete="off" autocorrect="off" style="width:72px;" maxlength="6" />
           <input id="loginCrew2Pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" style="width:60px;" maxlength="6" />
@@ -1645,7 +1662,7 @@
       <span id="gpsAutoBadge" style="display:none;font-size:10px;font-weight:700;letter-spacing:.06em;color:#4caf50;padding:2px 5px;border:1px solid #4caf50;">GPS&#9650;</span>
       <span class="pending-badge" id="pendingBadge" style="display:none;"></span>
       <span style="flex:1;"></span>
-      <span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.06em;">HOSCAD</span>
+      <span id="fieldHeaderLabel" style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.06em;">HOSCAD</span>
     </div>
 
     <!-- PERSISTENT STATUS STRIP — visible on all tabs -->
@@ -1660,10 +1677,10 @@
     <div class="field-tab-shell" style="display:flex;flex-direction:column;flex:1;min-height:0;">
 
       <!-- ─── TAB: MY CALL ─── -->
-      <div id="tabMyCall" class="tab-content active">
+      <div id="tabMyCall" class="tab-content active" role="tabpanel" aria-labelledby="navMyCall">
         <!-- Alert/Note Banners (referenced by showLogin reset) -->
-        <div id="alertBanner" class="field-banner alert" style="display:none;"></div>
-        <div id="noteBanner" class="field-banner note" style="display:none;"></div>
+        <div id="alertBanner" class="field-banner alert" style="display:none;" aria-live="assertive" role="alert"></div>
+        <div id="noteBanner" class="field-banner note" style="display:none;" aria-live="polite"></div>
 
         <!-- Unit Location Bar -->
         <div id="fieldLocationBar" style="display:none;padding:4px 16px;background:rgba(30,40,60,0.7);border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.04em;flex-shrink:0;">
@@ -1671,7 +1688,7 @@
         </div>
 
         <!-- Offline watermark — shown when offline with active incident -->
-        <div id="offlineWatermark" style="display:none;padding:4px 16px;background:rgba(255,107,107,0.1);border-bottom:2px solid #5b2727;font-size:10px;font-weight:900;color:#ff6b6b;letter-spacing:.08em;text-align:center;">OFFLINE \u2014 DATA MAY BE STALE</div>
+        <div id="offlineWatermark" role="status" aria-live="polite" style="display:none;padding:4px 16px;background:rgba(255,107,107,0.1);border-bottom:2px solid #5b2727;font-size:10px;font-weight:900;color:#ff6b6b;letter-spacing:.08em;text-align:center;">OFFLINE \u2014 DATA MAY BE STALE</div>
 
         <!-- INCIDENT DISPLAY PANEL -->
         <div id="incidentPanel" class="incident-panel no-incident">
@@ -1751,7 +1768,7 @@
       </div><!-- end #tabMyCall -->
 
       <!-- ─── TAB: STATUS ─── -->
-      <div id="tabStatus" class="tab-content">
+      <div id="tabStatus" class="tab-content" role="tabpanel" aria-labelledby="navStatus">
         <!-- Primary 2x2 status grid -->
         <div class="field-status-grid">
           <button class="field-status-btn field-status-de" data-status="DE">ENROUTE</button>
@@ -1803,7 +1820,7 @@
           <div id="fieldNcStatus" class="field-nc-status"></div>
         </div>
         <!-- Command console — primary home after login -->
-        <div class="cmd-feed" id="cmdFeed" style="flex:1;max-height:none;">
+        <div class="cmd-feed" id="cmdFeed" style="flex:1;max-height:none;" aria-live="polite" aria-label="Command feed">
           <div class="cmd-feed-line"><span class="cmd-sys">HOSCAD FIELD READY. TYPE HELP FOR COMMANDS.</span></div>
         </div>
         <div class="cmd-input-row">
@@ -1864,7 +1881,7 @@
       </div><!-- end #tabStatus -->
 
       <!-- ─── TAB: MAP ─── -->
-      <div id="tabMap" class="tab-content" style="position:relative;">
+      <div id="tabMap" class="tab-content" role="tabpanel" aria-labelledby="navMap" style="position:relative;">
         <div id="fieldMapTabEl"></div>
         <div id="fmapTabStatus" style="flex-shrink:0;padding:6px 12px;font-size:10px;color:#8b949e;background:#0d1117;border-top:1px solid #1f2b3d;min-height:24px;"></div>
         <div style="position:absolute;top:8px;right:8px;z-index:1000;">
@@ -1873,7 +1890,7 @@
       </div><!-- end #tabMap -->
 
       <!-- ─── TAB: CALLS ─── -->
-      <div id="tabCalls" class="tab-content">
+      <div id="tabCalls" class="tab-content" role="tabpanel" aria-labelledby="navCalls">
         <div style="padding:8px 12px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--bg);">
           <span style="font-weight:900;letter-spacing:.08em;">INCIDENTS</span>
           <span id="callsQueueCount" style="color:var(--text);font-weight:700;"></span>
@@ -1884,7 +1901,7 @@
       </div><!-- end #tabCalls -->
 
       <!-- ─── TAB: ROSTER ─── -->
-      <div id="tabRoster" class="tab-content">
+      <div id="tabRoster" class="tab-content" role="tabpanel" aria-labelledby="navRoster">
         <div style="padding:8px 12px;font-size:10px;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
           <span style="font-weight:900;letter-spacing:.08em;">ACTIVE UNITS</span>
           <span id="rosterUnitCount" style="color:var(--text);font-weight:700;"></span>
@@ -1895,7 +1912,7 @@
       </div><!-- end #tabRoster -->
 
       <!-- ─── TAB: MORE ─── -->
-      <div id="tabMore" class="tab-content">
+      <div id="tabMore" class="tab-content" role="tabpanel" aria-labelledby="navMore">
         <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
           <!-- Unit identity -->
           <div style="padding:12px 16px;border-bottom:2px solid var(--line);background:var(--panel2);flex-shrink:0;">
@@ -1964,29 +1981,29 @@
       </div><!-- end #tabMore -->
 
       <!-- BOTTOM NAV BAR (hidden until login) -->
-      <nav class="bottom-nav" id="bottomNav">
-        <button class="nav-tab active" id="navMyCall" onclick="switchTab('mycall')">
+      <nav class="bottom-nav" id="bottomNav" role="tablist" aria-label="Field MDT navigation">
+        <button class="nav-tab active" id="navMyCall" onclick="switchTab('mycall')" role="tab" aria-selected="true" aria-controls="tabMyCall">
           <span class="nav-tab-icon">&#128222;</span>
           <span>MY CALL</span>
         </button>
-        <button class="nav-tab" id="navStatus" onclick="switchTab('status')">
+        <button class="nav-tab" id="navStatus" onclick="switchTab('status')" role="tab" aria-selected="false" aria-controls="tabStatus">
           <span class="nav-tab-icon">&#9654;</span>
           <span>STATUS</span>
         </button>
-        <button class="nav-tab" id="navMap" onclick="switchTab('map')">
+        <button class="nav-tab" id="navMap" onclick="switchTab('map')" role="tab" aria-selected="false" aria-controls="tabMap">
           <span class="nav-tab-icon">&#9974;</span>
           <span>MAP</span>
         </button>
-        <button class="nav-tab" id="navCalls" onclick="switchTab('calls')">
+        <button class="nav-tab" id="navCalls" onclick="switchTab('calls')" role="tab" aria-selected="false" aria-controls="tabCalls">
           <span class="nav-tab-badge" id="callsTabBadge"></span>
           <span class="nav-tab-icon">&#128680;</span>
           <span>CALLS</span>
         </button>
-        <button class="nav-tab" id="navRoster" onclick="switchTab('roster')">
+        <button class="nav-tab" id="navRoster" onclick="switchTab('roster')" role="tab" aria-selected="false" aria-controls="tabRoster">
           <span class="nav-tab-icon">&#9776;</span>
           <span>ROSTER</span>
         </button>
-        <button class="nav-tab" id="navMore" onclick="switchTab('more')">
+        <button class="nav-tab" id="navMore" onclick="switchTab('more')" role="tab" aria-selected="false" aria-controls="tabMore">
           <span class="nav-tab-badge" id="moreTabBadge"></span>
           <span class="nav-tab-icon">&#8943;</span>
           <span>MORE</span>
@@ -2010,7 +2027,7 @@
 </div>
 
 <!-- Confirm Dialog -->
-<div id="confirmOverlay" class="confirm-overlay">
+<div id="confirmOverlay" class="confirm-overlay" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
   <div class="confirm-box">
     <div class="confirm-title" id="confirmTitle">CONFIRM</div>
     <div class="confirm-message" id="confirmMessage"></div>
@@ -2022,7 +2039,7 @@
 </div>
 
 <!-- Clear Note overlay — optional note before going AV or patient handoff -->
-<div id="clearNoteOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
+<div id="clearNoteOverlay" role="dialog" aria-modal="true" aria-labelledby="clearNoteTitle" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
   <div style="background:#0d1117;border:2px solid #1a3a5c;padding:24px;min-width:280px;max-width:90vw;">
     <div style="font-size:14px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#e6edf3;" id="clearNoteTitle">CLEARING FROM CALL</div>
     <div style="font-size:11px;color:#8b949e;margin-bottom:12px;">OPTIONAL NOTE — LEAVE BLANK TO SKIP</div>
@@ -2038,7 +2055,7 @@
 </div>
 
 <!-- Delete Incident overlay — reason picker for DEL command -->
-<div id="delReasonOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
+<div id="delReasonOverlay" role="dialog" aria-modal="true" aria-label="Delete Incident" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
   <div style="background:#0d1117;border:2px solid #c0392b;padding:24px;min-width:280px;max-width:90vw;">
     <div style="font-size:14px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#e6edf3;">DELETE INCIDENT</div>
     <div style="font-size:12px;color:#8b949e;margin-bottom:4px;" id="delReasonIncLabel"></div>
@@ -2052,7 +2069,7 @@
 </div>
 
 <!-- Hospital Quick Reference Overlay -->
-<div id="infoOverlay" class="info-overlay" style="display:none;">
+<div id="infoOverlay" class="info-overlay" role="dialog" aria-modal="true" aria-label="Hospital Reference" style="display:none;">
   <div class="info-overlay-header">
     <span class="info-overlay-title">HOSPITAL REFERENCE</span>
     <button id="btnInfoClose" style="background:#2a1212;border:2px solid #5b2727;color:#ff6b6b;padding:8px 16px;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;">CLOSE</button>
@@ -2061,7 +2078,7 @@
 </div>
 
 <!-- Transport destination overlay (shown on T status) -->
-<div id="transportOverlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
+<div id="transportOverlay" role="dialog" aria-modal="true" aria-label="Transport Destination" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;">
   <div style="background:#0d1117;border:2px solid #1a3a5c;padding:24px;min-width:280px;max-width:90vw;">
     <div style="font-size:14px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#e6edf3;">TRANSPORTING TO:</div>
     <div style="font-size:11px;color:#8b949e;margin-bottom:12px;" id="transportDismissLabel">TAP QUICK PICK OR TYPE DESTINATION</div>
@@ -2077,7 +2094,7 @@
 </div>
 
 <!-- mustChangePassword warning overlay (non-blocking, once per session) -->
-<div id="mustChangePwOverlay" style="display:none;position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.75);align-items:center;justify-content:center;">
+<div id="mustChangePwOverlay" role="alertdialog" aria-modal="true" aria-label="Password Change Required" style="display:none;position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.75);align-items:center;justify-content:center;">
   <div style="background:#0d1117;border:2px solid #c0392b;padding:24px;max-width:340px;width:90vw;">
     <div style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e05050;margin-bottom:10px;">&#9888; PASSWORD CHANGE REQUIRED</div>
     <div style="font-size:12px;color:#cdd9e5;line-height:1.5;margin-bottom:16px;">YOUR PASSWORD MUST BE CHANGED.<br>LOG IN TO THE DISPATCHER BOARD TO SET A NEW PASSWORD.</div>
@@ -2086,7 +2103,7 @@
 </div>
 
 <!-- Field Map Overlay -->
-<div id="fieldMapOverlay" style="display:none;position:fixed;inset:0;z-index:9400;background:#0d1117;flex-direction:column;">
+<div id="fieldMapOverlay" role="dialog" aria-modal="true" aria-label="Incident Map" style="display:none;position:fixed;inset:0;z-index:9400;background:#0d1117;flex-direction:column;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:max(10px,env(safe-area-inset-top)) 16px 10px;background:#0d1117;border-bottom:1px solid #1f2b3d;flex-shrink:0;">
     <div>
       <span style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">INCIDENT MAP</span>
@@ -2102,7 +2119,7 @@
 </div>
 
 <!-- Field Incident History Overlay -->
-<div id="fieldIncHistOverlay" style="display:none;position:fixed;inset:0;z-index:9400;background:#0d1117;flex-direction:column;">
+<div id="fieldIncHistOverlay" role="dialog" aria-modal="true" aria-label="Incident Log" style="display:none;position:fixed;inset:0;z-index:9400;background:#0d1117;flex-direction:column;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:max(10px,env(safe-area-inset-top)) 16px 10px;background:#0d1117;border-bottom:1px solid #1f2b3d;flex-shrink:0;">
     <span style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">INCIDENT LOG</span>
     <button onclick="closeFieldIncHist()" style="background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;min-height:36px;">✕ CLOSE</button>
@@ -2111,11 +2128,11 @@
 </div>
 
 <!-- Field Incident Note Modal -->
-<div id="fieldIncNoteModal" style="display:none;position:fixed;inset:0;z-index:9450;background:rgba(0,0,0,.75);align-items:flex-end;justify-content:center;">
+<div id="fieldIncNoteModal" role="dialog" aria-modal="true" aria-labelledby="finmTitle" style="display:none;position:fixed;inset:0;z-index:9450;background:rgba(0,0,0,.75);align-items:flex-end;justify-content:center;">
   <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;padding:0 0 env(safe-area-inset-bottom,8px);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid #1f2b3d;">
       <span id="finmTitle" style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">ADD NOTE</span>
-      <button onclick="closeFieldIncNote()" style="background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;min-height:36px;">✕</button>
+      <button onclick="closeFieldIncNote()" aria-label="Close note dialog" style="background:transparent;border:1px solid #30363d;color:#8b949e;font-family:inherit;font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;min-height:36px;">✕</button>
     </div>
     <div style="padding:14px 16px 0;">
       <textarea id="finmText" placeholder="ENTER NOTE (E.G. PATIENT STABLE, ETA 10 MIN)..."
@@ -2131,7 +2148,7 @@
 </div>
 
 <!-- Field Dispo Sheet — required when going AV from an active incident -->
-<div id="fieldDispoSheet" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center;">
+<div id="fieldDispoSheet" role="dialog" aria-modal="true" aria-label="Disposition" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center;">
   <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;padding:0 0 env(safe-area-inset-bottom,8px);">
     <div style="padding:14px 16px 10px;border-bottom:1px solid #1f2b3d;">
       <div style="font-size:13px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">GOING AVAILABLE</div>
@@ -2157,7 +2174,7 @@
 </div>
 
 <!-- Bug Report Modal (field) -->
-<div id="fieldBugModal" style="display:none;position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.82);align-items:flex-end;justify-content:center;">
+<div id="fieldBugModal" role="dialog" aria-modal="true" aria-label="Report Issue" style="display:none;position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.82);align-items:flex-end;justify-content:center;">
   <div style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom,8px);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid #1f2b3d;position:sticky;top:0;background:#0d1117;z-index:1;">
       <span style="font-size:14px;font-weight:900;letter-spacing:.06em;color:#e6edf3;">REPORT ISSUE</span>
@@ -2189,7 +2206,7 @@
 </div>
 
 <!-- Incident Detail Modal -->
-<div id="incDetailModal" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.7);align-items:flex-end;justify-content:center;">
+<div id="incDetailModal" role="dialog" aria-modal="true" aria-label="Incident Details" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.7);align-items:flex-end;justify-content:center;">
   <div id="incDetailSheet" style="background:#0d1117;border-top:2px solid #1a3a5c;width:100%;max-height:90vh;overflow-y:auto;padding:0 0 24px;">
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid #1f2b3d;position:sticky;top:0;background:#0d1117;z-index:1;">
@@ -2271,6 +2288,55 @@
 
 <script>
 (function() {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FIELD MDT — TABLE OF CONTENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  // [DOM REFS]      Cached element references                     ~line 2285
+  // [TABS]          Tab navigation state + switchTab()            ~line 2295
+  // [AUDIO]         Tones, alerts, audio notification helpers     ~line 2690
+  // [STATE]         Session vars, polling state, connectivity     ~line 2870
+  // [HELPERS]       Utility functions (esc, feedAppend, etc.)     ~line 2950
+  // [MERGE]         State merge — delta-resilient caches          ~line 3000
+  // [ADDR-CACHE]    Address autocomplete cache                    ~line 3055
+  // [HOSPITAL-REF]  Hospital quick-reference overlay              ~line 3135
+  // [OFFLINE]       Queue, flush, pending badge, connectivity     ~line 3240
+  // [CACHE]         localStorage persistence helpers              ~line 3425
+  // [STATUS-BADGE]  CAD status display + elapsed escalation       ~line 3440
+  // [PERSIST-STRIP] Persistent status strip                       ~line 3555
+  // [QMS]           Quick Message Section (phrase buttons)        ~line 3615
+  // [INC-PANEL]     Incident display panel + next-status button   ~line 3685
+  // [NEXT-CALL]     Stacked assignment panel                      ~line 3965
+  // [BANNERS]       Alert/note banners with ACK                   ~line 4130
+  // [FIELD-NC]      Field-originated new call (NC) creation       ~line 4190
+  // [LOC-PANEL]     Location input slide-up                       ~line 4330
+  // [NIGHT-MODE]    Night driving display mode                    ~line 4450
+  // [WAKE-LOCK]     Screen wake lock for field use                ~line 4480
+  // [NAV-LINKS]     Deep-link navigation helpers                  ~line 4550
+  // [DANGER-FLAGS]  Address danger flag badge                     ~line 4585
+  // [CMD-AREA]      Command input area (STATUS tab console)       ~line 4620
+  // [TOAST]         Field toast notifications                     ~line 4630
+  // [HANDOFF-BTN]   Patient handoff button (hold-to-confirm)      ~line 4640
+  // [MSG-BADGE]     Unread message badge                          ~line 4670
+  // [SHOW-HIDE]     Login/field panel toggle                      ~line 4695
+  // [SESSION]       Session management                            ~line 4745
+  // [LOGIN]         CAD login/logout, crew PIN auth               ~line 4800
+  // [REALTIME]      Supabase Realtime WebSocket                   ~line 4905
+  // [POLLING]       getState() polling + audio/notification logic ~line 4960
+  // [TRANSPORT]     Transport destination overlay                 ~line 5290
+  // [CLEAR-NOTE]    Clear-from-call note dialog                   ~line 5355
+  // [DEL-REASON]    Delete incident reason picker                 ~line 5395
+  // [CONFIRM]       Generic confirm dialog                        ~line 5430
+  // [STATUS-UPDATE] Status change execution                       ~line 5465
+  // [COMMANDS]      Console command processor                     ~line 5525
+  // [EVENTS]        Event bindings + initialization               ~line 6015
+  // [QMS-EVENTS]    QMS input bindings + phrase buttons           ~line 6165
+  // [HANDOFF-EVTS]  Handoff button event wiring                   ~line 6260
+  // [PWA]           PWA install prompt                            ~line 6325
+  // [INC-DETAIL]    Incident detail modal                         ~line 6360
+  // [GPS]           GPS location + auto-reporting                 ~line 6560
+  // [RECONNECT]     Auto-reconnect on page load                   ~line 7140
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const loginScreen = document.getElementById('loginScreen');
   const fieldPanel = document.getElementById('fieldPanel');
   const loginErr = document.getElementById('loginErr');
@@ -2305,12 +2371,12 @@
       var el = document.getElementById(TAB_MAP[id].content);
       if (el) el.classList.remove('active');
       var nav = document.getElementById(TAB_MAP[id].nav);
-      if (nav) nav.classList.remove('active');
+      if (nav) { nav.classList.remove('active'); nav.setAttribute('aria-selected', 'false'); }
     });
     var target = document.getElementById(TAB_MAP[tabId].content);
     if (target) target.classList.add('active');
     var navBtn = document.getElementById(TAB_MAP[tabId].nav);
-    if (navBtn) navBtn.classList.add('active');
+    if (navBtn) { navBtn.classList.add('active'); navBtn.setAttribute('aria-selected', 'true'); }
     _activeTab = tabId;
 
     if (tabId === 'map') {
@@ -4848,19 +4914,71 @@
     _updateFieldNcBtn();   // Show CREATE CALL button for logged-in field units
     loadAddresses();
 
-    // Load tenant font-bump setting (async, non-blocking)
+    // Load tenant config (font-bump, accent color, agency name, coords)
     API.getTenantSettings(_cadToken).then(function(r) {
-      if (!r || !r.ok || !r.settings) return;
-      var bump = r.settings.font_bump;
+      if (!r || !r.ok) return;
+
+      // Tenant settings (key-value pairs from tenant_settings table)
+      var settings = r.settings || {};
+      var bump = settings.font_bump;
       if (bump && !isNaN(Number(bump))) {
         document.documentElement.style.setProperty('--font-bump', bump + 'px');
       }
-    }).catch(function() {});
-    // Also load any local font-bump override (saved via MORE tab)
+
+      // Agency coordinate overrides from tenant settings
+      // Format: "AGENCY_ID:lat,lng;AGENCY_ID2:lat,lng" stored as agency_coords key
+      var coordStr = settings.agency_coords || '';
+      if (coordStr) {
+        coordStr.split(';').forEach(function(pair) {
+          var parts = pair.split(':');
+          if (parts.length === 2) {
+            var agencyId = parts[0].trim().toUpperCase();
+            var ll = parts[1].split(',');
+            if (ll.length === 2 && !isNaN(Number(ll[0])) && !isNaN(Number(ll[1]))) {
+              _SUGGEST_AGENCY_COORDS_FIELD[agencyId] = [Number(ll[0]), Number(ll[1])];
+            }
+          }
+        });
+      }
+
+      // Tenant core info (name, accent color, branding)
+      var tenant = r.tenant;
+      if (tenant) {
+        // Apply accent color as --blue override
+        if (tenant.accentColor && tenant.accentColor !== '#1a73e8') {
+          document.documentElement.style.setProperty('--blue', tenant.accentColor);
+        }
+        // Apply agency display name in header
+        var headerEl = document.getElementById('fieldHeaderLabel');
+        if (headerEl && tenant.displayName) {
+          headerEl.textContent = tenant.displayName;
+        }
+        // Cache tenant config for offline boot
+        try {
+          localStorage.setItem('hoscadfield_tenant', JSON.stringify(tenant));
+        } catch(e) {}
+      }
+    }).catch(function(e) {
+      console.warn('[field] Tenant config load failed:', e);
+    });
+    // Also load any local font-bump override (saved via MORE tab — takes priority)
     var _localBump = localStorage.getItem('hoscadfield_fontbump');
     if (_localBump && !isNaN(Number(_localBump))) {
       document.documentElement.style.setProperty('--font-bump', _localBump + 'px');
     }
+    // Load cached tenant config for instant display (before async fetch completes)
+    try {
+      var cachedTenant = JSON.parse(localStorage.getItem('hoscadfield_tenant') || 'null');
+      if (cachedTenant) {
+        if (cachedTenant.accentColor && cachedTenant.accentColor !== '#1a73e8') {
+          document.documentElement.style.setProperty('--blue', cachedTenant.accentColor);
+        }
+        var headerEl = document.getElementById('fieldHeaderLabel');
+        if (headerEl && cachedTenant.displayName) {
+          headerEl.textContent = cachedTenant.displayName;
+        }
+      }
+    } catch(e) {}
 
     // Notification permission is requested via the WAKE button (must be a direct user gesture on iOS)
     loadNightOverride();
@@ -7223,7 +7341,7 @@
 </script>
 
 <!-- PIN Change Dialog -->
-<div id="pinChangeDialog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;">
+<div id="pinChangeDialog" role="dialog" aria-modal="true" aria-label="Change PIN" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;">
   <div style="background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:20px;width:300px;max-width:90vw;">
     <div style="font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:.06em;">CHANGE PIN</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:10px;" id="pinChangeCadLabel">ENTER YOUR CAD ID AND CURRENT PIN TO VERIFY.</div>
@@ -7244,7 +7362,7 @@
 </div>
 
 <!-- Field Schedule Modal (read-only) -->
-<div id="fieldSchedModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;">
+<div id="fieldSchedModal" role="dialog" aria-modal="true" aria-label="Schedule" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;">
   <div style="background:#0b1018;border:1px solid #2a3a4a;display:flex;flex-direction:column;width:min(520px,97vw);max-height:88vh;border-radius:4px;">
     <div style="background:#111;border-bottom:1px solid #2a3a4a;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;">
       <button onclick="_fieldSchedNav(-1)" style="padding:3px 10px;background:transparent;border:1px solid #2a3a4a;color:#8090a0;font-family:inherit;font-size:11px;cursor:pointer;">&#9664;</button>

@@ -12114,10 +12114,20 @@ async function start() {
   } catch (_) {}
   // Load tenant font scale setting (non-blocking)
   API.getTenantSettings(TOKEN).then(r => {
-    if (!r?.ok || !r.settings) return;
-    const bump = r.settings.font_bump;
+    if (!r?.ok) return;
+    // Apply font-bump from tenant settings
+    const bump = r.settings?.font_bump;
     if (bump && !isNaN(Number(bump))) {
       document.documentElement.style.setProperty('--font-bump', bump + 'px');
+    }
+    // Apply tenant display name + accent color
+    const tenant = r.tenant;
+    if (tenant) {
+      if (tenant.accentColor && tenant.accentColor !== '#1a73e8') {
+        document.documentElement.style.setProperty('--blue', tenant.accentColor);
+      }
+      const titleEl = document.getElementById('boardTitle');
+      if (titleEl && tenant.displayName) titleEl.textContent = tenant.displayName;
     }
   }).catch(() => {});
   loadViewState();
