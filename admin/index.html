@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#070a0f" />
-  <title>HOSCAD ADMIN</title>
+  <title>CASCADE COMMAND — ADMIN</title>
   <link rel="icon" type="image/x-icon" href="../icons/favicon.ico?v=3" />
   <link rel="stylesheet" href="../styles.css" />
   <style>
@@ -44,6 +44,11 @@
     .issue-badge { background:#e09000; color:#000; border-radius:2px; padding:0 5px; font-size:10px; font-weight:900; margin-left:4px; vertical-align:middle; }
     .audit-range { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
     .audit-range input[type=date] { padding:3px 6px; font-size:11px; background:#0b1018; border:1px solid var(--line); color:var(--fg); font-family:inherit; }
+    @media (max-width: 600px) {
+      #tabAgency [style*="grid-template-columns:1fr 1fr"],
+      #tabAgency [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns:1fr !important; }
+      #tabAgency [style*="repeat(auto-fill"] { grid-template-columns:1fr !important; }
+    }
   </style>
 </head>
 <body>
@@ -51,8 +56,8 @@
 <!-- Login Screen -->
 <div id="loginScreen">
   <div class="card login" style="min-width:320px;">
-    <h3 style="margin-top:0;">HOSCAD ADMIN</h3>
-    <div class="muted" style="margin-bottom:10px;">ADMIN ACCESS ONLY</div>
+    <h3 style="margin-top:0;">CASCADE COMMAND</h3>
+    <div class="muted" style="margin-bottom:10px;">ADMIN PORTAL</div>
     <div class="row">
       <select id="loginRole" style="flex:1">
         <option value="">Loading…</option>
@@ -78,9 +83,10 @@
 <!-- Admin Panel -->
 <div id="adminPanel">
   <div class="admin-header">
-    <div class="admin-title">HOSCAD ADMIN</div>
+    <div class="admin-title" id="adminTitle">CASCADE COMMAND — ADMIN</div>
     <span id="rolePill" class="pill" style="font-size:11px;"></span>
     <button class="btn-secondary" style="font-size:11px;" onclick="adminLogout()">LOGOUT</button>
+    <a href="../onboard/" class="btn-secondary" style="text-decoration:none;padding:6px 12px;font-size:11px;color:#58a6ff;">ONBOARD</a>
     <a href="../" class="btn-secondary" style="text-decoration:none;padding:6px 12px;font-size:11px;">BOARD</a>
   </div>
 
@@ -115,6 +121,7 @@
     <div class="tab-group-break"></div>
     <!-- SYSTEM -->
     <span class="tab-group-sep">SYSTEM</span>
+    <button class="tab-btn" data-tab="agency" style="color:#58a6ff;" onclick="switchTab('agency')">AGENCY</button>
     <button class="tab-btn" data-tab="flags" onclick="switchTab('flags')">FEATURE FLAGS</button>
     <button class="tab-btn" data-tab="dc911" onclick="switchTab('dc911')">DC911</button>
     <button class="tab-btn" data-tab="scope" onclick="switchTab('scope')">SCOPE</button>
@@ -324,7 +331,7 @@
     </div>
     <div id="destFormRow" style="display:none;margin-bottom:12px;background:#0c111a;border:1px solid var(--line);padding:12px;">
       <div class="inline-form" style="gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-        <input id="destFormCode" placeholder="CODE (e.g. SCMC)" style="width:130px;" maxlength="20" />
+        <input id="destFormCode" placeholder="CODE (e.g. HOSP1)" style="width:130px;" maxlength="20" />
         <input id="destFormName" placeholder="DISPLAY NAME" style="width:220px;" maxlength="60" />
         <button class="btn-good" style="font-size:11px;" onclick="saveDestForm()">SAVE</button>
         <button class="btn-secondary" style="font-size:11px;" onclick="hideDestForm()">CANCEL</button>
@@ -978,6 +985,106 @@
     </div>
   </section>
 
+  <!-- AGENCY SETTINGS TAB -->
+  <section id="tabAgency" class="tab-section">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+      <button class="btn-secondary" style="font-size:11px;" onclick="loadAgencySettings()">REFRESH</button>
+      <span id="agencyStatus" class="admin-status" style="margin:0;">LOADING...</span>
+    </div>
+
+    <!-- Tenant Info (read-only) -->
+    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-bottom:16px;">
+      <div class="tools-section-header" style="margin-top:0;">TENANT INFO</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;font-size:12px;">
+        <div><span class="muted">TENANT ID:</span> <strong id="agTenantId">—</strong></div>
+        <div><span class="muted">NAME:</span> <strong id="agTenantName">—</strong></div>
+        <div><span class="muted">SUBDOMAIN:</span> <strong id="agSubdomain">—</strong></div>
+        <div><span class="muted">PREFIX:</span> <strong id="agPrefix">—</strong></div>
+        <div><span class="muted">STATUS:</span> <strong id="agStatus">—</strong></div>
+        <div><span class="muted">CREATED:</span> <strong id="agCreated">—</strong></div>
+      </div>
+    </div>
+
+    <!-- Branding -->
+    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-bottom:16px;">
+      <div class="tools-section-header" style="margin-top:0;">BRANDING</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">DISPLAY NAME</label>
+          <input id="agDisplayName" placeholder="Agency display name" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+          <div style="font-size:9px;color:#4a5568;">Shown in board header and reports</div>
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">LOGO URL</label>
+          <input id="agLogoUrl" placeholder="https://..." style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+          <div style="font-size:9px;color:#4a5568;">Optional logo image URL</div>
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">ACCENT COLOR</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="color" id="agAccentPicker" value="#2563EB" style="width:40px;height:30px;padding:0;border:1px solid var(--line);cursor:pointer;" oninput="document.getElementById('agAccentHex').value=this.value" />
+            <input id="agAccentHex" value="#2563EB" maxlength="7" style="width:90px;padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;" oninput="document.getElementById('agAccentPicker').value=this.value" />
+          </div>
+          <div style="font-size:9px;color:#4a5568;">Primary UI accent color</div>
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">ACCENT TEXT COLOR</label>
+          <input id="agAccentText" value="#FFFFFF" maxlength="7" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+          <div style="font-size:9px;color:#4a5568;">Text color on accent backgrounds</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div id="agBrandingPreview" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);background:#111;">
+          <div id="agPreviewSwatch" style="width:32px;height:32px;border-radius:2px;background:#2563EB;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff;">CC</div>
+          <div>
+            <div id="agPreviewName" style="font-size:13px;font-weight:900;color:var(--fg);">CASCADE COMMAND</div>
+            <div style="font-size:10px;color:var(--muted);">LIVE PREVIEW</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn-good" style="font-size:11px;" onclick="saveAgencyBranding()">SAVE BRANDING</button>
+        <span id="agBrandingStatus" class="admin-status" style="display:inline;margin-left:8px;"></span>
+      </div>
+    </div>
+
+    <!-- Defaults -->
+    <div style="background:#0b1018;border:1px solid var(--line);padding:14px;margin-bottom:16px;">
+      <div class="tools-section-header" style="margin-top:0;">MAP &amp; DEFAULTS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">DEFAULT MAP CENTER</label>
+          <input id="agMapCenter" placeholder="44.058,-121.315" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+          <div style="font-size:9px;color:#4a5568;">Lat,lng for initial map view</div>
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">DEFAULT MAP ZOOM</label>
+          <input id="agMapZoom" type="number" min="1" max="20" value="13" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;" />
+          <div style="font-size:9px;color:#4a5568;">1 = world, 20 = building level</div>
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">TIMEZONE</label>
+          <select id="agTimezone" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;">
+            <option value="America/Los_Angeles">PACIFIC (AMERICA/LOS_ANGELES)</option>
+            <option value="America/Denver">MOUNTAIN (AMERICA/DENVER)</option>
+            <option value="America/Chicago">CENTRAL (AMERICA/CHICAGO)</option>
+            <option value="America/New_York">EASTERN (AMERICA/NEW_YORK)</option>
+            <option value="America/Anchorage">ALASKA (AMERICA/ANCHORAGE)</option>
+            <option value="Pacific/Honolulu">HAWAII (PACIFIC/HONOLULU)</option>
+          </select>
+        </div>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:3px;">
+          <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">CONTACT EMAIL</label>
+          <input id="agContactEmail" type="email" placeholder="admin@agency.org" style="padding:6px 10px;font-size:12px;background:#111;border:1px solid var(--line);color:var(--fg);font-family:inherit;text-transform:none;" />
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn-good" style="font-size:11px;" onclick="saveAgencyDefaults()">SAVE DEFAULTS</button>
+        <span id="agDefaultsStatus" class="admin-status" style="display:inline;margin-left:8px;"></span>
+      </div>
+    </div>
+  </section>
+
   <!-- ROSTER TAB -->
   <section id="tabRoster" class="tab-section">
     <h2>UNIT ROSTER</h2>
@@ -1120,6 +1227,7 @@
           document.getElementById('rolePill').textContent = _role + ': ' + res2.actor;
           loadUsers();
           checkIssueBadge();
+          loadTenantBranding();
         } else { err.textContent = 'ERROR: ' + ((chg && chg.error) || 'COULD NOT CHANGE PASSWORD'); }
         return;
       }
@@ -1135,6 +1243,22 @@
     document.getElementById('rolePill').textContent = _role + ': ' + res.actor;
     loadUsers();
     checkIssueBadge();
+    // Load tenant branding for dynamic header
+    loadTenantBranding();
+  }
+
+  async function loadTenantBranding() {
+    try {
+      const [tRes, sRes] = await Promise.all([
+        API.getTenant(_token),
+        API.getTenantSettings(_token)
+      ]);
+      if (tRes.ok) _agencyTenant = tRes.tenant;
+      if (sRes.ok && sRes.settings) _agencySettings = sRes.settings;
+      const dn = (_agencySettings.display_name || _agencyTenant?.name || 'CASCADE COMMAND').toUpperCase();
+      document.getElementById('adminTitle').textContent = dn + ' — ADMIN';
+      document.title = dn + ' — ADMIN';
+    } catch(e) { /* non-critical */ }
   }
 
   async function adminLogout() {
@@ -1533,6 +1657,130 @@
     if (name === 'rmsReports') loadRmsReports();
     if (name === 'people') loadPeopleTab();
     if (name === 'schedule') loadScheduleTab();
+    if (name === 'agency') loadAgencySettings();
+  }
+
+  // ── Agency Settings Tab ─────────────────────────────────────
+  let _agencyTenant = null;
+  let _agencySettings = {};
+
+  async function loadAgencySettings() {
+    const status = document.getElementById('agencyStatus');
+    status.textContent = 'LOADING...';
+    try {
+      const [tRes, sRes] = await Promise.all([
+        API.getTenant(_token),
+        API.getTenantSettings(_token)
+      ]);
+      if (!tRes.ok) { status.textContent = 'ERROR: ' + (tRes.error || 'FAILED'); return; }
+      _agencyTenant = tRes.tenant;
+      _agencySettings = (sRes.ok && sRes.settings) ? sRes.settings : {};
+
+      // Populate read-only tenant info
+      document.getElementById('agTenantId').textContent = _agencyTenant.id || '—';
+      document.getElementById('agTenantName').textContent = _agencyTenant.name || '—';
+      document.getElementById('agSubdomain').textContent = (_agencyTenant.subdomain || '—') + '.hoscad.net';
+      document.getElementById('agPrefix').textContent = _agencyTenant.incident_prefix || _agencyTenant.id || '—';
+      document.getElementById('agStatus').textContent = _agencyTenant.is_active ? 'ACTIVE' : 'INACTIVE';
+      document.getElementById('agStatus').style.color = _agencyTenant.is_active ? 'var(--green)' : '#f85149';
+      document.getElementById('agCreated').textContent = _agencyTenant.created_at ? new Date(_agencyTenant.created_at).toLocaleDateString() : '—';
+
+      // Populate branding fields
+      const dn = _agencySettings.display_name || _agencyTenant.display_name || _agencyTenant.name || '';
+      document.getElementById('agDisplayName').value = dn;
+      document.getElementById('agLogoUrl').value = _agencySettings.logo_url || '';
+      const ac = _agencySettings.accent_color || '#2563EB';
+      document.getElementById('agAccentHex').value = ac;
+      try { document.getElementById('agAccentPicker').value = ac; } catch(e) {}
+      document.getElementById('agAccentText').value = _agencySettings.accent_text || '#FFFFFF';
+
+      // Populate defaults
+      document.getElementById('agMapCenter').value = _agencySettings.default_map_center || '';
+      document.getElementById('agMapZoom').value = _agencySettings.default_map_zoom || '13';
+      document.getElementById('agTimezone').value = _agencySettings.timezone || 'America/Los_Angeles';
+      document.getElementById('agContactEmail').value = _agencySettings.contact_email || '';
+
+      // Update branding preview
+      updateBrandingPreview();
+
+      status.textContent = 'LOADED — ' + dn;
+    } catch (err) {
+      status.textContent = 'ERROR: ' + (err.message || 'UNKNOWN');
+    }
+  }
+
+  function updateBrandingPreview() {
+    const name = document.getElementById('agDisplayName').value || 'AGENCY';
+    const accent = document.getElementById('agAccentHex').value || '#2563EB';
+    const accentText = document.getElementById('agAccentText').value || '#FFFFFF';
+    document.getElementById('agPreviewSwatch').style.background = accent;
+    document.getElementById('agPreviewSwatch').style.color = accentText;
+    document.getElementById('agPreviewSwatch').textContent = name.substring(0, 2).toUpperCase();
+    document.getElementById('agPreviewName').textContent = name.toUpperCase();
+  }
+
+  // Live preview updates
+  document.addEventListener('DOMContentLoaded', () => {
+    ['agDisplayName', 'agAccentHex', 'agAccentText'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', updateBrandingPreview);
+    });
+    const picker = document.getElementById('agAccentPicker');
+    if (picker) picker.addEventListener('input', () => {
+      document.getElementById('agAccentHex').value = picker.value;
+      updateBrandingPreview();
+    });
+  });
+
+  async function saveAgencyBranding() {
+    const stat = document.getElementById('agBrandingStatus');
+    stat.textContent = 'SAVING...'; stat.style.color = 'var(--muted)';
+    const settings = {
+      display_name: (document.getElementById('agDisplayName').value || '').trim(),
+      logo_url: (document.getElementById('agLogoUrl').value || '').trim(),
+      accent_color: (document.getElementById('agAccentHex').value || '').trim(),
+      accent_text: (document.getElementById('agAccentText').value || '').trim(),
+    };
+    let errors = [];
+    for (const [k, v] of Object.entries(settings)) {
+      if (v !== '') {
+        const r = await API.setTenantSetting(_token, k, v);
+        if (!r.ok) errors.push(k + ': ' + (r.error || 'FAILED'));
+      }
+    }
+    if (errors.length) {
+      stat.textContent = 'ERRORS: ' + errors.join(', '); stat.style.color = '#f85149';
+    } else {
+      stat.textContent = 'SAVED'; stat.style.color = 'var(--green)';
+      showToast('BRANDING SAVED.', 'success');
+      // Update the admin header to reflect new display name
+      const dn = settings.display_name;
+      if (dn) document.querySelector('.admin-title').textContent = dn + ' — ADMIN';
+    }
+  }
+
+  async function saveAgencyDefaults() {
+    const stat = document.getElementById('agDefaultsStatus');
+    stat.textContent = 'SAVING...'; stat.style.color = 'var(--muted)';
+    const settings = {
+      default_map_center: (document.getElementById('agMapCenter').value || '').trim(),
+      default_map_zoom: (document.getElementById('agMapZoom').value || '').trim(),
+      timezone: document.getElementById('agTimezone').value || '',
+      contact_email: (document.getElementById('agContactEmail').value || '').trim(),
+    };
+    let errors = [];
+    for (const [k, v] of Object.entries(settings)) {
+      if (v !== '') {
+        const r = await API.setTenantSetting(_token, k, v);
+        if (!r.ok) errors.push(k + ': ' + (r.error || 'FAILED'));
+      }
+    }
+    if (errors.length) {
+      stat.textContent = 'ERRORS: ' + errors.join(', '); stat.style.color = '#f85149';
+    } else {
+      stat.textContent = 'SAVED'; stat.style.color = 'var(--green)';
+      showToast('DEFAULTS SAVED.', 'success');
+    }
   }
 
   // ── Users Tab ─────────────────────────────────────────────
@@ -2323,7 +2571,7 @@
     .footer{margin-top:24px;font-size:10px;color:#666;border-top:1px solid #ccc;padding-top:8px;}
     .conf{font-weight:bold;color:#cc2222;}@media print{body{padding:8px;}}</style></head><body>`;
     h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;">`;
-    h += `<div><h2>HOSCAD INCIDENT REPORT</h2><div style="font-size:11px;color:#555;">HOSCAD — SCMC EMS TRACKING SYSTEM</div></div>`;
+    h += `<div><h2>CASCADE COMMAND — INCIDENT REPORT</h2><div style="font-size:11px;color:#555;">CASCADE COMMAND — ${esc((_agencySettings.display_name || _agencyTenant?.name || 'EMS').toUpperCase())} TRACKING SYSTEM</div></div>`;
     h += `<div class="conf" style="font-size:10px;text-align:right;">FOR OFFICIAL USE ONLY<br>NOT FOR PUBLIC DISTRIBUTION</div></div>`;
     h += `<h3>Incident Details</h3><table>
     <tr><th>INCIDENT #</th><td><strong>${esc(inc.incident_id)}</strong></td></tr>
@@ -2349,7 +2597,7 @@
     if(rtRows.length){h+='<h3>RESPONSE TIMES</h3><table><tr><th>INTERVAL</th><th>ELAPSED</th><th>TARGET</th><th>STATUS</th></tr>';
       rtRows.forEach(r=>{const m=fmtMin(r.a,r.b);const n=m?parseInt(m):null;const c=!r.t||n==null?'':n<=r.t?'good':n<=r.t*1.5?'warn':'bad';h+=`<tr><td>${r.l}</td><td class="${c}">${m||'—'}</td><td>${r.t?r.t+' min':'—'}</td><td class="${c}">${!r.t?'—':n==null?'—':n<=r.t?'OK':'OVER'}</td></tr>`;});h+='</table>';}
     if(r.audit&&r.audit.length){h+='<h3>Incident Audit Trail</h3>';r.audit.forEach(a=>{h+=`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid #eee;"><span style="color:#555;min-width:80px;display:inline-block;">${fmt(a.ts)}</span> <span style="font-weight:bold;min-width:90px;display:inline-block;">${esc((a.actor||'').toUpperCase())}</span> ${esc(a.message)}</div>`;});}
-    h += `<div class="footer"><span class="conf">FOR OFFICIAL USE ONLY — HOSCAD CONFIDENTIAL OPERATIONAL RECORD</span><br>Generated: ${new Date().toISOString().slice(0,16)} UTC | HOSCAD EMS Tracking System — SCMC</div>`;
+    h += `<div class="footer"><span class="conf">FOR OFFICIAL USE ONLY — CONFIDENTIAL OPERATIONAL RECORD</span><br>Generated: ${new Date().toISOString().slice(0,16)} UTC | CASCADE COMMAND — ${esc((_agencySettings.display_name || _agencyTenant?.name || 'EMS').toUpperCase())}</div>`;
     h += '</body></html>';
     w.document.write(h); w.document.close();
     setTimeout(()=>{try{w.print();}catch(e){}},600);
@@ -3315,7 +3563,7 @@
     if (!r.ok) { tableEl.innerHTML = '<div class="muted" style="color:#ff6b6b;padding:8px;">ERROR: ' + esc(r.error || 'FAILED') + '</div>'; return; }
 
     if (!r.rows || !r.rows.length) {
-      tableEl.innerHTML = '<div class="muted" style="padding:8px;">No rows. All dispatchers default to SCMC access.</div>';
+      tableEl.innerHTML = '<div class="muted" style="padding:8px;">No rows. All dispatchers default to home agency access.</div>';
       return;
     }
 

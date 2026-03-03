@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#070a0f" />
-  <title>CASCADE COMMAND — AGENCY ONBOARDING</title>
+  <title>CASCADE COMMAND — ONBOARDING</title>
   <link rel="icon" type="image/x-icon" href="../icons/favicon.ico?v=3" />
   <link rel="stylesheet" href="../styles.css" />
   <style>
@@ -71,9 +71,9 @@
 
 <!-- ─── Login Screen ──────────────────────────────────────────── -->
 <div id="loginScreen">
-  <div class="card login" style="min-width:320px;">
-    <h3 style="margin-top:0;">CASCADE COMMAND</h3>
-    <div class="muted" style="margin-bottom:4px;">PLATFORM ADMINISTRATION</div>
+  <div class="card login" style="min-width:340px;max-width:420px;">
+    <h3 style="margin-top:0;font-size:16px;letter-spacing:1px;">CASCADE COMMAND</h3>
+    <div class="muted" style="margin-bottom:4px;font-size:11px;">AGENCY ONBOARDING PORTAL</div>
     <div class="muted" style="margin-bottom:12px;font-size:10px;color:#f85149;">SUPERUSER ACCESS REQUIRED</div>
     <div class="row">
       <input id="loginCadId" placeholder="USERNAME OR CAD ID" maxlength="20" style="flex:1" />
@@ -83,7 +83,8 @@
     </div>
     <div class="row">
       <button class="btn-good" onclick="doLogin()">LOGIN</button>
-      <a href="../" class="btn-secondary" style="text-decoration:none;padding:8px 14px;">BACK TO BOARD</a>
+      <a href="../admin/" class="btn-secondary" style="text-decoration:none;padding:8px 14px;">ADMIN</a>
+      <a href="../" class="btn-secondary" style="text-decoration:none;padding:8px 14px;">BOARD</a>
     </div>
     <div id="loginErr" class="muted" style="margin-top:6px;"></div>
   </div>
@@ -92,9 +93,10 @@
 <!-- ─── Main Panel ────────────────────────────────────────────── -->
 <div id="mainPanel">
   <div class="panel-header">
-    <div class="panel-title">CASCADE COMMAND — AGENCY ONBOARDING</div>
+    <div class="panel-title">CASCADE COMMAND — ONBOARDING</div>
     <span id="userPill" class="pill" style="font-size:11px;"></span>
     <button class="btn-secondary" style="font-size:11px;" onclick="doLogout()">LOGOUT</button>
+    <a href="../admin/" class="btn-secondary" style="text-decoration:none;padding:6px 12px;font-size:11px;">ADMIN</a>
     <a href="../" class="btn-secondary" style="text-decoration:none;padding:6px 12px;font-size:11px;">BOARD</a>
   </div>
 

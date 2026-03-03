@@ -730,6 +730,19 @@ const API = {
   },
 
   // ============================================================
+  // Tenant / Agency Settings
+  // ============================================================
+  getTenant(token) {
+    return this.call('getTenant', token);
+  },
+  getTenantSettings(token) {
+    return this.call('getTenantSettings', token);
+  },
+  setTenantSetting(token, key, value) {
+    return this.call('setTenantSetting', token, key, value);
+  },
+
+  // ============================================================
   // Shift Scheduling
   // ============================================================
   getShifts(token, startDate, endDate)                  { return this.call('getShifts', token, startDate, endDate); },
