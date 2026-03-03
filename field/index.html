@@ -5170,10 +5170,47 @@
         const ts = fmtTime(m.ts);
         const isPage = m.message && m.message.startsWith('[PAGE]');
         const isGpsUl = m.message && m.message.trim() === '[GPS:UL]';
+        const isPing  = m.message && m.message.trim() === '[PING]';
         // GPS Update Location request — auto-respond silently, don't show in feed
         if (isGpsUl) {
           feedSys('GPS UPDATE REQUESTED BY DISPATCH — SENDING LOCATION...');
           fieldGpsUpdateLocation();
+          API.readMessage(_cadToken, m.message_id).catch(function(){});
+          continue;
+        }
+        // PING from dispatch — auto-respond with PONG (GPS + connectivity + battery)
+        if (isPing) {
+          feedSys('PING FROM DISPATCH — PONG SENT');
+          _fieldBeep([880], 0.12, 0.3); // single soft beep
+          // Gather GPS, connectivity state, and battery info, then send pong
+          (function() {
+            var lat = '', lon = '', connState = 'UNKNOWN';
+            // Best-effort GPS from last known position
+            if (_fieldGpsPos && _fieldGpsPos.length === 2) {
+              lat = String(_fieldGpsPos[0]);
+              lon = String(_fieldGpsPos[1]);
+            }
+            // Connection info
+            if (navigator.connection) {
+              var c = navigator.connection;
+              connState = (c.effectiveType || c.type || 'UNKNOWN').toUpperCase();
+              if (c.downlink) connState += '/' + c.downlink + 'Mbps';
+            } else {
+              connState = navigator.onLine ? 'ONLINE' : 'OFFLINE';
+            }
+            // Battery level (if available)
+            if (navigator.getBattery) {
+              navigator.getBattery().then(function(batt) {
+                var battPct = Math.round(batt.level * 100) + '%';
+                connState += '/BATT:' + battPct;
+                API.pongUnit(_cadToken, _cadCallsign, lat, lon, connState).catch(function(){});
+              }).catch(function() {
+                API.pongUnit(_cadToken, _cadCallsign, lat, lon, connState).catch(function(){});
+              });
+            } else {
+              API.pongUnit(_cadToken, _cadCallsign, lat, lon, connState).catch(function(){});
+            }
+          })();
           API.readMessage(_cadToken, m.message_id).catch(function(){});
           continue;
         }

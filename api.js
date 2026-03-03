@@ -746,6 +746,17 @@ const API = {
   },
 
   // ============================================================
+  // Unit PING / PONG
+  // ============================================================
+
+  pingUnit(token, unitId) {
+    return this.call('pingUnit', token, unitId);
+  },
+  pongUnit(token, unitId, gpsLat, gpsLon, connState) {
+    return this.call('pongUnit', token, unitId, gpsLat || '', gpsLon || '', connState || 'UNKNOWN');
+  },
+
+  // ============================================================
   // Shift Scheduling
   // ============================================================
   getShifts(token, startDate, endDate)                  { return this.call('getShifts', token, startDate, endDate); },

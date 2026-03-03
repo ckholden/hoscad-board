@@ -419,6 +419,7 @@ const CMD_HINTS = [
   { cmd: 'MSG <ROLE/UNIT>; <TEXT>', desc: 'Send message' },
   { cmd: 'PG <UNIT>', desc: 'Radio page unit (plays fire/EMS tone on field device)' },
   { cmd: 'WELF <UNIT>', desc: 'Welfare check — sends urgent message asking unit to confirm status' },
+  { cmd: 'PING <UNIT>', desc: 'Check if field MDT is online — unit auto-responds with GPS + signal' },
   { cmd: 'MA <INC> <AGENCY>', desc: 'Request mutual aid (e.g. MA 0001 BEND FIRE). MA ACK / MA REL to update status.' },
   { cmd: 'GPS <UNIT>', desc: 'Show unit on board map using current known position' },
   { cmd: 'GPSUL <UNIT>', desc: 'Request unit to ping their GPS location to the board' },
@@ -8493,6 +8494,30 @@ async function _execCmd(tx) {
     setLive(false);
     if (!r.ok) return showErr(r);
     showToast('WELFARE CHECK SENT TO ' + welfUnit, 'warn', 5000);
+    return;
+  }
+
+  // PING <UNIT> — check if field MDT is online
+  if (mU.startsWith('PING ')) {
+    const pingUnit = canonicalUnit(mU.substring(5).trim());
+    if (!pingUnit) { showAlert('ERROR', 'USAGE: PING <UNIT>  (e.g. PING M1)'); return; }
+    setLive(true, 'LIVE • PING ' + pingUnit);
+    const r = await API.pingUnit(TOKEN, pingUnit);
+    setLive(false);
+    if (!r.ok) return showErr(r);
+    showToast('PING ' + pingUnit + '... SENT', 'info', 5000);
+    // Set a 30s timeout — if no PONG arrives, warn the dispatcher
+    const _pingTimeoutKey = '_pingTimeout_' + pingUnit;
+    if (window[_pingTimeoutKey]) clearTimeout(window[_pingTimeoutKey]);
+    window[_pingTimeoutKey] = setTimeout(() => {
+      // Check if a PONG was received (look for [PONG] message from this unit in current messages)
+      const msgs = (STATE && STATE.messages) || [];
+      const hasPong = msgs.some(m => m.message && m.message.includes('[PONG] ' + pingUnit));
+      if (!hasPong) {
+        showToast('PING ' + pingUnit + '... NO RESPONSE (30s)', 'warn', 8000);
+      }
+      delete window[_pingTimeoutKey];
+    }, 30000);
     return;
   }
 
