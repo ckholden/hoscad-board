@@ -139,8 +139,8 @@ const API = {
   // Incident Operations
   // ============================================================
 
-  createQueuedIncident(token, destination, note, priority, assignUnitId, incidentType, sceneAddress, levelOfCare) {
-    return this.call('createQueuedIncident', token, destination, note, priority, assignUnitId, incidentType, sceneAddress, levelOfCare);
+  createQueuedIncident(token, destination, note, priority, assignUnitId, incidentType, sceneAddress, levelOfCare, addressPointId) {
+    return this.call('createQueuedIncident', token, destination, note, priority, assignUnitId, incidentType, sceneAddress, levelOfCare, addressPointId || null);
   },
 
   getIncident(token, incidentId) {
@@ -593,6 +593,9 @@ const API = {
   },
   nearestAddressPoint(token, lat, lon) {
     return this.call('nearestAddressPoint', token, lat, lon);
+  },
+  validateAddress(token, rawAddress) {
+    return this.call('validateAddress', token, rawAddress);
   },
   searchIncidentsFull(token, query, limit) {
     return this.call('searchIncidentsFull', token, query, limit || 10);

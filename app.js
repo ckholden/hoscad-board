@@ -1587,6 +1587,10 @@ function _drawFlagBanner(el, flags, address) {
 // ── GIS Address Typeahead ────────────────────────────────────────────────────
 let _addrTypeaheadTimer = null;
 let _addrTypeaheadActive = false;
+// Address hardening: track the selected address_point_id from typeahead.
+// When set, the backend skips re-resolution (confidence=100, source=TYPEAHEAD_PRE).
+let _selectedAddrPointId = null;
+let _addrVerified = false; // true if address was selected from typeahead or validated
 
 function _onNcSceneKeydown(e) {
   const dd = document.getElementById('addrTypeaheadDrop');
@@ -1626,18 +1630,59 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 
-function _selectAddrPoint(fullAddr, canonical, lat, lon, city) {
+function _selectAddrPoint(fullAddr, canonical, lat, lon, city, addrPointId) {
   const inp = document.getElementById('newIncScene');
   if (inp) { inp.value = fullAddr; }
   _closeAddrTypeahead();
+  // Store the verified address_point_id for incident creation
+  _selectedAddrPointId = addrPointId || null;
+  _addrVerified = !!addrPointId;
+  _updateAddrVerifyIndicator();
   // Pre-pin the map if lat/lon available
   if (lat && lon) {
     _mapTargetFieldId = 'newIncScene';
     _mapPinAt(lat, lon, fullAddr);
     _mapTargetFieldId = null; // don't leave map open
   }
-  // Trigger flag check with the selected address
+  // Trigger flag check with the selected address (set flag so _onNcSceneInput doesn't clear)
+  _addrInputFromSelection = true;
   _onNcSceneInput(fullAddr);
+}
+
+// Visual indicator for address verification status
+function _updateAddrVerifyIndicator() {
+  const inp = document.getElementById('newIncScene');
+  if (!inp) return;
+  const val = (inp.value || '').trim();
+  if (!val) {
+    inp.style.borderColor = '';
+    _removeAddrBadge();
+    return;
+  }
+  if (_addrVerified) {
+    inp.style.borderColor = '#3fb950'; // green — verified
+    _showAddrBadge('VERIFIED', '#3fb950');
+  } else {
+    inp.style.borderColor = '#d29922'; // yellow — unverified
+    _showAddrBadge('UNVERIFIED', '#d29922');
+  }
+}
+function _showAddrBadge(text, color) {
+  let badge = document.getElementById('addrVerifyBadge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'addrVerifyBadge';
+    badge.style.cssText = 'font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;margin-left:6px;vertical-align:middle;';
+    const inp = document.getElementById('newIncScene');
+    if (inp && inp.parentNode) inp.parentNode.insertBefore(badge, inp.nextSibling);
+  }
+  badge.textContent = text;
+  badge.style.background = color;
+  badge.style.color = color === '#3fb950' ? '#0d1117' : '#0d1117';
+}
+function _removeAddrBadge() {
+  const badge = document.getElementById('addrVerifyBadge');
+  if (badge) badge.remove();
 }
 
 async function _runAddrTypeahead(val) {
@@ -1670,7 +1715,8 @@ async function _runAddrTypeahead(val) {
       'onclick="_selectAddrPoint(' + JSON.stringify(res.full_address) + ',' +
         JSON.stringify(res.canonical || '') + ',' +
         (res.lat || 'null') + ',' + (res.lon || 'null') + ',' +
-        JSON.stringify(res.city || '') + ')">' +
+        JSON.stringify(res.city || '') + ',' +
+        (res.id || 'null') + ')">' +
       '<div class="addr-ta-main">' + esc(res.full_address) + '</div>' +
       (sub ? '<div class="addr-ta-sub">' + esc(sub) + '</div>' : '') +
       '</div>';
@@ -1680,7 +1726,16 @@ async function _runAddrTypeahead(val) {
 
 // Called when NC mask scene address changes — debounced
 let _ncFlagTimer = null;
+let _addrInputFromSelection = false; // flag to prevent clearing on _selectAddrPoint re-trigger
 function _onNcSceneInput(val) {
+  // Clear verified status when user manually edits — but not when triggered by _selectAddrPoint
+  if (!_addrInputFromSelection) {
+    _selectedAddrPointId = null;
+    _addrVerified = false;
+    _updateAddrVerifyIndicator();
+    document.getElementById('addrSuggestionPanel')?.remove();
+  }
+  _addrInputFromSelection = false;
   // Address typeahead
   clearTimeout(_addrTypeaheadTimer);
   if (val.length >= 3) {
@@ -1695,6 +1750,62 @@ function _onNcSceneInput(val) {
     return;
   }
   _ncFlagTimer = setTimeout(() => _renderIncLocationFlags(null, val), 600);
+}
+
+// On blur: if address wasn't selected from typeahead, auto-validate via backend
+async function _onNcSceneBlur() {
+  const inp = document.getElementById('newIncScene');
+  if (!inp) return;
+  const val = (inp.value || '').trim();
+  if (!val || val.length < 3 || _addrVerified) return;
+  // Auto-validate: run address resolution and show result
+  const r = await API.validateAddress(TOKEN, val).catch(() => null);
+  if (!r?.ok) return;
+  if (r.verified && r.addressPointId) {
+    // Close match found — show "Did you mean?" prompt
+    const suggested = r.displayLabel || r.canonicalAddress;
+    if (suggested.toUpperCase() !== val.toUpperCase()) {
+      _showAddrSuggestion(suggested, r.addressPointId, r.lat, r.lon, r.city, r.confidence);
+    } else {
+      // Exact match after normalization — auto-verify
+      _selectedAddrPointId = r.addressPointId;
+      _addrVerified = true;
+      _updateAddrVerifyIndicator();
+    }
+  }
+}
+
+function _showAddrSuggestion(suggested, addrPointId, lat, lon, city, confidence) {
+  let panel = document.getElementById('addrSuggestionPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'addrSuggestionPanel';
+    panel.style.cssText = 'background:#1c2333;border:1px solid #d29922;padding:6px 10px;margin-top:4px;font-size:11px;border-radius:3px;';
+    const inp = document.getElementById('newIncScene');
+    if (inp && inp.parentNode) inp.parentNode.appendChild(panel);
+  }
+  panel.innerHTML = '<div style="color:#d29922;font-weight:700;margin-bottom:3px;">DID YOU MEAN?</div>' +
+    '<div style="color:#e6edf3;cursor:pointer;padding:3px 0;" onclick="_acceptAddrSuggestion(' +
+      JSON.stringify(suggested) + ',' + addrPointId + ',' + (lat||'null') + ',' + (lon||'null') + ',' +
+      JSON.stringify(city||'') + ')">' +
+      esc(suggested) + ' <span style="color:#3fb950;font-size:9px;">[' + confidence + '% MATCH — CLICK TO USE]</span></div>' +
+    '<div style="color:#8b949e;font-size:9px;cursor:pointer;margin-top:2px;" onclick="document.getElementById(\'addrSuggestionPanel\')?.remove()">DISMISS</div>';
+}
+
+function _acceptAddrSuggestion(fullAddr, addrPointId, lat, lon, city) {
+  const inp = document.getElementById('newIncScene');
+  if (inp) inp.value = fullAddr;
+  _selectedAddrPointId = addrPointId;
+  _addrVerified = true;
+  _updateAddrVerifyIndicator();
+  document.getElementById('addrSuggestionPanel')?.remove();
+  if (lat && lon) {
+    _mapTargetFieldId = 'newIncScene';
+    _mapPinAt(lat, lon, fullAddr);
+    _mapTargetFieldId = null;
+  }
+  _addrInputFromSelection = true;
+  _onNcSceneInput(fullAddr);
 }
 
 function minutesSince(i) {
@@ -4331,6 +4442,15 @@ function openNewIncident(prefillScene) {
   document.getElementById('newIncBack').style.display = 'flex';
   AddrHistory.attach('newIncScene', 'addrHistList1');
   renderIncSuggest();
+  // Reset address verification state
+  _selectedAddrPointId = null;
+  _addrVerified = false;
+  _removeAddrBadge();
+  if (newIncSceneEl) {
+    newIncSceneEl.style.borderColor = '';
+    newIncSceneEl.onblur = _onNcSceneBlur;
+  }
+  document.getElementById('addrSuggestionPanel')?.remove();
   setTimeout(() => { if (newIncSceneEl) newIncSceneEl.focus(); }, 50);
 }
 
@@ -4752,10 +4872,20 @@ async function createNewIncident() {
   if (callback) prefixes.push('[CB:' + callback + ']');
   if (prefixes.length) note = prefixes.join(' ') + (note ? ' ' + note : '');
 
+  // Warn if address is unverified (not selected from typeahead or validated)
+  if (!_addrVerified && sceneAddress) {
+    const confirmUnverified = await showConfirmAsync('UNVERIFIED ADDRESS',
+      'THIS ADDRESS WAS NOT SELECTED FROM THE DATABASE.\nLOCATION HISTORY AND FLAGS MAY NOT WORK CORRECTLY.\n\nCREATE INCIDENT ANYWAY?');
+    if (!confirmUnverified) return;
+  }
+
   setLive(true, 'LIVE • CREATE INCIDENT');
-  const r = await API.createQueuedIncident(TOKEN, '', note, priority, unitId, incType, sceneAddress, levelOfCare);
+  const r = await API.createQueuedIncident(TOKEN, '', note, priority, unitId, incType, sceneAddress, levelOfCare, _selectedAddrPointId);
   if (!r.ok) return showErr(r);
   if (sceneAddress) { AddrHistory.push(sceneAddress); _geoVerifyAddress(sceneAddress); }
+  // Reset address tracking
+  _selectedAddrPointId = null;
+  _addrVerified = false;
   closeNewIncident();
 
   // Auto-bind CLI context to the new incident (non-VIEWER only)
