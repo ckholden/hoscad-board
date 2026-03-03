@@ -5991,9 +5991,9 @@ function _formatAuditMessage(rawMsg) {
     /\[RPT: (RPT-[\w-]+)\]/g,
     '<span class="tag-rpt" onclick="_clickRptLink(\'$1\')">[RPT: $1]</span>'
   );
-  // Also hyperlink incident IDs: INC/SC\d{2}-\d{4}
+  // Also hyperlink incident IDs: INC/SC/plain \d{2}-\d{4,5}
   html = html.replace(
-    /\b((?:SC|INC[-\s]?)\d{2}[-]?\d{4})\b/gi,
+    /\b((?:[A-Z]{1,4}|INC[-\s]?)\d{2}[-]?\d{4,5})\b/gi,
     '<span class="inc-link" onclick="_clickIncLink(this)" data-inc="$1">$1</span>'
   );
   return html;
@@ -6707,9 +6707,9 @@ async function _execCmd(tx) {
   if (mU.startsWith('ASSIGN ')) {
     const parts = (mU + ' ' + nU).trim().split(/\s+/);
     if (parts.length >= 3) {
-      const incArg = parts[1].replace(/^INC-?/i, '').trim();
+      const incArg = parts[1].trim();
       const unitArg = parts[2].trim().toUpperCase();
-      const incId = incArg.includes('-') ? incArg : (new Date().getFullYear() % 100 + '-' + incArg);
+      const incId = resolveIncidentId(incArg);
       setLive(true, 'LIVE • ASSIGN');
       const r = await API.assignUnit(TOKEN, incId, unitArg);
       if (r.ok) { showToast(unitArg + ' ASSIGNED TO ' + incId + ' AS PRIMARY.', 'success'); refresh(); }
@@ -6725,9 +6725,9 @@ async function _execCmd(tx) {
   if (mU.startsWith('QUEUE ') || mU.startsWith('QUE ') || mU.startsWith('QUEU ')) {
     const parts = (mU + ' ' + nU).trim().split(/\s+/);
     if (parts.length >= 3) {
-      const incArg = parts[1].replace(/^INC-?/i, '').trim();
+      const incArg = parts[1].trim();
       const unitArg = parts[2].trim().toUpperCase();
-      const incId = incArg.includes('-') ? incArg : (new Date().getFullYear() % 100 + '-' + incArg);
+      const incId = resolveIncidentId(incArg);
       setLive(true, 'LIVE • QUEUE');
       const r = await API.queueUnit(TOKEN, incId, unitArg);
       if (r.ok) { showToast(unitArg + ': ' + incId + (r.action === 'queued' ? ' QUEUED.' : ' ASSIGNED.'), 'success'); refresh(); }
@@ -6742,9 +6742,9 @@ async function _execCmd(tx) {
   if (mU.startsWith('PRIMARY ')) {
     const parts = (mU + ' ' + nU).trim().split(/\s+/);
     if (parts.length >= 3) {
-      const incArg = parts[1].replace(/^INC-?/i, '').trim();
+      const incArg = parts[1].trim();
       const unitArg = parts[2].trim().toUpperCase();
-      const incId = incArg.includes('-') ? incArg : (new Date().getFullYear() % 100 + '-' + incArg);
+      const incId = resolveIncidentId(incArg);
       setLive(true, 'LIVE • PRIMARY');
       const r = await API.primaryUnit(TOKEN, incId, unitArg);
       if (r.ok) { showToast(incId + ' IS NOW PRIMARY FOR ' + unitArg + '.', 'success'); refresh(); }
@@ -6761,9 +6761,9 @@ async function _execCmd(tx) {
   if (mU.startsWith('CLEAR ') && !mU.startsWith('CLEARDATA ')) {
     const parts = (mU + ' ' + nU).trim().split(/\s+/);
     if (parts.length >= 3) {
-      const incArg = parts[1].replace(/^INC-?/i, '').trim();
+      const incArg = parts[1].trim();
       const unitArg = parts[2].trim().toUpperCase();
-      const incId = incArg.includes('-') ? incArg : (new Date().getFullYear() % 100 + '-' + incArg);
+      const incId = resolveIncidentId(incArg);
       const confirmed = await showConfirmAsync('CLEAR ASSIGNMENT', 'CLEAR ' + incId + ' FROM ' + unitArg + "'S STACK?");
       if (!confirmed) return;
       setLive(true, 'LIVE • CLEAR');
@@ -6788,12 +6788,12 @@ async function _execCmd(tx) {
   if (mU.startsWith('STACK ')) {
     const stackParts = (mU + ' ' + nU).trim().split(/\s+/);
     const secondToken = stackParts[1] || '';
-    const looksLikeInc = /^\d{2}-\d{4}$/i.test(secondToken) || /^[A-Z]{1,4}\d{2}-\d{4}$/i.test(secondToken) || /^INC/i.test(secondToken) || /^0\d{3}$/.test(secondToken);
+    const looksLikeInc = /^\d{2}-\d{4,5}$/i.test(secondToken) || /^[A-Z]{1,4}\d{2}-\d{4,5}$/i.test(secondToken) || /^INC/i.test(secondToken) || /^\d{3,5}$/.test(secondToken);
     if (stackParts.length >= 3 && looksLikeInc) {
       // Write path: STACK <INC> <UNIT>
-      const incArg = stackParts[1].replace(/^INC-?/i, '').trim();
+      const incArg = stackParts[1].trim();
       const unitArg = stackParts[2].trim().toUpperCase();
-      const incId = incArg.includes('-') ? incArg : (new Date().getFullYear() % 100 + '-' + incArg);
+      const incId = resolveIncidentId(incArg);
       setLive(true, 'LIVE • STACK');
       const r = await API.queueUnit(TOKEN, incId, unitArg);
       if (r.ok) {
@@ -7915,16 +7915,12 @@ async function _execCmd(tx) {
   // CAN <inc> [note] — quick cancel with optional note (no picker)
   {
     const canFull = (mU + ' ' + nU).trim();
-    const canMatch = canFull.match(/^CAN\s+(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})(?:\s+(.+))?$/) ||
-                     canFull.match(/^(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})\s+CAN$/);
+    const canMatch = canFull.match(/^CAN\s+(?:INC\s*)?([A-Z]*\d{2}-\d{4,5}|\d{1,5})(?:\s+(.+))?$/) ||
+                     canFull.match(/^(?:INC\s*)?([A-Z]*\d{2}-\d{4,5}|\d{1,5})\s+CAN$/);
     if (canMatch) {
       let inc = canMatch[1];
       const note = (canMatch[2] || '').trim();
-      if (/^\d{3,4}$/.test(inc)) {
-        if (inc.length === 3) inc = '0' + inc;
-        const yy = String(new Date().getFullYear()).slice(-2);
-        inc = 'SC' + yy + '-' + inc;
-      }
+      inc = resolveIncidentId(inc);
       if (note) await API.appendIncidentNote(TOKEN, inc, note);
       const r = await API.closeIncident(TOKEN, inc, 'CANCELLED-PRIOR');
       if (!r.ok) return showErr(r);
@@ -7937,18 +7933,14 @@ async function _execCmd(tx) {
   // DEL <inc> [dup|err] — close with structured reason; prompts if no reason given
   {
     const delFull = (mU + ' ' + nU).trim();
-    const delMatch = delFull.match(/^DEL\s+(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})(?:\s+(\S+))?$/) ||
-                     delFull.match(/^(?:INC\s*)?([A-Z]*\d{2}-\d{4}|\d{3,4})\s+DEL$/) ||
-                     delFull.match(/^DEL([A-Z]*\d{2}-\d{4}|\d{3,4})$/);
+    const delMatch = delFull.match(/^DEL\s+(?:INC\s*)?([A-Z]*\d{2}-\d{4,5}|\d{1,5})(?:\s+(\S+))?$/) ||
+                     delFull.match(/^(?:INC\s*)?([A-Z]*\d{2}-\d{4,5}|\d{1,5})\s+DEL$/) ||
+                     delFull.match(/^DEL([A-Z]*\d{2}-\d{4,5}|\d{1,5})$/);
     // Don't match DEL MSG... (handled by message handler below)
     if (delMatch && !/^MSG/i.test(delMatch[1])) {
       let inc = delMatch[1];
       const reasonRaw = (delMatch[2] || '').toUpperCase();
-      if (/^\d{3,4}$/.test(inc)) {
-        if (inc.length === 3) inc = '0' + inc;
-        const yy = String(new Date().getFullYear()).slice(-2);
-        inc = 'SC' + yy + '-' + inc;
-      }
+      inc = resolveIncidentId(inc);
       let disposition = '';
       if (reasonRaw === 'DUP' || reasonRaw === 'DUPLICATE') {
         disposition = 'DUPLICATE';
@@ -8095,8 +8087,8 @@ async function _execCmd(tx) {
       const htArgToks = htRawArgs.split(/\s+/);
       const htFirst   = htArgToks[0];
       const htRest    = htArgToks.slice(1).join(' ').trim();
-      // If first token looks like an INC# (SC26-0042, 0042, 26-0042), treat as explicit incident
-      if (/^(SC\d{2}-\d{4}|\d{2}-\d{4}|\d{3,4})$/.test(htFirst)) {
+      // If first token looks like an INC# (SC26-00042, 00042, 26-00042), treat as explicit incident
+      if (/^([A-Z]{1,4}\d{2}-\d{4,5}|\d{2}-\d{4,5}|\d{1,5})$/.test(htFirst)) {
         htIncId = htFirst;
         htExtraText = htRest;
       } else {
@@ -8108,9 +8100,8 @@ async function _execCmd(tx) {
       const _ctxId = CLI_CONTEXT.incidentId || CURRENT_INCIDENT_ID;
       if (!_ctxId) { showAlert('ERROR', 'USAGE: HT [<INC#>] [<TEXT>] — OR BIND A CONTEXT INCIDENT FIRST (R <INC#>)'); return; }
       htIncId = _ctxId;
-    } else if (/^\d{3,4}$/.test(htIncId)) {
-      const yy = String(new Date().getFullYear()).slice(-2);
-      htIncId = 'SC' + yy + '-' + htIncId.padStart(4, '0');
+    } else if (/^\d{1,5}$/.test(htIncId) || /^[A-Z]+\d{2}-\d{4,5}$/.test(htIncId)) {
+      htIncId = resolveIncidentId(htIncId);
     }
     const htInc = STATE && STATE.incidents ? STATE.incidents.find(i => i.incident_id === htIncId) : null;
     if (!htInc) { showAlert('ERROR', 'INCIDENT NOT FOUND: ' + htIncId); return; }
@@ -8200,14 +8191,8 @@ async function _execCmd(tx) {
     const cmdLen = isAv ? 6 : 6; // 'AVALL ' or 'OSALL ' both 6 chars
     const rawInc = (mU.length > 6 ? mU.substring(cmdLen).trim() : '') || nU.trim();
     if (!rawInc) { showAlert('ERROR', 'USAGE: ' + (isAv ? 'AVALL' : 'OSALL') + ' <INC#>  (e.g. ' + (isAv ? 'AVALL' : 'OSALL') + ' 0071)'); return; }
-    // Resolve 4-digit shorthand or full incident ID
-    const _stripped = rawInc.replace(/^INC[-\s]*/i, '').trim().toUpperCase();
-    let _resolvedInc = _stripped;
-    if (/^\d{4}$/.test(_stripped)) {
-      const _found = (STATE.incidents || []).find(i => i.incident_id.endsWith('-' + _stripped));
-      if (_found) _resolvedInc = _found.incident_id;
-      else { const yy = String(new Date().getFullYear()).slice(-2); _resolvedInc = 'SC' + yy + '-' + _stripped; }
-    }
+    // Resolve shorthand or full incident ID
+    const _resolvedInc = resolveIncidentId(rawInc);
     const incObj = (STATE.incidents || []).find(i => i.incident_id === _resolvedInc);
     if (!incObj) { showAlert('ERROR', 'INCIDENT NOT FOUND: ' + _resolvedInc); return; }
     const assigned = (STATE.units || []).filter(u => u.active && u.incident === _resolvedInc);
@@ -8827,20 +8812,23 @@ async function _execCmd(tx) {
   }
 
   // Resolve 4-digit shorthand to full incident_id by looking up STATE.incidents first,
-  // then falling back to SC+YY- prefix (current format). Avoids FK failures from format mismatch.
+  // then falling back to YY-NNNNN plain format. Strips agency prefix if present.
   function resolveIncidentId(raw) {
-    const stripped = raw.replace(/^INC[-\s]*/i, '').trim().toUpperCase();
-    if (/^\d{4}$/.test(stripped)) {
-      const stateInc = (STATE.incidents || []).find(i => i.incident_id.endsWith('-' + stripped));
+    let stripped = raw.replace(/^INC[-\s]*/i, '').trim().toUpperCase();
+    // Strip agency prefix if present (SC26-00045 → 26-00045)
+    stripped = stripped.replace(/^[A-Z]+(\d{2}-)/, '$1');
+    if (/^\d{1,5}$/.test(stripped)) {
+      const padded = stripped.padStart(5, '0');
+      const stateInc = (STATE.incidents || []).find(i => i.incident_id.endsWith('-' + padded));
       if (stateInc) return stateInc.incident_id;
       const yy = String(new Date().getFullYear()).slice(-2);
-      return 'SC' + yy + '-' + stripped;
+      return yy + '-' + padded;
     }
     return stripped;
   }
 
-  // Check for incident ID at end of unit (e.g. "D AMWC1 INC-0001" or "D AMWC1 SC26-0001")
-  const incMatch = rawUnit.match(/\s+(INC\s*[A-Z]*\d{2}-\d{4}|INC\s*\d{4}|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4})$/i);
+  // Check for incident ID at end of unit (e.g. "D AMWC1 INC-00001" or "D AMWC1 26-00001")
+  const incMatch = rawUnit.match(/\s+(INC\s*[A-Z]*\d{2}-\d{4,5}|INC\s*\d{3,5}|[A-Z]{1,4}\d{2}-\d{4,5}|\d{2}-\d{4,5}|\d{3,5})$/i);
   if (incMatch) {
     incidentId = resolveIncidentId(incMatch[1]);
     rawUnit = rawUnit.substring(0, incMatch.index).trim();
@@ -8850,7 +8838,7 @@ async function _execCmd(tx) {
   let nuUsedAsIncident = false;
   const dispatchLikeStatuses = new Set(['D', 'DE', 'AT', 'TH']);
   if (!incidentId && dispatchLikeStatuses.has(stCmd) && nU) {
-    const nuIncMatch = nU.trim().match(/^(INC[-\s]?[A-Z]*\d{2}-\d{4}|INC[-\s]?\d{4}|[A-Z]{1,4}\d{2}-\d{4}|\d{2}-\d{4}|\d{4})$/i);
+    const nuIncMatch = nU.trim().match(/^(INC[-\s]?[A-Z]*\d{2}-\d{4,5}|INC[-\s]?\d{1,5}|[A-Z]{1,4}\d{2}-\d{4,5}|\d{2}-\d{4,5}|\d{1,5})$/i);
     if (nuIncMatch) {
       incidentId = resolveIncidentId(nuIncMatch[1]);
       nuUsedAsIncident = true;
