@@ -6597,10 +6597,10 @@
       } else {
         auditEl.innerHTML = audit.slice().reverse().map(function(e) {
           const t = e.ts ? fmtFieldTime(e.ts) : '';
-          const actor = e.actor ? ' [' + e.actor + ']' : '';
+          const actor = e.actor ? ' [' + esc(e.actor) + ']' : '';
           return '<div style="padding:3px 0;border-bottom:1px solid #1a2535;">' +
-            (t ? '<span style="color:#5ba3e6;">' + t + '</span> ' : '') +
-            '<span>' + (e.message || '') + '</span>' +
+            (t ? '<span style="color:#5ba3e6;">' + esc(t) + '</span> ' : '') +
+            '<span>' + esc(e.message || '') + '</span>' +
             '<span style="color:#5ba3e6;font-size:10px;">' + actor + '</span>' +
             '</div>';
         }).join('');

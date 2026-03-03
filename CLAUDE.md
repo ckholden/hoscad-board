@@ -77,10 +77,32 @@ Backend repo: `hoscad` (Supabase edge functions)
 - [ ] **Service worker cache versioning** — Automate version bumps in CI (currently manual in sw.js/sw-field.js)
 - [ ] **WebSocket migration** — Subscribe to Supabase Realtime for units, incidents, messages tables. Fall back to polling if WS disconnects.
 
+## Recent Features (March 2026)
+- **Incident mask auto-refresh** — Open incident modal refreshes on poll cycle (~10s) when STATE changes
+- **Topbar universal search dropdown** — Search box searches units, active incidents, addresses, historical incidents, and people inline with keyboard navigation
+- **Topbar search** — Search box at top of board is a comprehensive instant search with debounced server queries
+
 ## Known Issues
 - **Central Oregon address DB** — Needs verification for completeness
 - **Non-address locations** — Intersections, mile posts, landmarks not yet handled
 - **Branding refresh** — Admin branding changes require board page refresh to take effect (no live push yet)
+- **SCMC logo** — Needs `logo_url` configured in Admin → AGENCY tab for logo to display
+
+## Audit Findings (2026-03-03)
+
+### Fixed
+- **CB/COPY incident ID normalization** — Was padding to 4 digits instead of 5 (mismatched `resolveIncidentId`). Fixed to pad to 5.
+- **inc.units type mismatch** — `_refreshIncidentModal` treated `inc.units` as array (`.join()`), but it's a comma-separated string from API. Fixed.
+- **Missing CSS variables** — `--fg`, `--surface`, `--accent` used in admin/inline styles but not defined in `:root`. Added to both dark and light themes.
+- **Field MDT audit trail XSS** — `e.message` and `e.actor` not HTML-escaped in audit trail render. Fixed with `esc()`.
+
+### Deferred (tracked for future work)
+- **Board `start()` event listener leak** — Re-login accumulates event listeners. Consider cleanup function.
+- **`renderBoardDiff` clears innerHTML** despite row-cache hash system — Can optimize to skip clear when hash matches.
+- **Popout-inc color variables** differ from main board (`--green: #4dff91` vs `#20b060`) — cosmetic, low priority.
+- **Field MDT full DOM rebuild on poll** for roster/calls tabs — Consider diff-based update for performance.
+- **Field MDT wake lock listener leak** — Reacquire listener can accumulate on toggle. Low impact.
+- **Field MDT offline queue** doesn't include transport destination — Missing field in queued operations.
 
 ## Documentation
 Full technical docs in the `hoscad` repo at `/docs/`. Key references:

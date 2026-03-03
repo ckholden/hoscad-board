@@ -5261,7 +5261,7 @@ async function _refreshIncidentModal(incId) {
 
     // Units display
     const incUnitsEl = document.getElementById('incUnits');
-    if (incUnitsEl) incUnitsEl.textContent = (inc.units||[]).join(', ') || '—';
+    if (incUnitsEl) incUnitsEl.textContent = (inc.units || '—').toUpperCase();
 
     // Live unit status detail (status badges, ETAs, notes)
     const incUnitsDetailEl = document.getElementById('incUnitsDetail');
@@ -5335,7 +5335,7 @@ async function _refreshIncidentModal(incId) {
     // Show update notice for significant field changes
     const newPri   = inc.priority || '';
     const newAddr  = inc.scene_address || '';
-    const newUnits = (inc.units||[]).join(', ') || '—';
+    const newUnits = (inc.units || '—').toUpperCase();
     const incStatus = (inc.status||'').toUpperCase();
     if (newPri !== prevPri || newAddr !== prevAddr || newUnits !== prevUnits || incStatus === 'CLOSED') {
       _showIncUpdateNotice(inc.updated_by || 'SYSTEM');
@@ -7606,14 +7606,14 @@ async function _execCmd(tx) {
       showAlert('ERROR', 'USAGE: CB <INC> <PHONE> — e.g. CB 0023 5415551234'); return;
     }
     if (!cbNum) { showAlert('ERROR', 'PHONE NUMBER REQUIRED'); return; }
-    // Normalize cbIncId to yy-xxxx for STATE lookup
+    // Normalize cbIncId to yy-xxxxx for STATE lookup (5-digit pad to match resolveIncidentId)
     let cbNorm = cbIncId;
-    if (/^\d{3,4}$/.test(cbNorm)) {
+    if (/^\d{1,5}$/.test(cbNorm)) {
       const yy = String(new Date().getFullYear()).slice(-2);
-      cbNorm = yy + '-' + (cbNorm.length === 3 ? '0' + cbNorm : cbNorm);
-    } else if (/^INC(\d+)$/.test(cbNorm)) {
-      const d = cbNorm.replace(/^INC/, '');
-      cbNorm = String(new Date().getFullYear()).slice(-2) + '-' + d.padStart(4, '0');
+      cbNorm = yy + '-' + cbNorm.padStart(5, '0');
+    } else if (/^INC(\d+)$/i.test(cbNorm)) {
+      const d = cbNorm.replace(/^INC/i, '');
+      cbNorm = String(new Date().getFullYear()).slice(-2) + '-' + d.padStart(5, '0');
     }
     // Get current note from STATE (to preserve [DISP:] tag and strip old [CB:])
     const cbIncObj = STATE && STATE.incidents ? STATE.incidents.find(i => String(i.incident_id || '').toUpperCase() === cbNorm.toUpperCase()) : null;
@@ -7669,14 +7669,14 @@ async function _execCmd(tx) {
       copyId = (mU.startsWith('COPY ') ? ma.substring(5) : nU).trim().toUpperCase();
       if (!copyId) { showAlert('ERROR', 'USAGE: COPY <INC>'); return; }
     }
-    // Normalize to yy-xxxx for STATE lookup
+    // Normalize to yy-xxxxx for STATE lookup (5-digit pad to match resolveIncidentId)
     let copyNorm = copyId;
-    if (/^\d{3,4}$/.test(copyNorm)) {
+    if (/^\d{1,5}$/.test(copyNorm)) {
       const yy = String(new Date().getFullYear()).slice(-2);
-      copyNorm = yy + '-' + (copyNorm.length === 3 ? '0' + copyNorm : copyNorm);
-    } else if (/^INC(\d+)$/.test(copyNorm)) {
-      const d = copyNorm.replace(/^INC/, '');
-      copyNorm = String(new Date().getFullYear()).slice(-2) + '-' + d.padStart(4, '0');
+      copyNorm = yy + '-' + copyNorm.padStart(5, '0');
+    } else if (/^INC(\d+)$/i.test(copyNorm)) {
+      const d = copyNorm.replace(/^INC/i, '');
+      copyNorm = String(new Date().getFullYear()).slice(-2) + '-' + d.padStart(5, '0');
     }
     const srcInc = STATE && STATE.incidents ? STATE.incidents.find(i => String(i.incident_id || '').toUpperCase() === copyNorm.toUpperCase()) : null;
     if (!srcInc) { showAlert('ERROR', 'INCIDENT NOT FOUND: ' + copyNorm); return; }

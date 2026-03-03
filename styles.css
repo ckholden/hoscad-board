@@ -17,8 +17,13 @@
 
   /* Text */
   --text:    #c8d8eb;
+  --fg:      #c8d8eb;
   --muted:   #95a5b5;
   --hi:      #e8f0fa;
+
+  /* Semantic aliases used by admin + inline styles */
+  --surface:  #0c111a;
+  --accent:   #2060e0;
 
   /* UI font scale — set via tenant admin or data-font-scale attribute.
      0 = default (current), 1 = +1px, 2 = +2px, 3 = +3px */
@@ -58,8 +63,11 @@
   --line:    #cad0da;
   --border:  #b0bac8;
   --text:    #1a2536;
+  --fg:      #1a2536;
   --muted:   #4d5d70;
   --hi:      #0d1624;
+  --surface: #ffffff;
+  --accent:  #1a56e8;
   --blue:    #1a56e8;
   --yellow:  #b07800;
   --red:     #cc2222;
