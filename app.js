@@ -11048,9 +11048,9 @@ const BM_STATUS_COLORS = {
   AV: '#4caf50', D: '#ff9800', DE: '#ff9800',
   OS: '#f44336', T: '#ffd700', AT: '#2196f3', OOS: '#607d8b',
 };
-const BM_MAP_CENTER  = [44.05, -120.85];
-const BM_MAP_ZOOM    = 9;
-const BM_MAP_VIEWBOX = '-122.5,43.0,-119.5,45.5';
+let BM_MAP_CENTER  = [44.05, -120.85];
+let BM_MAP_ZOOM    = 9;
+let BM_MAP_VIEWBOX = '-122.5,43.0,-119.5,45.5';
 const BM_TRICOUNTY   = [[43.3, -122.0], [45.0, -119.4]];
 
 // Known address coordinates — pre-seeded into geocache so Nominatim is never
@@ -12197,6 +12197,16 @@ async function start() {
         img.onerror = function() { this.style.display = 'none'; };
         brandEl.insertBefore(img, titleEl);
       }
+    }
+    // Apply map center/zoom from settings
+    if (s.default_map_center) {
+      const parts = s.default_map_center.split(',').map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        BM_MAP_CENTER = parts;
+      }
+    }
+    if (s.default_map_zoom && !isNaN(Number(s.default_map_zoom))) {
+      BM_MAP_ZOOM = Number(s.default_map_zoom);
     }
   }).catch(() => {});
   loadViewState();
