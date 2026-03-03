@@ -78,9 +78,9 @@ Backend repo: `hoscad` (Supabase edge functions)
 - [ ] **WebSocket migration** — Subscribe to Supabase Realtime for units, incidents, messages tables. Fall back to polling if WS disconnects.
 
 ## Known Issues
-- **Address typeahead bug** — Arrow keys + enter/click not working for selection (keyboard nav broken)
 - **Central Oregon address DB** — Needs verification for completeness
 - **Non-address locations** — Intersections, mile posts, landmarks not yet handled
+- **Branding refresh** — Admin branding changes require board page refresh to take effect (no live push yet)
 
 ## Documentation
 Full technical docs in the `hoscad` repo at `/docs/`. Key references:
