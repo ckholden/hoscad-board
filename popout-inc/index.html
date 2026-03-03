@@ -13,6 +13,7 @@
 [data-theme="light"]{--bg:#f0f2f5;--panel:#ffffff;--line:#cad0da;--text:#1a2536;--muted:#5a6a7e;
   --green:#167040;--yellow:#b07800;--red:#cc2222;--blue:#1a56e8;
   --hi:#0d1624;--ok:#167040;--warn:#b07800;--danger:#cc2222;}
+[data-theme="light"] .brand-logo{filter:invert(1) brightness(.2);}
 [data-theme="night"]{--bg:#000000;--panel:#03050a;--line:rgba(255,255,255,.05);--text:#8e9aaa;--muted:#4a5a6e;
   --green:#4dff91;--yellow:#ffd66b;--red:#ff5555;--blue:#4fa3e0;
   --hi:#ffffff;--ok:#52c41a;--warn:#fa8c16;--danger:#ff4d4f;}
@@ -20,6 +21,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Courie
 body{display:flex;flex-direction:column;}
 .topbar{display:flex;align-items:center;gap:12px;padding:5px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
 .brand{font-size:13px;font-weight:900;color:var(--hi);letter-spacing:.08em;}
+.brand-logo{height:18px;width:auto;vertical-align:middle;margin-right:5px;object-fit:contain;}
 .live-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:2px;background:rgba(77,255,145,.12);border:1px solid rgba(77,255,145,.3);color:var(--green);}
 .live-pill.stale{background:rgba(255,77,77,.12);border-color:rgba(255,77,77,.3);color:var(--red);}
 .clock{font-size:11px;color:var(--muted);font-weight:700;margin-left:auto;}
@@ -231,7 +233,40 @@ function init() {
   mw.style.height = '100%';
 
   _clockTimer = setInterval(onTick, 1000);
+  loadPopoutBranding();
   doPoll();
+}
+
+/** Load tenant branding into the popout header */
+async function loadPopoutBranding() {
+  try {
+    const r = await API.getTenantSettings(_token);
+    if (!r || !r.ok) return;
+    const s = r.settings || {};
+    const t = r.tenant || {};
+    const dn = s.display_name || t.displayName;
+    const brandEl = document.querySelector('.topbar .brand');
+    if (brandEl && dn) brandEl.textContent = dn + ' — INCIDENT QUEUE';
+    // Accent color
+    const accent = s.accent_color || t.accentColor;
+    if (accent && accent !== '#1a73e8' && accent !== '#2563EB') {
+      document.documentElement.style.setProperty('--blue', accent);
+    }
+    // Logo
+    const logoUrl = s.logo_url || t.logoUrl;
+    if (logoUrl && brandEl && !brandEl.querySelector('.brand-logo')) {
+      const img = document.createElement('img');
+      img.className = 'brand-logo';
+      img.src = logoUrl;
+      img.alt = dn || 'Logo';
+      img.style.cssText = 'height:18px;width:auto;vertical-align:middle;margin-right:5px;';
+      img.onerror = function() { this.style.display = 'none'; };
+      brandEl.insertBefore(img, brandEl.firstChild);
+    }
+    // Also update relay screen brand
+    const relayBrand = document.querySelector('.relay-brand');
+    if (relayBrand && dn) relayBrand.textContent = dn;
+  } catch(e) { /* non-critical */ }
 }
 
 // ── Polling ──────────────────────────────────────────────────────────────

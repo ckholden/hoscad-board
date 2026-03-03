@@ -56,7 +56,8 @@
 <!-- Login Screen -->
 <div id="loginScreen">
   <div class="card login" style="min-width:320px;">
-    <h3 style="margin-top:0;">CASCADE COMMAND</h3>
+    <div id="loginLogo" style="text-align:center;margin-bottom:8px;display:none;"></div>
+    <h3 id="loginTitle" style="margin-top:0;">CASCADE COMMAND</h3>
     <div class="muted" style="margin-bottom:10px;">ADMIN PORTAL</div>
     <div class="row">
       <select id="loginRole" style="flex:1">
@@ -1267,9 +1268,52 @@
       if (tRes.ok) _agencyTenant = tRes.tenant;
       if (sRes.ok && sRes.settings) _agencySettings = sRes.settings;
       const dn = (_agencySettings.display_name || _agencyTenant?.name || 'CASCADE COMMAND').toUpperCase();
-      document.getElementById('adminTitle').textContent = dn + ' — ADMIN';
+      const titleEl = document.getElementById('adminTitle');
+      titleEl.textContent = dn + ' — ADMIN';
       document.title = dn + ' — ADMIN';
+      // Logo — settings override, then tenant table
+      const logoUrl = _agencySettings.logo_url || _agencyTenant?.logoUrl;
+      if (logoUrl && !titleEl.parentElement.querySelector('.brand-logo')) {
+        const img = document.createElement('img');
+        img.className = 'brand-logo';
+        img.src = logoUrl;
+        img.alt = dn;
+        img.style.cssText = 'height:24px;width:auto;vertical-align:middle;margin-right:8px;';
+        img.onerror = function() { this.style.display = 'none'; };
+        titleEl.parentElement.insertBefore(img, titleEl);
+      }
+      // Cache for pre-login display
+      try {
+        localStorage.setItem('hoscad_admin_branding', JSON.stringify({
+          displayName: dn || '', logoUrl: logoUrl || ''
+        }));
+      } catch(e) {}
     } catch(e) { /* non-critical */ }
+  }
+
+  /** Load cached branding into login screen (before auth) */
+  function loadCachedAdminBranding() {
+    try {
+      const cached = JSON.parse(localStorage.getItem('hoscad_admin_branding') || 'null');
+      if (!cached) return;
+      if (cached.displayName) {
+        const lt = document.getElementById('loginTitle');
+        if (lt) lt.textContent = cached.displayName;
+      }
+      if (cached.logoUrl) {
+        const ll = document.getElementById('loginLogo');
+        if (ll && !ll.querySelector('img')) {
+          const img = document.createElement('img');
+          img.src = cached.logoUrl;
+          img.alt = cached.displayName || 'Logo';
+          img.className = 'brand-logo';
+          img.style.cssText = 'height:32px;width:auto;';
+          img.onerror = function() { ll.style.display = 'none'; };
+          ll.appendChild(img);
+          ll.style.display = 'block';
+        }
+      }
+    } catch(e) {}
   }
 
   async function adminLogout() {
@@ -4119,6 +4163,7 @@
 
   // Auto-login via active CAD session if dispatcher has admin role
   window.addEventListener('DOMContentLoaded', () => {
+    loadCachedAdminBranding();
     _loadAdminLoginDropdown();
     const cadToken = localStorage.getItem('ems_token');
     const cadRole  = localStorage.getItem('ems_role');
@@ -4131,6 +4176,7 @@
       document.getElementById('rolePill').textContent = _role + ': ' + (cadActor || 'CAD SESSION');
       loadUsers();
       checkIssueBadge();
+      loadTenantBranding();
     }
   });
 

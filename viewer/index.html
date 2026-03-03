@@ -440,6 +440,7 @@
      ============================================================ -->
 <div id="passwordScreen" class="active">
   <div class="pw-card">
+    <div id="pwLogo" style="text-align:center;margin-bottom:8px;display:none;"></div>
     <div class="pw-title">SCMC HOSCAD</div>
     <div class="pw-subtitle">CAD VIEWER — READ-ONLY ACCESS</div>
     <input type="text" id="pwInput" placeholder="CAD ID" inputmode="numeric" autocomplete="off" maxlength="10" />
@@ -954,11 +955,77 @@ function startBoard() {
   loadNightMode();
   loadViewerZoom();
 
+  // Load tenant branding (logo, display name, accent color)
+  loadViewerBranding();
+
   // Immediately poll, then set up interval
   doPoll();
 
   // 1-second tick: clock + countdown + stale check
   _tickTimer = setInterval(onTick, 1000);
+}
+
+/** Apply cached branding to login screen (before auth) */
+function loadCachedViewerBranding() {
+  try {
+    const cached = JSON.parse(localStorage.getItem('hoscad_viewer_branding') || 'null');
+    if (!cached) return;
+    // Login screen logo
+    if (cached.logoUrl) {
+      const pwLogo = document.getElementById('pwLogo');
+      if (pwLogo && !pwLogo.querySelector('img')) {
+        const img = document.createElement('img');
+        img.src = cached.logoUrl;
+        img.alt = cached.displayName || 'Logo';
+        img.className = 'brand-logo';
+        img.style.cssText = 'height:32px;width:auto;';
+        img.onerror = function() { pwLogo.style.display = 'none'; };
+        pwLogo.appendChild(img);
+        pwLogo.style.display = 'block';
+      }
+    }
+    // Login screen title
+    if (cached.displayName) {
+      const pwTitle = document.querySelector('.pw-title');
+      if (pwTitle) pwTitle.textContent = cached.displayName;
+    }
+  } catch(e) {}
+}
+
+/** Load tenant branding into the viewer header */
+async function loadViewerBranding() {
+  try {
+    const r = await API.getTenantSettings(_token);
+    if (!r || !r.ok) return;
+    const s = r.settings || {};
+    const t = r.tenant || {};
+    // Display name
+    const dn = s.display_name || t.displayName;
+    const brandEl = document.querySelector('.topbar .brand');
+    if (brandEl && dn) brandEl.textContent = dn;
+    // Accent color
+    const accent = s.accent_color || t.accentColor;
+    if (accent && accent !== '#1a73e8' && accent !== '#2563EB') {
+      document.documentElement.style.setProperty('--blue', accent);
+    }
+    // Logo
+    const logoUrl = s.logo_url || t.logoUrl;
+    if (logoUrl && brandEl && !brandEl.querySelector('.brand-logo')) {
+      const img = document.createElement('img');
+      img.className = 'brand-logo';
+      img.src = logoUrl;
+      img.alt = dn || 'Logo';
+      img.style.cssText = 'height:20px;width:auto;vertical-align:middle;margin-right:6px;';
+      img.onerror = function() { this.style.display = 'none'; };
+      brandEl.insertBefore(img, brandEl.firstChild);
+    }
+    // Cache for next visit (login screen)
+    try {
+      localStorage.setItem('hoscad_viewer_branding', JSON.stringify({
+        displayName: dn || '', logoUrl: logoUrl || '', accentColor: accent || ''
+      }));
+    } catch(e) {}
+  } catch(e) { /* non-critical */ }
 }
 
 /** Show the password screen */
@@ -2102,6 +2169,7 @@ window.addEventListener('message', function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+  loadCachedViewerBranding();
   const pwInput = document.getElementById('pwInput');
   if (pwInput) {
     pwInput.addEventListener('keydown', e => {

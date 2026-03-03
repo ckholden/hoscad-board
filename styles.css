@@ -152,6 +152,14 @@ header {
   background: var(--panel);
   letter-spacing: 1px;
 }
+.brand-logo {
+  height: 22px;
+  width: auto;
+  vertical-align: middle;
+  margin-right: 6px;
+  object-fit: contain;
+}
+[data-theme="light"] .brand-logo { filter: invert(1) brightness(.2); }
 .pill {
   padding: 4px 8px;
   border: 1px solid var(--border);

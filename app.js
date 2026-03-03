@@ -12193,9 +12193,20 @@ async function start() {
         img.className = 'brand-logo';
         img.src = logoUrl;
         img.alt = displayName || 'Logo';
-        img.style.cssText = 'height:22px;width:auto;vertical-align:middle;margin-right:6px;';
         img.onerror = function() { this.style.display = 'none'; };
         brandEl.insertBefore(img, titleEl);
+      }
+      // Also apply logo to login modal
+      const loginLogoEl = document.getElementById('loginLogo');
+      if (loginLogoEl && !loginLogoEl.querySelector('img')) {
+        const limg = document.createElement('img');
+        limg.src = logoUrl;
+        limg.alt = displayName || 'Logo';
+        limg.className = 'brand-logo';
+        limg.style.cssText = 'height:32px;width:auto;';
+        limg.onerror = function() { loginLogoEl.style.display = 'none'; };
+        loginLogoEl.appendChild(limg);
+        loginLogoEl.style.display = 'block';
       }
     }
     // Apply map center/zoom from settings

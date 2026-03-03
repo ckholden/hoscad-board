@@ -225,6 +225,13 @@
       font-size: 16px;
       margin-bottom: 12px;
     }
+    .brand-logo {
+      height: 22px;
+      width: auto;
+      vertical-align: middle;
+      margin-right: 6px;
+      object-fit: contain;
+    }
 
     .login-card .field {
       margin-bottom: 10px;
@@ -1594,7 +1601,8 @@
   <!-- Login Screen -->
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
-      <h2>HOSCAD FIELD</h2>
+      <div id="fieldLoginLogo" style="text-align:center;margin-bottom:8px;display:none;"></div>
+      <h2 id="fieldLoginTitle">HOSCAD FIELD</h2>
       <div class="field">
         <label class="field-label" for="loginCallsign">CALLSIGN</label>
         <input id="loginCallsign" type="text" placeholder="ENTER CALLSIGN (E.G. EMS12, CC1)" autocomplete="off" autocorrect="off" autocapitalize="characters" />
@@ -2345,6 +2353,30 @@
   const cmdFeed = document.getElementById('cmdFeed');
   const cmdInput = document.getElementById('cmdInput');
   const connIndicator = document.getElementById('connIndicator');
+
+  // Apply cached tenant branding to login screen (instant, before auth)
+  try {
+    var _ct = JSON.parse(localStorage.getItem('hoscadfield_tenant') || 'null');
+    if (_ct) {
+      if (_ct.displayName) {
+        var _flt = document.getElementById('fieldLoginTitle');
+        if (_flt) _flt.textContent = _ct.displayName + ' FIELD';
+      }
+      if (_ct.logoUrl) {
+        var _fll = document.getElementById('fieldLoginLogo');
+        if (_fll && !_fll.querySelector('img')) {
+          var _flImg = document.createElement('img');
+          _flImg.src = _ct.logoUrl;
+          _flImg.alt = _ct.displayName || 'Logo';
+          _flImg.className = 'brand-logo';
+          _flImg.style.cssText = 'height:32px;width:auto;';
+          _flImg.onerror = function() { _fll.style.display = 'none'; };
+          _fll.appendChild(_flImg);
+          _fll.style.display = 'block';
+        }
+      }
+    }
+  } catch(e) {}
 
   // ════════════════════════════════════════════════════════════════════════════
   // PHASE 1: TAB NAVIGATION STATE
@@ -4953,9 +4985,26 @@
         if (headerEl && tenant.displayName) {
           headerEl.textContent = tenant.displayName;
         }
-        // Cache tenant config for offline boot
+        // Apply logo in header — settings override, then tenant table
+        var logoUrl = (settings && settings.logo_url) || tenant.logoUrl;
+        if (logoUrl) {
+          var logoEl = document.getElementById('fieldHeaderLogo');
+          if (!logoEl) {
+            logoEl = document.createElement('img');
+            logoEl.id = 'fieldHeaderLogo';
+            logoEl.className = 'brand-logo';
+            logoEl.style.cssText = 'height:18px;width:auto;vertical-align:middle;margin-right:4px;';
+            logoEl.onerror = function() { this.style.display = 'none'; };
+            if (headerEl) headerEl.parentElement.insertBefore(logoEl, headerEl);
+          }
+          logoEl.src = logoUrl;
+          logoEl.alt = tenant.displayName || 'Logo';
+        }
+        // Cache tenant config with logo for offline boot
         try {
-          localStorage.setItem('hoscadfield_tenant', JSON.stringify(tenant));
+          var cacheObj = JSON.parse(JSON.stringify(tenant));
+          if (logoUrl) cacheObj.logoUrl = logoUrl;
+          localStorage.setItem('hoscadfield_tenant', JSON.stringify(cacheObj));
         } catch(e) {}
       }
     }).catch(function(e) {
@@ -4976,6 +5025,19 @@
         var headerEl = document.getElementById('fieldHeaderLabel');
         if (headerEl && cachedTenant.displayName) {
           headerEl.textContent = cachedTenant.displayName;
+        }
+        // Restore cached logo
+        if (cachedTenant.logoUrl) {
+          var logoEl = document.getElementById('fieldHeaderLogo');
+          if (!logoEl && headerEl) {
+            logoEl = document.createElement('img');
+            logoEl.id = 'fieldHeaderLogo';
+            logoEl.className = 'brand-logo';
+            logoEl.style.cssText = 'height:18px;width:auto;vertical-align:middle;margin-right:4px;';
+            logoEl.onerror = function() { this.style.display = 'none'; };
+            headerEl.parentElement.insertBefore(logoEl, headerEl);
+          }
+          if (logoEl) { logoEl.src = cachedTenant.logoUrl; logoEl.alt = cachedTenant.displayName || 'Logo'; }
         }
       }
     } catch(e) {}
