@@ -40,12 +40,12 @@ body{display:flex;flex-direction:column;}
 /* ── Table layout (wide / horizontal) ───────────── */
 table.inc-tbl{width:100%;border-collapse:collapse;}
 table.inc-tbl th{background:rgba(255,255,255,.04);color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.06em;padding:4px 8px;text-align:left;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1;}
-table.inc-tbl td{padding:5px 8px;border-bottom:1px solid rgba(26,34,51,.6);vertical-align:middle;}
+table.inc-tbl td{padding:6px 10px;border-bottom:1px solid rgba(26,34,51,.6);vertical-align:middle;}
 table.inc-tbl tr{cursor:pointer;transition:background .12s;}
 table.inc-tbl tr:hover td{background:rgba(91,163,230,.07);}
 table.inc-tbl tr.inc-urgent td{border-left:3px solid var(--red);}
 table.inc-tbl tr.inc-mutual-aid td{background:rgba(255,160,0,.05);}
-.inc-id-cell{font-weight:900;font-size:12px;color:var(--hi);white-space:nowrap;}
+.inc-id-cell{font-weight:900;font-size:13px;color:var(--hi);white-space:nowrap;}
 .inc-id-cell .pri-badge{font-size:9px;padding:1px 4px;border-radius:2px;margin-left:3px;font-weight:900;}
 .priority-PRI-1{background:rgba(255,77,77,.18);color:#ff8f8f;border:1px solid rgba(255,77,77,.3);}
 .priority-PRI-2{background:rgba(255,160,0,.18);color:#ffa940;border:1px solid rgba(255,160,0,.3);}
@@ -55,13 +55,13 @@ table.inc-tbl tr.inc-mutual-aid td{background:rgba(255,160,0,.05);}
 .cb-badge{font-size:9px;padding:1px 4px;background:rgba(77,255,145,.1);border:1px solid rgba(77,255,145,.3);color:#73d13d;border-radius:2px;margin-left:2px;}
 .pp-rel-badge{display:inline-block;font-size:9px;font-weight:900;padding:0 3px;border:1px solid rgba(64,144,216,.45);border-radius:2px;margin-left:2px;letter-spacing:.04em;vertical-align:middle;line-height:1.4;color:#4090c8;background:rgba(64,144,216,.07);}
 .rel-badge{display:inline-block;font-size:9px;font-weight:900;padding:0 3px;border:1px solid rgba(80,190,140,.45);border-radius:2px;margin-left:2px;letter-spacing:.04em;vertical-align:middle;line-height:1.4;color:#50be8c;background:rgba(80,190,140,.07);}
-.wait-cell{font-weight:700;font-size:11px;}
+.wait-cell{font-weight:700;font-size:12px;}
 .wait-ok{color:var(--muted);}
 .wait-warn{color:var(--yellow);}
 .wait-over{color:var(--red);animation:blink 1s step-end infinite;}
 @keyframes blink{50%{opacity:.3;}}
-.note-cell{color:var(--text);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.dest-cell{color:var(--green);font-weight:700;font-size:11px;}
+.note-cell{color:var(--text);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dest-cell{color:var(--green);font-weight:700;font-size:12px;}
 .scene-cell{color:var(--text);font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .units-cell{color:var(--blue);font-size:10px;font-weight:700;}
 .inc-type-badge{font-size:9px;padding:1px 5px;border-radius:2px;font-weight:900;letter-spacing:.04em;background:rgba(255,255,255,.06);color:var(--muted);}
