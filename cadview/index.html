@@ -30,16 +30,18 @@
            colors, map-link colors) stay recognizable across both themes — only a
            couple of the darkest ones get lightness nudges for contrast on a light bg. */
         :root {
-            /* backgrounds */
-            --bg-body: #0a0a12;
-            --bg-header-grad-1: #1a1a2e;
-            --bg-header-grad-2: #16213e;
-            --bg-panel: #12121f;          /* controls bar, county-group, agency-unit-group */
-            --bg-panel-alt: #0f0f1a;      /* filter-panel, board-map, detail-map */
-            --bg-surface: #1a1a2e;        /* buttons, table th, agency-item, unit-row, modal, mobile card */
-            --bg-hover: #2a2a4a;          /* generic hover background */
-            --bg-hover-strong: #1f1f33;   /* county-header hover */
-            --bg-row-hover: #16213e;      /* table row hover */
+            /* backgrounds -- neutral near-black rather than navy blue, same relative
+               brightness steps as before (body darkest, hover lightest) so layering/
+               contrast between panels/buttons/rows is preserved. */
+            --bg-body: #08080a;
+            --bg-header-grad-1: #121214;
+            --bg-header-grad-2: #0c0c0e;
+            --bg-panel: #0e0e10;          /* controls bar, county-group, agency-unit-group */
+            --bg-panel-alt: #0a0a0c;      /* filter-panel, board-map, detail-map */
+            --bg-surface: #18181c;        /* buttons, table th, agency-item, unit-row, modal, mobile card */
+            --bg-hover: #28282c;          /* generic hover background */
+            --bg-hover-strong: #1c1c20;   /* county-header hover */
+            --bg-row-hover: #141416;      /* table row hover */
 
             /* text */
             --text-body: #e0e0e0;
@@ -48,9 +50,9 @@
             --text-dim: #8a92a0;          /* no-incidents / footer text */
             --text-on-accent: #fff;
 
-            /* borders */
-            --border-strong: #3a3a5a;     /* button/badge borders */
-            --border-subtle: #2a2a4a;     /* dividers, table rules, panel borders */
+            /* borders -- neutralized to match the background shift above */
+            --border-strong: #3a3a40;     /* button/badge borders */
+            --border-subtle: #28282e;     /* dividers, table rules, panel borders */
 
             /* brand / semantic accents (recognizable in both themes) */
             --accent-primary: #c41e3a;    /* brand red: header rule, active button, modal chrome */
@@ -2039,7 +2041,8 @@
                     knownAgencies[id].recentCount = recentByAgency[id] || 0;
                 });
 
-                // one-time agency-selection init: URL ?ag= (explicit) > saved explicit set > follow-all
+                // one-time agency-selection init: URL ?ag= (explicit) > saved explicit set >
+                // saved "follow all" > per-deployment default (SCMC starts scoped, main starts on everything)
                 if (!agenciesInitialized && Object.keys(knownAgencies).length > 0) {
                     const urlAg = new URLSearchParams(location.search).get('ag');
                     let prefs = {};
@@ -2053,6 +2056,16 @@
                             const saved = JSON.parse(localStorage.getItem('orfireems_agencies') || '[]');
                             selectedAgencies = new Set(saved.filter(id => knownAgencies[id]));
                         } catch (e) { selectedAgencies = new Set(); }
+                    } else if (prefs.allAg === true) {    // user previously chose SELECT ALL -- respect it,
+                        followAll = true;                 // even on SCMC, rather than re-applying the default below
+                    } else if (IS_SCMC) {
+                        // True first visit on the SCMC deployment (no saved prefs at all): default to
+                        // the counties relevant to a Central Oregon transfer center instead of everything.
+                        followAll = false;
+                        selectedAgencies = new Set(Object.keys(knownAgencies).filter(id => {
+                            const county = (knownAgencies[id].county || '').toLowerCase();
+                            return county === 'deschutes' || county === 'jefferson';
+                        }));
                     } else {
                         followAll = true;                 // default: show everything, auto-include new agencies
                     }
