@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oregon Fire/EMS CAD</title>
+    <!-- This file is deployed byte-identical to two places: holdenportal.com/orfireems
+         and scmc.hoscad.net/cadview (behind Cloudflare Access). The only intentional
+         difference between them is runtime-detected below (see IS_SCMC) -- never hand-edit
+         the cadview copy directly. After any change here, run sync-cadview.sh and push both
+         Holden-nerd-portal and hoscad-board. -->
+    <!-- Leaflet + markercluster loaded non-blocking (media/defer): a CDN stall must
+         never blank the board. Map code guards on typeof L / L.markerClusterGroup.
+         unpkg.com (not cdnjs) because the SCMC deployment's CSP only allows unpkg. -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+          media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+          media="print" onload="this.media='all'" />
+    <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script defer src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ---- Theme tokens (dark = default) --------------------------------------
+           Structural/chrome tokens (bg/text/border/hover) are the ones that change
+           meaningfully under [data-theme="light"] below. Semantic accent colors
+           (brand red, teal, fire-red, status colors, call-type colors, unit-status
+           colors, map-link colors) stay recognizable across both themes — only a
+           couple of the darkest ones get lightness nudges for contrast on a light bg. */
+        :root {
+            /* backgrounds */
+            --bg-body: #0a0a12;
+            --bg-header-grad-1: #1a1a2e;
+            --bg-header-grad-2: #16213e;
+            --bg-panel: #12121f;          /* controls bar, county-group, agency-unit-group */
+            --bg-panel-alt: #0f0f1a;      /* filter-panel, board-map, detail-map */
+            --bg-surface: #1a1a2e;        /* buttons, table th, agency-item, unit-row, modal, mobile card */
+            --bg-hover: #2a2a4a;          /* generic hover background */
+            --bg-hover-strong: #1f1f33;   /* county-header hover */
+            --bg-row-hover: #16213e;      /* table row hover */
+
+            /* text */
+            --text-body: #e0e0e0;
+            --text-secondary: #c3c3d0;    /* button label text */
+            --text-muted: #98a2b3;        /* secondary/meta text */
+            --text-dim: #8a92a0;          /* no-incidents / footer text */
+            --text-on-accent: #fff;
+
+            /* borders */
+            --border-strong: #3a3a5a;     /* button/badge borders */
+            --border-subtle: #2a2a4a;     /* dividers, table rules, panel borders */
+
+            /* brand / semantic accents (recognizable in both themes) */
+            --accent-primary: #c41e3a;    /* brand red: header rule, active button, modal chrome */
+            --accent-teal: #4ecdc4;       /* stat values, section titles, "new" accent */
+            --accent-fire: #ff6b6b;       /* title text, has-active border, busy-unit phrase */
+
+            /* status colors */
+            --status-live: #27ae60;       /* live dot, status-active, unit-green, inc-me/call-me alt */
+            --status-stale: #f39c12;      /* stale dot, call-tc, unit-orange-ish alerts */
+            --status-error: #c0392b;      /* error dot, call-fire, unit-red */
+            --status-recent: #7f8c8d;     /* status-recent, call-other */
+
+            /* call-type colors */
+            --call-me: #16a085;
+            --call-tc: #f39c12;
+            --call-fire: #c0392b;
+            --call-other: #7f8c8d;
+
+            /* unit-status colors */
+            --unit-orange: #e67e22;
+            --unit-green: #27ae60;
+            --unit-red: #c0392b;
+            --unit-yellow: #f1c40f;
+            --unit-yellow-text: #333;
+            --unit-blue: #3498db;
+            --unit-gray: #5a5a6a;
+
+            /* links / map actions */
+            --link-blue: #5dade2;
+            --link-blue-hover: #85c1e9;
+            --map-link-bg: #3498db;
+            --map-link-hover: #2980b9;
+            --map-link-osm: #5a7d2a;
+            --map-link-osm-hover: #6b9433;
+
+            /* wildland (NIFC WFIGS) accent */
+            --wildland-accent: #e67e22;
+            --wildland-accent-text: #1a1005;
+
+            /* overlays / rings / flash animation stops (rgba, alpha-bearing) */
+            --overlay-backdrop: rgba(0,0,0,0.8);
+            --shadow-soft: rgba(0,0,0,0.8);
+            --ring-white-55: rgba(255,255,255,0.55);
+            --ring-fire-55: rgba(255,107,107,0.55);
+            --flash-teal-06: rgba(78, 205, 196, 0.06);
+            --flash-teal-12: rgba(78, 205, 196, 0.12);
+            --flash-teal-50: rgba(78, 205, 196, 0.50);
+            --flash-teal-55: rgba(78, 205, 196, 0.55);
+            --escalated-bg: rgba(192, 57, 43, 0.10);   /* --status-error/--call-fire tint, low alpha row background */
+        }
+
+        /* Light theme override — only chrome/background/text structural tokens change
+           meaningfully. Semantic accents (brand red, teal, fire-red, status/call-type/
+           unit colors) are kept as the same recognizable hues, with a few darkened
+           slightly for legibility against a light background. */
+        [data-theme="light"] {
+            --bg-body: #f4f5f7;
+            --bg-header-grad-1: #ffffff;
+            --bg-header-grad-2: #e7eaf3;
+            --bg-panel: #ffffff;
+            --bg-panel-alt: #eef0f5;
+            --bg-surface: #ffffff;
+            --bg-hover: #e2e6f0;
+            --bg-hover-strong: #dde1ee;
+            --bg-row-hover: #e7eefb;
+
+            --text-body: #1c1f2a;
+            --text-secondary: #33384a;
+            --text-muted: #5b6272;
+            --text-dim: #6b7280;
+            --text-on-accent: #fff;
+
+            --border-strong: #c3c8d6;
+            --border-subtle: #d7dbe6;
+
+            --accent-primary: #c41e3a;
+            --accent-teal: #0d9488;
+            --accent-fire: #d9364a;
+
+            --status-live: #1e8449;
+            --status-stale: #b9770e;
+            --status-error: #a93226;
+            --status-recent: #5f6a6a;
+
+            --call-me: #117a65;
+            --call-tc: #b9770e;
+            --call-fire: #a93226;
+            --call-other: #5f6a6a;
+
+            --unit-orange: #c1660f;
+            --unit-green: #1e8449;
+            --unit-red: #a93226;
+            --unit-yellow: #d4ac0d;
+            --unit-yellow-text: #2b2b2b;
+            --unit-blue: #2e75a8;
+            --unit-gray: #6b7280;
+
+            --link-blue: #1a6faa;
+            --link-blue-hover: #14567f;
+            --map-link-bg: #2e75a8;
+            --map-link-hover: #235a82;
+            --map-link-osm: #4c6b25;
+            --map-link-osm-hover: #3d5a1c;
+
+            --wildland-accent: #c1660f;
+            --wildland-accent-text: #fff5eb;
+
+            --overlay-backdrop: rgba(20,22,30,0.55);
+            --shadow-soft: rgba(20,22,30,0.35);
+            --ring-white-55: rgba(255,255,255,0.85);
+            --ring-fire-55: rgba(217,54,74,0.45);
+            --flash-teal-06: rgba(13, 148, 136, 0.08);
+            --flash-teal-12: rgba(13, 148, 136, 0.16);
+            --flash-teal-50: rgba(13, 148, 136, 0.45);
+            --flash-teal-55: rgba(13, 148, 136, 0.5);
+            --escalated-bg: rgba(169, 50, 38, 0.08);   /* --status-error/--call-fire tint, low alpha row background */
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: var(--bg-body);
+            color: var(--text-body);
+            font-size: 13px;
+        }
+
+        /* Dashboard */
+        .dashboard { display: block; }
+
+        .header {
+            background: linear-gradient(90deg, var(--bg-header-grad-1) 0%, var(--bg-header-grad-2) 100%);
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--accent-primary);
+            flex-wrap: wrap; gap: 8px;
+        }
+        .header h1 { font-size: 1.3em; color: var(--accent-fire); font-weight: bold; }
+        .header-stats { display: flex; gap: 20px; }
+        .header-stat { text-align: center; }
+        .header-stat-value { font-size: 1.4em; font-weight: bold; color: var(--accent-teal); }
+        .header-stat-label { font-size: 0.75em; opacity: 0.75; }
+        .live-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.85em; }
+        .live-dot {
+            width: 8px; height: 8px; background: var(--status-live);
+            border-radius: 50%; animation: pulse 1.5s infinite;
+        }
+        .live-dot.stale { background: var(--status-stale); }
+        .live-dot.error { background: var(--status-error); animation: none; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        .controls {
+            background: var(--bg-panel);
+            padding: 8px 15px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            border-bottom: 1px solid var(--border-subtle);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .control-sep { width: 1px; align-self: stretch; background: var(--border-subtle); margin: 0 2px; }
+        .view-toggle { display: flex; gap: 5px; }
+        .view-btn {
+            padding: 5px 12px; background: var(--bg-surface);
+            border: 1px solid var(--border-strong); color: var(--text-secondary);
+            cursor: pointer; font-size: 0.85em; font-family: inherit;
+        }
+        .view-btn.active { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--text-on-accent); }
+        .view-btn:hover:not(.active) { background: var(--bg-hover); }
+        .filter-toggle {
+            padding: 5px 12px; background: var(--bg-surface);
+            border: 1px solid var(--border-strong); color: var(--text-secondary);
+            cursor: pointer; font-size: 0.85em; font-family: inherit;
+            margin-left: auto;
+        }
+        .filter-toggle:hover { background: var(--bg-hover); }
+        .mobile-sort {
+            display: none; padding: 5px 8px; background: var(--bg-surface); color: var(--text-secondary);
+            border: 1px solid var(--border-strong); font-family: inherit; font-size: 0.85em;
+        }
+
+        .filter-panel {
+            background: var(--bg-panel-alt); padding: 10px 15px;
+            border-bottom: 1px solid var(--border-subtle); display: none;
+        }
+        .filter-panel.show { display: block; }
+        .filter-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;
+        }
+        .filter-title { font-weight: bold; color: var(--accent-teal); }
+        .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .filter-btn {
+            padding: 3px 8px; background: var(--bg-hover);
+            border: none; color: var(--text-secondary); cursor: pointer;
+            font-size: 0.8em; font-family: inherit;
+        }
+        .filter-btn:hover { background: var(--border-strong); color: var(--text-on-accent); }
+        .agency-grid {
+            display: flex; flex-direction: column; gap: 3px;
+            max-height: 340px; overflow-y: auto;
+        }
+        /* County groups (collapsible) */
+        .county-group { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 4px; }
+        .county-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 10px; cursor: pointer; user-select: none;
+        }
+        .county-header:hover { background: var(--bg-hover-strong); }
+        .county-header .county-name[role="button"]:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-teal); }
+        .county-header input { cursor: pointer; }
+        .county-name { font-weight: bold; color: var(--accent-teal); }
+        .county-meta { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 0.8em; color: var(--text-muted); }
+        .county-chevron { color: var(--text-muted); font-size: 0.8em; transition: transform 0.15s; }
+        .county-group.collapsed .county-chevron { transform: rotate(-90deg); }
+        .county-group.collapsed .county-agencies { display: none; }
+        .county-agencies {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 3px; padding: 2px 8px 8px 8px;
+        }
+        .county-badge { background: var(--border-strong); padding: 1px 6px; border-radius: 10px; }
+        .county-badge.active { background: var(--status-error); color: var(--text-on-accent); }
+        .agency-item {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 8px; background: var(--bg-surface);
+            cursor: pointer; font-size: 0.85em;
+        }
+        .agency-item:hover { background: var(--bg-hover); }
+        .agency-item input { cursor: pointer; }
+        .agency-item.has-active { border-left: 3px solid var(--accent-fire); }
+        .agency-item.has-recent { border-left: 3px solid var(--status-stale); }
+        .agency-count {
+            margin-left: auto; background: var(--border-strong);
+            padding: 1px 6px; border-radius: 10px; font-size: 0.8em;
+        }
+
+        /* Call-type filter chips (3c) — separate UI/state from the agency filter above,
+           but same small-toggle visual language + delegated-click interaction pattern. */
+        .calltype-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+        .calltype-chip {
+            padding: 3px 9px; background: var(--bg-surface);
+            border: 1px solid var(--border-strong); color: var(--text-secondary);
+            cursor: pointer; font-size: 0.8em; font-family: inherit; border-radius: 12px;
+        }
+        .calltype-chip:hover { background: var(--bg-hover); }
+        .calltype-chip.active { background: var(--accent-primary); border-color: var(--accent-primary); color: var(--text-on-accent); }
+
+        .cad-container { padding: 10px; }
+        /* Fixed layout + explicit widths on AGENCY/ADDRESS (UNITS gets whatever's
+           left) so a long address can't balloon its column and starve UNITS of
+           room -- desktop only, the mobile @media block below overrides this
+           entirely with display:block cards. */
+        .cad-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+        .cad-table td[data-label="AGENCY"], .cad-table td[data-label="ADDRESS"] {
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+        }
+        .cad-table th {
+            background: var(--bg-surface); padding: 8px 10px; text-align: left;
+            font-weight: bold; color: var(--accent-teal);
+            border-bottom: 2px solid var(--border-strong);
+            position: sticky; top: 0; cursor: pointer; white-space: nowrap;
+        }
+        .cad-table th:hover { background: var(--bg-hover); }
+        .cad-table td {
+            padding: 6px 10px; border-bottom: 1px solid var(--bg-surface);
+            vertical-align: top;
+        }
+        .cad-table tr { cursor: pointer; }
+        .cad-table tr:hover { background: var(--bg-row-hover); }
+        .status-badge[role="button"]:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-teal); }
+        .cad-table tr.recent { opacity: 0.82; }
+        .cad-table tr.recent td { font-style: italic; }
+        /* "NEW since last refresh" salience — a brief flash, then a steady accent */
+        .cad-table tr.is-new td:first-child { box-shadow: inset 3px 0 0 0 var(--accent-teal); }
+        .cad-table tr.is-new td { background: var(--flash-teal-06); animation: newFlash 1.8s ease-out; }
+        @keyframes newFlash {
+            0%   { background: var(--flash-teal-06); }
+            12%  { background: var(--flash-teal-55); }
+            35%  { background: var(--flash-teal-12); }
+            55%  { background: var(--flash-teal-50); }
+            100% { background: var(--flash-teal-06); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .cad-table tr.is-new td { animation: none; }
+            .live-dot { animation: none; }
+        }
+
+        /* Escalated (fire-code) incidents: inset accent bar (--call-fire, same hue as
+           the FIRE call-type badge) + a low-alpha tinted background (--escalated-bg,
+           the same "flash-teal-06 but for the fire accent" family already used for
+           .is-new). Composes with .is-new — the flash animation still plays on top. */
+        .cad-table tr.escalated td { background: var(--escalated-bg); }
+        .cad-table tr.escalated td:first-child { box-shadow: inset 3px 0 0 0 var(--call-fire); }
+
+        .status-badge {
+            display: inline-block; padding: 2px 6px;
+            border-radius: 3px; font-size: 0.85em; font-weight: bold;
+        }
+        .status-active { background: var(--status-live); color: var(--text-on-accent); }
+        .status-recent { background: var(--status-recent); color: var(--text-on-accent); }
+
+        /* Pin/follow toggle (3c) — small control inside the STATUS cell. Must intercept
+           its own click before it bubbles to the row's click-to-open-detail-modal handler. */
+        .pin-toggle {
+            display: inline-block; margin-left: 6px; padding: 0 4px;
+            background: none; border: none; cursor: pointer;
+            font-size: 1em; line-height: 1; opacity: 0.45; vertical-align: middle;
+        }
+        .pin-toggle:hover { opacity: 0.85; }
+        .pin-toggle.pinned { opacity: 1; }
+        .cad-table tr.is-pinned td:first-child { box-shadow: inset 3px 0 0 0 var(--accent-teal); }
+
+        .call-type { font-weight: bold; padding: 2px 6px; border-radius: 3px; }
+        .call-me { background: var(--call-me); color: var(--text-on-accent); }
+        .call-tc { background: var(--call-tc); color: var(--text-on-accent); }
+        .call-fire { background: var(--call-fire); color: var(--text-on-accent); }
+        .call-other { background: var(--call-other); color: var(--text-on-accent); }
+        .call-desc { color: var(--text-muted); font-size: 0.85em; margin-left: 4px; }
+
+        /* nowrap + hidden overflow: with MAX_VISIBLE_UNITS capping the badge count,
+           this guarantees every row's units cell is exactly one line tall, so rows
+           don't blow out/misalign next to each other for busy multi-unit calls. */
+        .units-cell { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 3px; }
+        .unit-badge { padding: 2px 5px; border-radius: 3px; font-size: 0.85em; font-weight: 500; flex-shrink: 0; }
+        .unit-orange { background: var(--unit-orange); color: var(--text-on-accent); }
+        .unit-green { background: var(--unit-green); color: var(--text-on-accent); }
+        .unit-red { background: var(--unit-red); color: var(--text-on-accent); }
+        .unit-yellow { background: var(--unit-yellow); color: var(--unit-yellow-text); }
+        .unit-blue { background: var(--unit-blue); color: var(--text-on-accent); }
+        .unit-gray { background: var(--unit-gray); color: var(--text-on-accent); }
+        .unit-more { background: var(--border-strong); color: var(--text-secondary); }
+
+        .time-cell { white-space: nowrap; }
+        .inc-num { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .time-ago { font-size: 0.85em; color: var(--text-muted); }
+        .no-incidents { text-align: center; padding: 40px; color: var(--text-dim); font-size: 1.1em; }
+        .footer {
+            text-align: center; padding: 8px; color: var(--text-dim);
+            font-size: 0.85em; border-top: 1px solid var(--bg-surface);
+        }
+
+        /* Staleness banner: hidden by default, shown only when updateLiveStatus()'s
+           age calculation crosses STALE_MINUTES (see setStaleBanner()). */
+        #stale-banner {
+            display: none; align-items: center; gap: 8px;
+            padding: 6px 15px; background: var(--status-stale); color: var(--text-on-accent);
+            font-size: 0.85em; font-weight: bold; text-align: center; justify-content: center;
+        }
+        #stale-banner.show { display: flex; }
+
+        /* Shared ops-note banner: a small server-persisted note anyone viewing
+           the board can edit (e.g. "Redmond Fire OOS"), with a last-saved
+           timestamp. Not a per-device pref like the rest of the UI state --
+           this is deliberately visible to everyone who loads the page. */
+        #board-note { border-bottom: 1px solid var(--border-subtle); }
+        .board-note-display {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 15px; font-size: 0.85em; background: var(--bg-panel-alt);
+        }
+        .board-note-text { color: var(--text-body); flex-shrink: 1; overflow-wrap: anywhere; }
+        .board-note-text.board-note-empty { color: var(--text-dim); font-style: italic; }
+        .board-note-meta { color: var(--text-muted); font-size: 0.85em; white-space: nowrap; margin-left: auto; }
+        .board-note-edit-btn {
+            background: none; border: 1px solid var(--border-strong); color: var(--text-secondary);
+            padding: 2px 8px; font-size: 0.85em; font-family: inherit; cursor: pointer; flex-shrink: 0;
+        }
+        .board-note-edit-btn:hover { background: var(--bg-hover); }
+        .board-note-editor {
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 8px 15px; background: var(--bg-panel-alt);
+        }
+        .board-note-textarea {
+            width: 100%; resize: vertical; font-family: inherit; font-size: 0.9em;
+            background: var(--bg-surface); color: var(--text-body); border: 1px solid var(--border-strong);
+            border-radius: 3px; padding: 6px 8px;
+        }
+        .board-note-actions { display: flex; align-items: center; gap: 8px; }
+        .board-note-charcount { color: var(--text-muted); font-size: 0.8em; margin-left: auto; }
+
+        /* Full-board map view */
+        #board-map {
+            display: none; width: 100%;
+            height: calc(100vh - 160px); min-height: 380px;
+            border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-panel-alt);
+        }
+        #board-map .leaflet-container { background: var(--bg-panel-alt); }
+        #map-note { display: none; padding: 5px 4px 0; color: var(--text-muted); font-size: 0.8em; }
+
+        /* Resources (unit roster) view */
+        #units-wrap { display: none; }
+        .agency-unit-group {
+            background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        .agency-unit-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 10px; font-weight: bold; color: var(--accent-teal);
+            border-bottom: 1px solid var(--border-subtle);
+            cursor: pointer; user-select: none;
+        }
+        .agency-unit-header:hover { background: var(--bg-hover-strong); }
+        .agency-unit-header:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-teal); }
+        .agency-unit-chevron { color: var(--text-muted); font-size: 0.8em; transition: transform 0.15s; }
+        .agency-unit-group.collapsed .agency-unit-chevron { transform: rotate(-90deg); }
+        .agency-unit-group.collapsed .agency-unit-header { border-bottom: none; }
+        .agency-unit-group.collapsed .unit-rows { display: none; }
+        .agency-unit-meta { margin-left: auto; font-size: 0.8em; color: var(--text-muted); font-weight: normal; }
+        .unit-rows { display: flex; flex-direction: column; gap: 3px; padding: 6px; }
+        .unit-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 10px; background: var(--bg-surface); border-radius: 3px;
+            cursor: pointer; font-size: 0.9em;
+        }
+        .unit-row:hover, .unit-row:focus { background: var(--bg-hover); outline: none; }
+        .unit-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-teal); }
+        .unit-row-id { font-weight: bold; min-width: 70px; }
+        .unit-row-phrase { color: var(--text-secondary); }
+        .unit-row.is-busy .unit-row-phrase { color: var(--accent-fire); font-weight: bold; }
+        .units-empty { text-align: center; padding: 30px; color: var(--text-dim); }
+        .units-caveat { padding: 6px 4px; color: var(--text-muted); font-size: 0.8em; }
+
+        /* Incident history section (detail modal) */
+        .history-section { margin-top: 14px; }
+        .history-title { color: var(--accent-teal); font-weight: bold; margin-bottom: 6px; }
+        .history-list { display: flex; flex-direction: column; gap: 4px; }
+        .history-event { display: flex; gap: 10px; font-size: 0.9em; padding: 3px 0; border-bottom: 1px solid var(--border-subtle); }
+        .history-time { color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+        .history-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .history-caveat { margin-top: 6px; color: var(--text-muted); font-size: 0.8em; }
+        .history-event.history-openable { cursor: pointer; color: var(--accent-teal); }
+        .history-event.history-openable:hover, .history-event.history-openable:focus-visible {
+            background: var(--bg-hover); outline: none;
+        }
+        #map-note-controls { display: none; gap: 8px; padding: 6px 4px 0; }
+        #btn-wildland.active { background: var(--wildland-accent); border-color: var(--wildland-accent); color: var(--wildland-accent-text); }
+        /* Wildland (NIFC WFIGS) layer styling: distinct from live dispatch markers */
+        .wfigs-fire-icon { font-size: 16px; line-height: 1; text-align: center; filter: drop-shadow(0 0 2px var(--shadow-soft)); }
+        /* Incident markers on the board map (divIcon dots, color = call class) */
+        .inc-dot {
+            display: block; width: 14px; height: 14px; border-radius: 50%;
+            border: 2px solid var(--ring-white-55); box-sizing: border-box;
+        }
+        .inc-me { background: var(--call-me); }
+        .inc-tc { background: var(--call-tc); }
+        .inc-fire { background: var(--call-fire); }
+        .inc-other { background: var(--call-other); }
+        .inc-active { width: 17px; height: 17px; border-color: var(--text-on-accent); box-shadow: 0 0 0 3px var(--ring-fire-55); }
+
+        /* Clickable address / coordinate links -> open in Google Maps */
+        .addr-link { color: var(--link-blue); text-decoration: none; }
+        .addr-link:hover { color: var(--link-blue-hover); text-decoration: underline; }
+        .addr-link .pin { opacity: 0.7; margin-left: 3px; font-size: 0.9em; }
+        .agency-link { color: var(--link-blue); text-decoration: none; cursor: pointer; }
+        .agency-link:hover { color: var(--link-blue-hover); text-decoration: underline; }
+        .agency-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-teal); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--overlay-backdrop); display: none;
+            align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg-surface); border: 2px solid var(--accent-primary);
+            border-radius: 10px; width: 90%; max-width: 600px;
+            max-height: 80vh; overflow-y: auto;
+        }
+        .modal-header {
+            background: var(--accent-primary); padding: 12px 15px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-title { font-weight: bold; font-size: 1.1em; }
+        .modal-close {
+            background: none; border: none; color: var(--text-on-accent);
+            font-size: 1.5em; cursor: pointer; line-height: 1;
+        }
+        .modal-body { padding: 15px; }
+        .detail-row { display: flex; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); }
+        .detail-label { width: 120px; color: var(--accent-teal); font-weight: bold; flex-shrink: 0; }
+        .detail-value { flex: 1; }
+        .detail-units { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+        .detail-unit { padding: 5px 10px; border-radius: 5px; font-size: 0.9em; }
+        .detail-unit-info { font-size: 0.8em; opacity: 0.8; }
+        /* Inline Leaflet map inside the detail modal */
+        .detail-map {
+            height: 240px; width: 100%; margin-top: 12px;
+            border-radius: 6px; border: 1px solid var(--border-subtle);
+            background: var(--bg-panel-alt);
+            overscroll-behavior: contain;
+        }
+        .detail-map .leaflet-container { background: var(--bg-panel-alt); }
+        .map-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .map-link {
+            display: inline-block; padding: 8px 15px;
+            background: var(--map-link-bg); color: var(--text-on-accent); text-decoration: none; border-radius: 5px;
+        }
+        .map-link:hover { background: var(--map-link-hover); }
+        .map-link.osm { background: var(--map-link-osm); }
+        .map-link.osm:hover { background: var(--map-link-osm-hover); }
+
+        /* Mobile: collapse the 6-column table into stacked cards */
+        @media (max-width: 640px) {
+            .mobile-sort { display: inline-block; }
+            /* At narrow widths the controls bar wraps across several lines;
+               margin-left:auto (meant to push filter-toggle to the far right
+               of one wide row) instead strands it alone on its own wrapped
+               line with a large empty gap ahead of it. Let it flow with the
+               wrap like every other control instead. */
+            .filter-toggle { margin-left: 0; }
+            .header { justify-content: center; }
+            .header h1 { font-size: 1.05em; width: 100%; text-align: center; }
+            .header-stats { gap: 14px; }
+            .cad-container { padding: 6px; }
+            .cad-table thead { display: none; }
+            .cad-table, .cad-table tbody, .cad-table tr, .cad-table td { display: block; width: 100%; }
+            .cad-table tr {
+                border: 1px solid var(--border-subtle); border-radius: 6px;
+                margin-bottom: 6px; padding: 4px 8px; background: var(--bg-panel);
+            }
+            .cad-table tr.is-new { border-color: var(--accent-teal); }
+            .cad-table tr.escalated { border-color: var(--call-fire); }
+            .cad-table td { border: none; padding: 3px 2px; display: flex; gap: 8px; }
+            .cad-table td::before {
+                content: attr(data-label); color: var(--text-muted); font-size: 0.8em;
+                min-width: 62px; flex-shrink: 0;
+            }
+            .cad-table tr.is-new td:first-child { box-shadow: none; }
+            .cad-table tr.escalated td:first-child { box-shadow: none; }
+            .units-cell { flex-wrap: wrap; }
+            #board-map { height: calc(100vh - 210px); min-height: 300px; }
+            .detail-label { width: 92px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Dashboard -->
+    <div class="dashboard" id="dashboard">
+        <div class="header">
+            <h1>OREGON FIRE/EMS CAD VIEWER</h1>
+            <div class="header-stats" aria-live="polite">
+                <div class="header-stat">
+                    <div class="header-stat-value" id="active-count">0</div>
+                    <div class="header-stat-label">ACTIVE</div>
+                </div>
+                <div class="header-stat">
+                    <div class="header-stat-value" id="recent-count">0</div>
+                    <div class="header-stat-label">RECENT</div>
+                </div>
+                <div class="header-stat">
+                    <div class="header-stat-value" id="unit-count">0</div>
+                    <div class="header-stat-label">UNITS</div>
+                </div>
+                <div class="header-stat">
+                    <div class="header-stat-value" id="agency-count">0</div>
+                    <div class="header-stat-label">AGENCIES</div>
+                </div>
+            </div>
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span id="refresh-status">LIVE</span>
+            </div>
+        </div>
+        <div id="sr-announcer" aria-live="assertive" role="alert"
+             style="position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;"></div>
+
+        <div id="board-note">
+            <div id="board-note-display" class="board-note-display">
+                <span id="board-note-text" class="board-note-text"></span>
+                <span id="board-note-meta" class="board-note-meta"></span>
+                <button type="button" id="board-note-edit-btn" class="board-note-edit-btn" onclick="startEditNote()" title="Edit the shared notes banner — visible to everyone viewing this board">+ Add note</button>
+            </div>
+            <div id="board-note-editor" class="board-note-editor" style="display:none">
+                <textarea id="board-note-textarea" class="board-note-textarea" maxlength="500" rows="2"
+                          placeholder='Shared note visible to everyone viewing this board -- e.g. "Redmond Fire OOS"'></textarea>
+                <div class="board-note-actions">
+                    <button type="button" class="filter-btn" onclick="saveNote()">SAVE</button>
+                    <button type="button" class="filter-btn" onclick="cancelEditNote()">CANCEL</button>
+                    <span id="board-note-charcount" class="board-note-charcount"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="stale-banner" role="status" aria-live="polite"></div>
+
+        <div class="controls">
+            <div class="view-toggle">
+                <button class="view-btn active" id="btn-table" onclick="setBoardView('table')" aria-pressed="true">STATUS BOARD</button>
+                <button class="view-btn" id="btn-map" onclick="setBoardView('map')" aria-pressed="false">MAP</button>
+                <button class="view-btn" id="btn-units" onclick="setBoardView('units')" aria-pressed="false">RESOURCES</button>
+            </div>
+            <div class="control-sep"></div>
+            <div class="view-toggle">
+                <button class="view-btn active" id="btn-all" onclick="setView('all')" aria-pressed="true">ALL</button>
+                <button class="view-btn" id="btn-active" onclick="setView('active')" aria-pressed="false">ACTIVE ONLY</button>
+                <button class="view-btn" id="btn-recent" onclick="setView('recent')" aria-pressed="false">RECENT ONLY</button>
+            </div>
+            <div class="view-toggle">
+                <button class="view-btn active" id="btn-12h" onclick="setTimeFilter('12h')" aria-pressed="true">LAST 12 HRS</button>
+                <button class="view-btn" id="btn-24h" onclick="setTimeFilter('24h')" aria-pressed="false">12-24 HRS</button>
+                <button class="view-btn" id="btn-alltime" onclick="setTimeFilter('all')" aria-pressed="false">ALL TIME</button>
+            </div>
+            <select id="mobile-sort" class="mobile-sort" onchange="setSortFromSelect(this.value)" aria-label="Sort incidents">
+                <option value="time:desc">Sort: Newest</option>
+                <option value="time:asc">Sort: Oldest</option>
+                <option value="type:asc">Sort: Type</option>
+                <option value="agency:asc">Sort: Agency</option>
+                <option value="address:asc">Sort: Address</option>
+                <option value="status:asc">Sort: Status</option>
+            </select>
+            <button class="view-btn" id="btn-sound" onclick="toggleSound()" title="Soft chime when a new call appears in your current filter" aria-pressed="false">🔕 SOUND OFF</button>
+            <button class="view-btn" id="btn-notify" onclick="toggleNotify()" title="Browser notification for new escalated (fire) calls while this tab is backgrounded" aria-pressed="false">🔕 ALERTS OFF</button>
+            <button class="view-btn" id="btn-theme" onclick="toggleTheme()" title="Switch between dark and light color theme" aria-pressed="false">🌙 DARK</button>
+            <button class="view-btn" id="btn-test" onclick="simulateNewCall()" style="display:none" title="Inject a test incident (flash + chime)">TEST CALL</button>
+            <button class="view-btn" id="btn-export-csv" onclick="exportIncidentsCsv()" title="Download the currently filtered incidents as a CSV file">⬇ EXPORT CSV</button>
+            <button class="filter-toggle" onclick="toggleFilters()">
+                FILTER AGENCIES (<span id="filter-count">0</span>/<span id="total-agencies">0</span>)
+            </button>
+        </div>
+
+        <div class="filter-panel" id="filter-panel">
+            <div class="filter-header">
+                <span class="filter-title">CALL TYPE</span>
+                <div class="filter-actions">
+                    <button class="filter-btn" onclick="clearCallTypeFilter()">SHOW ALL TYPES</button>
+                </div>
+            </div>
+            <div class="calltype-chips" id="calltype-chips"></div>
+
+            <div class="filter-header" style="margin-top:12px">
+                <span class="filter-title">SELECT AGENCIES TO DISPLAY</span>
+                <div class="filter-actions">
+                    <button class="filter-btn" onclick="expandAllCounties()">EXPAND ALL</button>
+                    <button class="filter-btn" onclick="collapseAllCounties()">COLLAPSE ALL</button>
+                    <button class="filter-btn" onclick="selectAll()">SELECT ALL</button>
+                    <button class="filter-btn" onclick="selectNone()">SELECT NONE</button>
+                </div>
+            </div>
+            <div class="agency-grid" id="agency-grid"></div>
+        </div>
+
+        <div class="cad-container">
+            <div id="table-wrap">
+                <table class="cad-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="status" data-label="STATUS" onclick="sortBy('status')" style="width: 100px">STATUS</th>
+                            <th data-sort="time" data-label="TIME" onclick="sortBy('time')" style="width: 100px">TIME</th>
+                            <th data-sort="type" data-label="TYPE" onclick="sortBy('type')" style="width: 90px">TYPE</th>
+                            <th data-label="INC #" style="width: 75px">INC #</th>
+                            <th data-sort="agency" data-label="AGENCY" onclick="sortBy('agency')" style="width: 14%">AGENCY</th>
+                            <th data-sort="address" data-label="ADDRESS" onclick="sortBy('address')" style="width: 32%">ADDRESS</th>
+                            <th data-label="UNITS">UNITS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incidents-body"></tbody>
+                </table>
+                <div class="no-incidents" id="no-incidents" style="display:none">No incidents to display</div>
+            </div>
+            <div id="board-map"></div>
+            <div id="map-note-controls" style="display:none">
+                <button class="view-btn" id="btn-wildland" onclick="toggleWildlandLayer()" title="NIFC WFIGS wildland fire incidents + perimeters (not live dispatch data)" aria-pressed="false">🔥 WILDLAND FIRES</button>
+            </div>
+            <div id="map-note"></div>
+            <div id="units-wrap">
+                <div class="units-caveat">Units are only ever confirmed "busy" while PulsePoint has them attached to an incident. There is no live in-service ping, so anything else shown here is an inference based on when a unit was last seen — never a confirmed availability status.</div>
+                <div class="filter-header">
+                    <span class="filter-title">RESOURCES (agency filter applies)</span>
+                    <div class="filter-actions">
+                        <button class="filter-btn" onclick="expandAllResourceAgencies()">EXPAND ALL</button>
+                        <button class="filter-btn" onclick="collapseAllResourceAgencies()">COLLAPSE ALL</button>
+                    </div>
+                </div>
+                <div id="units-body"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span id="last-update">Loading...</span> | Click an incident for details + map
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span class="modal-title" id="modal-title">Incident Details</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        const REFRESH_INTERVAL = 30000; // re-fetch every 30s
+        const HISTORY_RETENTION_DAYS = 30; // must match IncidentHistoryStore.RETENTION_DAYS server-side
+        const MAX_VISIBLE_UNITS = 4; // cap so a busy call's unit list can't blow out row height / wrap unevenly
+        const STALE_MINUTES = 5;        // feed considered stale past this age
+        // Always-on Railway scraper (replaces the GitHub Pages feed). Updates ~every 80s.
+        const DATA_URL = 'https://orfireems-scraper-production.up.railway.app/pulsepoint_data.json';
+        const WFIGS_REFRESH_INTERVAL = 300000; // NIFC WFIGS layer: separate 5-min poll (matches its own cache window)
+        const WFIGS_URL = 'https://orfireems-scraper-production.up.railway.app/wildland_fires.json';
+        const ROSTER_REFRESH_INTERVAL = 300000; // unit roster changes slowly; same cadence tier as WFIGS
+        const ROSTER_URL = 'https://orfireems-scraper-production.up.railway.app/unit_roster.json';
+        const HISTORY_REFRESH_INTERVAL = 300000; // same tier as the roster fetch
+        const HISTORY_URL = 'https://orfireems-scraper-production.up.railway.app/incident_history.json';
+        const NOTE_REFRESH_INTERVAL = 30000; // same cadence as incidents -- this is meant to be seen promptly by other viewers
+        // The one intentional difference between this file's two deployments (see the
+        // header comment). On scmc.hoscad.net, saves route through a same-origin Cloudflare
+        // Pages Function so Cloudflare Access's identity header can be captured for
+        // attribution; a direct cross-origin fetch to Railway wouldn't have it. Everything
+        // else in this file is identical between deployments.
+        const IS_SCMC = location.hostname.endsWith('hoscad.net');
+        const NOTE_GET_URL = `https://orfireems-scraper-production.up.railway.app/board_note.json?board=${IS_SCMC ? 'scmc' : 'main'}`;
+        const NOTE_SAVE_URL = IS_SCMC ? '/cadview-api/note' : 'https://orfireems-scraper-production.up.railway.app/board_note.json';
+
+        let allData = { active_incidents: [], recent_incidents: [], agencies: {} };
+        let knownAgencies = {};
+        let selectedAgencies = new Set();
+        let followAll = true;           // true = show every current agency (auto-includes new ones); false = explicit set
+        let currentView = 'all';
+        let timeFilter = '12h';
+        let sortField = 'time';
+        let sortAsc = false;
+        let boardView = 'table';        // 'table' | 'map'
+        let selectedCallTypes = new Set(); // call-type filter chips; EMPTY SET MEANS "SHOW ALL TYPES" (no filter applied) —
+                                            // same convention as the agency filter's followAll=true state, not "select all individually"
+        let pinnedIncidents = new Set();   // pinned/followed incident_ids; device-only (localStorage), sorted to top of the table
+        let allIncidentsMap = {};
+        let detailMap = null;           // Leaflet map in the detail modal
+        let agenciesInitialized = false;
+        let lastFetchOk = null;
+        let prevAllIds = null;          // incident ids from the previous fetch
+        let newIncidentIds = new Set(); // ids that appeared on the latest fetch
+        let soundEnabled = false;       // soft chime on new calls (opt-in; off by default)
+        let notifyEnabled = false;      // opt-in browser Notification for new escalated calls while backgrounded (device-only pref)
+        let audioCtx = null;
+        let testMode = false;           // ?test in URL -> reveal the TEST CALL button
+        let wildlandLayerOn = false;    // map-view-only pref: show NIFC WFIGS wildland fire layer (off by default)
+        let themeMode = 'dark';         // device-only pref: 'dark' | 'light' (dark by default)
+        let wfigsData = { points: null, perimeters: null }; // last-fetched WFIGS GeoJSON
+        let unitRosterData = { units: {} };                 // last-fetched unit_roster.json
+        let incidentHistoryData = { incidents: {} };        // last-fetched incident_history.json
+        const TIME_BTN = { '12h': 'btn-12h', '24h': 'btn-24h', 'all': 'btn-alltime' };
+
+        const CALL_TYPES_SHORT = {
+            'ME': 'MED', 'TC': 'TC', 'VF': 'VEH FIRE', 'SF': 'STR FIRE',
+            'VEG': 'VEG FIRE', 'OF': 'OUTSIDE', 'MU': 'MUTUAL', 'FA': 'ALARM',
+            'AFA': 'AUTO ALM', 'GAS': 'GAS', 'HAZMAT': 'HAZMAT', 'WR': 'WATER',
+            'LA': 'LIFT', 'PS': 'SERVICE', 'INV': 'INVEST'
+        };
+        // Full PulsePoint incident-type code -> meaning (source: pulsepoint.org/incident-types).
+        const CALL_TYPES_FULL = {
+            AA: 'Auto Aid', MU: 'Mutual Aid', ST: 'Strike Team/Task Force',
+            AC: 'Aircraft Crash', AE: 'Aircraft Emergency', AES: 'Aircraft Emergency Standby', LZ: 'Landing Zone',
+            AED: 'AED Alarm', OA: 'Alarm', CMA: 'Carbon Monoxide', FA: 'Fire Alarm', MA: 'Manual Alarm',
+            SD: 'Smoke Detector', TRBL: 'Trouble Alarm', WFA: 'Waterflow Alarm', AFA: 'Automatic Fire Alarm',
+            FL: 'Flooding', LR: 'Ladder Request', LA: 'Lift Assist', PA: 'Police Assist', PS: 'Public Service',
+            SH: 'Sheared Hydrant', EX: 'Explosion', PE: 'Pipeline Emergency', TE: 'Transformer Explosion',
+            AF: 'Appliance Fire', CHIM: 'Chimney Fire', CF: 'Commercial Fire', WSF: 'Confirmed Structure Fire',
+            WVEG: 'Confirmed Vegetation Fire', CB: 'Controlled Burn / Prescribed Fire', ELF: 'Electrical Fire',
+            EF: 'Extinguished Fire', FIRE: 'Fire', FULL: 'Full Assignment', IF: 'Illegal Fire', MF: 'Marine Fire',
+            OF: 'Outside Fire', PF: 'Pole Fire', GF: 'Refuse / Garbage Fire', RF: 'Residential Fire', SF: 'Structure Fire',
+            TF: 'Tank Fire', VEG: 'Vegetation Fire', VF: 'Vehicle Fire', WF: 'Working Fire', WCF: 'Working Commercial Fire',
+            WRF: 'Working Residential Fire', BT: 'Bomb Threat', EE: 'Electrical Emergency', EM: 'Emergency',
+            ER: 'Emergency Response', GAS: 'Gas Leak', HC: 'Hazardous Condition', HMR: 'Hazmat Response', TD: 'Tree Down',
+            WE: 'Water Emergency', AI: 'Arson Investigation', FWI: 'Fireworks Investigation', HMI: 'Hazmat Investigation',
+            INV: 'Investigation', OI: 'Odor Investigation', SI: 'Smoke Investigation', CL: 'Commercial Lockout',
+            LO: 'Lockout', RL: 'Residential Lockout', VL: 'Vehicle Lockout', CP: 'Community Paramedicine', CPR: 'CPR Needed',
+            IFT: 'Interfacility Transfer', ME: 'Medical Emergency', MCI: 'Multi-Casualty Incident', EQ: 'Earthquake',
+            FLW: 'Flood Warning', TOW: 'Tornado Warning', TSW: 'Tsunami Warning', WX: 'Weather Incident', BP: 'Burn Permit',
+            CA: 'Community Activity', FW: 'Fire Watch', MC: 'Move-up / Cover', NO: 'Notification', STBY: 'Standby',
+            TEST: 'Test', TRNG: 'Training', AR: 'Animal Rescue', CR: 'Cliff Rescue', CSR: 'Confined Space Rescue',
+            ELR: 'Elevator Rescue', EER: 'Elevator / Escalator Rescue', IR: 'Ice Rescue', IA: 'Industrial Accident',
+            RES: 'Rescue', RR: 'Rope Rescue', SC: 'Structural Collapse', TR: 'Technical Rescue', TNR: 'Trench Rescue',
+            USAR: 'Urban Search and Rescue', VS: 'Vessel Sinking', WR: 'Water Rescue', TCP: 'Collision Involving Pedestrian',
+            TCS: 'Collision Involving Structure', TCT: 'Collision Involving Train', TCE: 'Expanded Traffic Collision',
+            RTE: 'Railroad / Train Emergency', TC: 'Traffic Collision', PLE: 'Powerline Emergency', WA: 'Wires Arcing',
+            WD: 'Wires Down', WDA: 'Wires Down / Arcing', HAZMAT: 'Hazardous Materials'
+        };
+        const MED_CODES = new Set(['ME', 'LA', 'IFT', 'MCI', 'CPR', 'CP', 'AED']);
+        const TC_CODES = new Set(['TC', 'TCE', 'TCP', 'TCS', 'TCT']);
+        const FIRE_CODES = new Set(['SF', 'VF', 'VEG', 'WVEG', 'OF', 'FA', 'AFA', 'SFA', 'MA', 'SD', 'WFA', 'CF',
+            'RF', 'WF', 'WSF', 'WCF', 'WRF', 'GF', 'IF', 'CHIM', 'AF', 'PF', 'TF', 'MF', 'EF', 'ELF', 'FIRE', 'CB', 'BF']);
+        const UNIT_STATUS_FULL = {
+            'DP': 'Dispatched', 'ER': 'Enroute', 'OS': 'On Scene',
+            'AK': 'Acknowledged', 'TR': 'Transporting', 'TA': 'Transport Arrived',
+            'AR': 'Available', 'AQ': 'Available in Quarters', 'ST': 'Staged'
+        };
+
+        // ---- state persistence (localStorage + shareable URL) --------------------
+        function loadState() {
+            const url = new URLSearchParams(location.search);
+            let prefs = {};
+            try { prefs = JSON.parse(localStorage.getItem('orfireems_prefs') || '{}'); } catch (e) {}
+            const pick = (k, def) => url.get(k) || prefs[k] || def;
+            currentView = ['all', 'active', 'recent'].includes(pick('view')) ? pick('view') : 'all';
+            timeFilter = ['12h', '24h', 'all'].includes(pick('time')) ? pick('time') : '12h';
+            sortField = pick('sort', 'time');
+            sortAsc = pick('dir', 'desc') === 'asc';
+            boardView = ['table', 'map', 'units'].includes(pick('board')) ? pick('board') : 'table';
+            soundEnabled = prefs.sound === true; // per-device only (not shared via URL)
+            notifyEnabled = prefs.notify === true; // per-device only (not shared via URL)
+            wildlandLayerOn = prefs.wildland === true; // per-device only (not shared via URL)
+            themeMode = prefs.theme === 'light' ? 'light' : 'dark'; // per-device only (not shared via URL)
+            document.documentElement.dataset.theme = themeMode;
+            testMode = url.has('test');
+            // Call-type filter chips: shareable tier (URL wins over saved prefs, same as view/time above).
+            // Empty string/absent -> empty Set -> "show all types" (see selectedCallTypes declaration).
+            const ctRaw = url.get('ct') !== null ? url.get('ct') : (prefs.ct || '');
+            selectedCallTypes = new Set(ctRaw ? ctRaw.split(',').filter(t => CALL_TYPES_SHORT[t]) : []);
+            // Pinned incidents: device-only, own localStorage key (not part of the shareable URL/prefs blob).
+            try { pinnedIncidents = new Set(JSON.parse(localStorage.getItem('orfireems_pinned') || '[]')); }
+            catch (e) { pinnedIncidents = new Set(); }
+        }
+
+        function saveState() {
+            localStorage.setItem('orfireems_agencies', JSON.stringify([...selectedAgencies]));
+            const prefs = { view: currentView, time: timeFilter, sort: sortField, dir: sortAsc ? 'asc' : 'desc', board: boardView, allAg: followAll, sound: soundEnabled, notify: notifyEnabled, wildland: wildlandLayerOn, theme: themeMode, ct: [...selectedCallTypes].join(',') };
+            localStorage.setItem('orfireems_prefs', JSON.stringify(prefs));
+            const url = new URLSearchParams();
+            ['view', 'time', 'sort', 'dir', 'board'].forEach(k => url.set(k, prefs[k]));
+            if (!followAll) url.set('ag', [...selectedAgencies].join(',')); // omit when following all
+            if (selectedCallTypes.size > 0) url.set('ct', [...selectedCallTypes].join(',')); // omit when showing all types
+            if (testMode) url.set('test', '');
+            history.replaceState(null, '', location.pathname + '?' + url.toString());
+        }
+
+        function savePinnedIncidents() {
+            localStorage.setItem('orfireems_pinned', JSON.stringify([...pinnedIncidents]));
+        }
+
+        // Keep a toggle button's visual .active state and its aria-pressed value in sync —
+        // every classList.toggle('active', ...) call site pairs with this so screen readers
+        // always reflect which view-btn / toggle is currently engaged.
+        function setActiveState(el, isActive) {
+            if (!el) return;
+            el.classList.toggle('active', isActive);
+            el.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        }
+        function applyStateToUI() {
+            ['all', 'active', 'recent'].forEach(v => setActiveState(document.getElementById('btn-' + v), v === currentView));
+            Object.entries(TIME_BTN).forEach(([f, id]) => setActiveState(document.getElementById(id), f === timeFilter));
+            setActiveState(document.getElementById('btn-table'), boardView === 'table');
+            setActiveState(document.getElementById('btn-map'), boardView === 'map');
+            setActiveState(document.getElementById('btn-units'), boardView === 'units');
+            document.getElementById('table-wrap').style.display = boardView === 'table' ? 'block' : 'none';
+            document.getElementById('board-map').style.display = boardView === 'map' ? 'block' : 'none';
+            document.getElementById('map-note').style.display = boardView === 'map' ? 'block' : 'none';
+            document.getElementById('units-wrap').style.display = boardView === 'units' ? 'block' : 'none';
+            const mapNoteControls = document.getElementById('map-note-controls');
+            if (mapNoteControls) mapNoteControls.style.display = boardView === 'map' ? 'flex' : 'none';
+            const ms = document.getElementById('mobile-sort');
+            if (ms) ms.value = sortField + ':' + (sortAsc ? 'asc' : 'desc');
+            updateSoundButton();
+            updateNotifyButton();
+            updateThemeButton();
+            if (testMode) document.getElementById('btn-test').style.display = '';
+            const wildlandBtn = document.getElementById('btn-wildland');
+            setActiveState(wildlandBtn, wildlandLayerOn);
+            renderWildlandLayer();
+            if (boardView === 'units') renderUnitRoster();
+            updateCallTypeChips();
+        }
+        function setSortFromSelect(v) {
+            const [f, d] = v.split(':');
+            sortField = f; sortAsc = d === 'asc';
+            saveState(); renderIncidents();
+        }
+
+        // ---- new-call chime (Web Audio; soft, opt-in) ----------------------------
+        function ensureAudio() {
+            if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
+        function playChime() {
+            const ctx = ensureAudio();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            // soft two-note chime (G5 -> D5), pure sines with a gentle bell-like decay
+            [[783.99, 0.0], [587.33, 0.34]].forEach(([freq, t0]) => {
+                const osc = ctx.createOscillator(), g = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                const s = now + t0;
+                g.gain.setValueAtTime(0.0001, s);
+                g.gain.exponentialRampToValueAtTime(0.14, s + 0.04);   // gentle attack
+                g.gain.exponentialRampToValueAtTime(0.0001, s + 1.8);  // soft decay
+                osc.connect(g); g.connect(ctx.destination);
+                osc.start(s); osc.stop(s + 2.0);
+            });
+        }
+        // More urgent variant used instead of playChime() when a newly-arrived
+        // incident is escalated (a fire-class call, per isEscalated()). Same
+        // oscillator/gain-envelope style as playChime() — three-note ascending
+        // run (vs. the two-note descending chime) so it reads as more urgent.
+        function playPriorityChime() {
+            const ctx = ensureAudio();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            // three-note ascending sequence (C5 -> E5 -> G5), pure sines with a brisker attack/decay
+            [[523.25, 0.0], [659.25, 0.16], [783.99, 0.32]].forEach(([freq, t0]) => {
+                const osc = ctx.createOscillator(), g = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                const s = now + t0;
+                g.gain.setValueAtTime(0.0001, s);
+                g.gain.exponentialRampToValueAtTime(0.18, s + 0.03);   // brisker attack
+                g.gain.exponentialRampToValueAtTime(0.0001, s + 1.4);  // decay
+                osc.connect(g); g.connect(ctx.destination);
+                osc.start(s); osc.stop(s + 1.6);
+            });
+        }
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) playChime(); // user gesture: unlock audio + preview the tone
+            updateSoundButton();
+            saveState();
+        }
+        function updateSoundButton() {
+            const btn = document.getElementById('btn-sound');
+            if (!btn) return;
+            btn.textContent = soundEnabled ? '🔔 SOUND ON' : '🔕 SOUND OFF';
+            setActiveState(btn, soundEnabled);
+        }
+
+        // ---- browser Notification toggle (device-only pref; same pattern as soundEnabled) --
+        // Opt-in only: permission is requested on toggle-on (a user gesture), never on load.
+        // Firing is further gated (see maybeNotifyEscalated()) to backgrounded tabs only.
+        function toggleNotify() {
+            notifyEnabled = !notifyEnabled;
+            if (notifyEnabled && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                Notification.requestPermission().then(() => updateNotifyButton());
+            }
+            updateNotifyButton();
+            saveState();
+        }
+        function updateNotifyButton() {
+            const btn = document.getElementById('btn-notify');
+            if (!btn) return;
+            const blocked = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+            btn.textContent = notifyEnabled && !blocked ? '🔔 ALERTS ON' : '🔕 ALERTS OFF';
+            btn.title = blocked
+                ? 'Notification permission blocked — enable it in your browser site settings'
+                : 'Browser notification for new escalated (fire) calls while this tab is backgrounded';
+            setActiveState(btn, notifyEnabled && !blocked);
+        }
+        // Fires a Notification for a newly-arrived escalated incident, but only when this
+        // tab is backgrounded (document.visibilityState !== 'visible') — a visible tab
+        // already has the row flash + priority chime, a Notification would be redundant.
+        function maybeNotifyEscalated(incident) {
+            if (!notifyEnabled) return;
+            if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+            if (document.visibilityState === 'visible') return;
+            const callType = incident.call_type || 'UNK';
+            const ctFull = callTypeFull(callType) || incident.call_type_description || callType;
+            const agency = incident.agency_name || incident.agency_id || '';
+            const title = `${ctFull || callType} — ${agency}`;
+            const n = new Notification(title, { body: incident.address || 'No address available', tag: 'orfireems-' + incident.incident_id });
+            n.onclick = () => { window.focus(); n.close(); };
+        }
+
+        // ---- theme toggle (device-only pref; same pattern as soundEnabled) -------
+        function toggleTheme() {
+            themeMode = themeMode === 'light' ? 'dark' : 'light';
+            document.documentElement.dataset.theme = themeMode;
+            updateThemeButton();
+            saveState();
+        }
+        function updateThemeButton() {
+            const btn = document.getElementById('btn-theme');
+            if (!btn) return;
+            btn.textContent = themeMode === 'light' ? '☀️ LIGHT' : '🌙 DARK';
+            setActiveState(btn, themeMode === 'light');
+        }
+
+        // Inject an ephemeral, client-side test incident to preview the flash + chime.
+        // It is local to this browser only (never sent to the feed / other viewers) and
+        // is cleared on the next 30s refresh. Also callable from the console.
+        function simulateNewCall() {
+            const aid = [...selectedAgencies][0] || Object.keys(knownAgencies)[0] || '00024';
+            const name = (knownAgencies[aid] && knownAgencies[aid].name) || 'Test Agency';
+            const id = 'TEST-' + Date.now();
+            const inc = {
+                incident_id: id, agency_id: aid, agency_name: name,
+                call_type: 'TEST', call_type_description: 'Test',
+                address: 'TEST INCIDENT — 123 NW TEST ST, BEND, OR',
+                latitude: '44.0582', longitude: '-121.3153',
+                received_time: new Date().toISOString(),
+                units: [{ unit_id: 'TEST1', status_code: 'DP', status: 'Dispatched', status_color: 'orange' }],
+                unit_count: 1, is_active: true
+            };
+            allData.active_incidents = [inc, ...(allData.active_incidents || [])];
+            newIncidentIds = new Set([id]);
+            renderIncidents();   // row appears at top with the flash
+            playChime();         // always chime for the test so you can hear the tone
+        }
+        window.simulateNewCall = simulateNewCall;
+
+        loadState();
+        applyStateToUI();
+        fetchData();
+        setInterval(fetchData, REFRESH_INTERVAL);
+        setInterval(updateLiveStatus, REFRESH_INTERVAL); // keep stale/offline indicator fresh between fetches
+        fetchWfigsData();
+        setInterval(fetchWfigsData, WFIGS_REFRESH_INTERVAL); // own 5-min cadence, decoupled from the 30s incident refresh
+        fetchUnitRoster();
+        setInterval(fetchUnitRoster, ROSTER_REFRESH_INTERVAL); // own interval; roster changes slowly
+        fetchIncidentHistory();
+        setInterval(fetchIncidentHistory, HISTORY_REFRESH_INTERVAL); // same tier as the roster fetch
+        fetchBoardNote();
+        setInterval(fetchBoardNote, NOTE_REFRESH_INTERVAL); // so another viewer's edit shows up without a manual refresh
+        // Deferred Leaflet may parse after the first fetch resolves; re-render the map
+        // once everything has loaded so it never gets stuck on "Loading map…".
+        window.addEventListener('load', () => { if (boardView === 'map' && allData.last_updated) renderIncidents(); });
+
+        // ---- helpers -------------------------------------------------------------
+        function escapeHtml(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // Sets the sr-only aria-live="assertive" announcer's text so screen readers
+        // speak it. Clearing first (then setting on a tick) forces a re-announcement
+        // even if the same message text was just set (e.g. two single-new-incident
+        // fetches in a row would otherwise be identical text and not re-fire).
+        function announce(message) {
+            const el = document.getElementById('sr-announcer');
+            if (!el) return;
+            el.textContent = '';
+            setTimeout(() => { el.textContent = message; }, 30);
+        }
+
+        function parseCoords(incident) {
+            if (!incident) return null;
+            const lat = parseFloat(incident.latitude);
+            const lng = parseFloat(incident.longitude);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            if (lat === 0 && lng === 0) return null;
+            if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+            return { lat, lng };
+        }
+
+        function gmapsUrl(lat, lng) { return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`; }
+        function osmUrl(lat, lng) { return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`; }
+
+        function getCallClass(type) {
+            if (MED_CODES.has(type)) return 'call-me';
+            if (TC_CODES.has(type)) return 'call-tc';
+            if (FIRE_CODES.has(type)) return 'call-fire';
+            return 'call-other';
+        }
+        function callTypeFull(t) { return CALL_TYPES_FULL[t] || ''; }
+        // Thin wrapper over the existing FIRE_CODES set: drives escalated row styling
+        // and the priority chime/notification path — "escalated" == "a fire-class call".
+        function isEscalated(type) { return FIRE_CODES.has(type); }
+
+        function formatTime(iso) {
+            if (!iso) return '';
+            return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        function timeAgo(iso) {
+            if (!iso) return '';
+            const mins = Math.floor((new Date() - new Date(iso)) / 60000);
+            if (mins < 1) return 'now';
+            if (mins < 60) return mins + 'm';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h';
+            return Math.floor(hrs / 24) + 'd';
+        }
+
+        // ---- view controls -------------------------------------------------------
+        function setView(view) {
+            currentView = view;
+            ['all', 'active', 'recent'].forEach(v => setActiveState(document.getElementById('btn-' + v), v === view));
+            saveState();
+            renderIncidents();
+        }
+        function setTimeFilter(filter) {
+            timeFilter = filter;
+            Object.entries(TIME_BTN).forEach(([f, id]) => setActiveState(document.getElementById(id), f === filter));
+            saveState();
+            renderIncidents();
+        }
+        function setBoardView(mode) {
+            boardView = mode;
+            applyStateToUI();
+            saveState();
+            renderIncidents();
+            if (mode === 'map') setTimeout(() => { if (boardMap) boardMap.invalidateSize(); }, 60);
+            if (mode === 'units') renderUnitRoster();
+        }
+        function isWithinTimeRange(isoString) {
+            if (!isoString || timeFilter === 'all') return true;
+            const hoursAgo = (new Date() - new Date(isoString)) / 3600000;
+            if (timeFilter === '12h') return hoursAgo <= 12;
+            if (timeFilter === '24h') return hoursAgo > 12 && hoursAgo <= 24;
+            return true;
+        }
+        function toggleFilters() { document.getElementById('filter-panel').classList.toggle('show'); }
+        function sortBy(field) {
+            if (sortField === field) sortAsc = !sortAsc;
+            else { sortField = field; sortAsc = true; }
+            saveState();
+            renderIncidents();
+        }
+        function updateSortIndicators() {
+            document.querySelectorAll('.cad-table th[data-sort]').forEach(th => {
+                const base = th.dataset.label;
+                th.textContent = base + (th.dataset.sort === sortField ? (sortAsc ? ' ▲' : ' ▼') : '');
+            });
+            const ms = document.getElementById('mobile-sort');
+            if (ms) ms.value = sortField + ':' + (sortAsc ? 'asc' : 'desc');
+        }
+
+        // ---- agency filter (county-grouped) --------------------------------------
+        let expandedCounties = new Set();
+        let expandedResourceAgencies = new Set(); // Resources view: which agency groups are expanded (default collapsed)
+        function agenciesByCounty() {
+            const groups = {};
+            Object.entries(knownAgencies).forEach(([id, info]) => {
+                const c = info.county || 'Other';
+                (groups[c] = groups[c] || []).push([id, info]);
+            });
+            return groups;
+        }
+        function updateAgencyFilters() {
+            const grid = document.getElementById('agency-grid');
+            const groups = agenciesByCounty();
+            const counties = Object.keys(groups).sort();
+            grid.innerHTML = counties.map(county => {
+                const items = groups[county].sort((a, b) => a[1].name.localeCompare(b[1].name));
+                const total = items.length;
+                const sel = items.filter(([id]) => selectedAgencies.has(id)).length;
+                const activeSum = items.reduce((s, [, i]) => s + (i.activeCount || 0), 0);
+                const recentSum = items.reduce((s, [, i]) => s + (i.recentCount || 0), 0);
+                const expanded = expandedCounties.has(county);
+                const badge = activeSum > 0
+                    ? `<span class="county-badge active">${activeSum} active</span>`
+                    : (recentSum > 0 ? `<span class="county-badge">${recentSum}</span>` : '');
+                const agencyHtml = items.map(([id, info]) => {
+                    let cls = 'agency-item';
+                    if (info.activeCount > 0) cls += ' has-active';
+                    else if (info.recentCount > 0) cls += ' has-recent';
+                    const count = info.activeCount + info.recentCount;
+                    return `<label class="${cls}">
+                        <input type="checkbox" data-agency-id="${escapeHtml(id)}" ${selectedAgencies.has(id) ? 'checked' : ''}>
+                        <span>${escapeHtml(info.name)}</span>
+                        ${count > 0 ? `<span class="agency-count">${count}</span>` : ''}
+                    </label>`;
+                }).join('');
+                return `<div class="county-group ${expanded ? '' : 'collapsed'}">
+                    <div class="county-header" data-county-toggle="${escapeHtml(county)}">
+                        <input type="checkbox" data-county="${escapeHtml(county)}" ${sel === total && total > 0 ? 'checked' : ''} title="Select/clear all in ${escapeHtml(county)}">
+                        <span class="county-name" tabindex="0" role="button" aria-expanded="${expanded ? 'true' : 'false'}">${escapeHtml(county)}</span>
+                        <span class="county-meta"><span>${sel}/${total}</span>${badge}<span class="county-chevron">▾</span></span>
+                    </div>
+                    <div class="county-agencies">${agencyHtml}</div>
+                </div>`;
+            }).join('');
+            grid.querySelectorAll('input[data-county]').forEach(cb => {
+                const items = groups[cb.dataset.county] || [];
+                const sel = items.filter(([id]) => selectedAgencies.has(id)).length;
+                cb.indeterminate = sel > 0 && sel < items.length;
+            });
+            document.getElementById('filter-count').textContent = selectedAgencies.size;
+            document.getElementById('total-agencies').textContent = Object.keys(knownAgencies).length;
+        }
+        function toggleCounty(county) {
+            followAll = false;
+            const ids = Object.entries(knownAgencies)
+                .filter(([, i]) => (i.county || 'Other') === county).map(([id]) => id);
+            const allSel = ids.length > 0 && ids.every(id => selectedAgencies.has(id));
+            ids.forEach(id => allSel ? selectedAgencies.delete(id) : selectedAgencies.add(id));
+            saveState(); updateAgencyFilters(); renderIncidents();
+        }
+        function expandAllCounties() { expandedCounties = new Set(Object.keys(agenciesByCounty())); updateAgencyFilters(); }
+        function collapseAllCounties() { expandedCounties.clear(); updateAgencyFilters(); }
+        function toggleAgency(id) {
+            followAll = false;
+            if (selectedAgencies.has(id)) selectedAgencies.delete(id);
+            else selectedAgencies.add(id);
+            saveState(); updateAgencyFilters(); renderIncidents();
+        }
+        function selectAll() { followAll = true; selectedAgencies = new Set(Object.keys(knownAgencies)); saveState(); updateAgencyFilters(); renderIncidents(); }
+        function selectNone() { followAll = false; selectedAgencies.clear(); saveState(); updateAgencyFilters(); renderIncidents(); }
+
+        // ---- call-type filter chips (3c) ------------------------------------------
+        // selectedCallTypes is a Set of CALL_TYPES_SHORT keys. EMPTY SET MEANS "SHOW ALL
+        // TYPES" (no filter applied) — the same empty-means-everything convention the
+        // agency filter uses via followAll, rather than requiring every chip to be
+        // individually selected to see all incidents.
+        function updateCallTypeChips() {
+            const wrap = document.getElementById('calltype-chips');
+            if (!wrap) return;
+            wrap.innerHTML = Object.entries(CALL_TYPES_SHORT).map(([code, label]) => {
+                const active = selectedCallTypes.has(code);
+                return `<button type="button" class="calltype-chip${active ? ' active' : ''}" data-call-type="${escapeHtml(code)}" aria-pressed="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+            }).join('');
+        }
+        function toggleCallType(code) {
+            if (selectedCallTypes.has(code)) selectedCallTypes.delete(code);
+            else selectedCallTypes.add(code);
+            saveState(); updateCallTypeChips(); renderIncidents();
+        }
+        function clearCallTypeFilter() {
+            selectedCallTypes.clear();
+            saveState(); updateCallTypeChips(); renderIncidents();
+        }
+        // Single delegated listener on the chip container, same pattern as the agency filter.
+        const calltypeChips = document.getElementById('calltype-chips');
+        calltypeChips.addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-call-type]');
+            if (chip) toggleCallType(chip.dataset.callType);
+        });
+
+        // ---- pin/follow an incident (3c) ------------------------------------------
+        function isPinned(incidentId) { return pinnedIncidents.has(incidentId); }
+        function togglePinned(incidentId) {
+            if (pinnedIncidents.has(incidentId)) pinnedIncidents.delete(incidentId);
+            else pinnedIncidents.add(incidentId);
+            savePinnedIncidents();
+            renderIncidents();
+        }
+
+        // ---- CSV export (3c) -------------------------------------------------------
+        // One-shot client-side export of the current filteredIncidents() view — no
+        // state persistence needed. Builds a Blob and triggers a download.
+        function csvEscape(val) {
+            let s = String(val == null ? '' : val);
+            // Neutralize formula injection: Excel/Sheets treat a cell starting
+            // with =, +, -, or @ as a formula even when opened from a CSV.
+            // Feed data (address/agency/unit id) is external and untrusted.
+            if (/^[=+\-@]/.test(s)) s = "'" + s;
+            return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+        function exportIncidentsCsv() {
+            const incidents = filteredIncidents();
+            const header = ['Status', 'Time', 'Type', 'Incident #', 'Agency', 'Address', 'Units'];
+            const rows = incidents.map(i => [
+                (i._status || '').toUpperCase(),
+                i.received_time ? new Date(i.received_time).toLocaleString() : '',
+                CALL_TYPES_SHORT[i.call_type] || i.call_type || '',
+                i.incident_id || '',
+                i.agency_name || i.agency_id || '',
+                i.address || '',
+                (i.units || []).map(u => u.unit_id).join(' ')
+            ]);
+            const csv = [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `orfireems-incidents-${stamp}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        // ---- detail modal --------------------------------------------------------
+        function initDetailMap(lat, lng, address) {
+            const el = document.getElementById('detail-map');
+            if (!el || typeof L === 'undefined') return;
+            if (detailMap) { detailMap.remove(); detailMap = null; }
+            const isMobile = !!(L.Browser && L.Browser.mobile);
+            detailMap = L.map(el, { scrollWheelZoom: false, dragging: !isMobile, touchZoom: !isMobile, tap: false }).setView([lat, lng], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(detailMap);
+            const marker = L.marker([lat, lng]).addTo(detailMap);
+            if (address) marker.bindPopup(escapeHtml(address)).openPopup();
+            setTimeout(() => { if (detailMap) detailMap.invalidateSize(); }, 80);
+        }
+        function showIncidentDetail(incidentId) {
+            const incident = allIncidentsMap[incidentId];
+            if (!incident) return;
+            const callType = incident.call_type || 'UNK';
+            const ctFull = callTypeFull(callType) || incident.call_type_description || callType;
+            document.getElementById('modal-title').textContent = `${callType} - ${ctFull}`;
+            const unitsHtml = (incident.units || []).map(u => {
+                const statusFull = UNIT_STATUS_FULL[u.status_code] || u.status || u.status_code;
+                return `<div class="detail-unit unit-badge unit-${escapeHtml(u.status_color || 'gray')}">
+                    <strong>${escapeHtml(u.unit_id)}</strong><div class="detail-unit-info">${escapeHtml(statusFull)}</div>
+                </div>`;
+            }).join('') || '<span style="color:#98a2b3">No units assigned</span>';
+            const coords = parseCoords(incident);
+            const addrText = escapeHtml(incident.address || 'Not available');
+            const coordValue = coords
+                ? `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`
+                : `${escapeHtml(incident.latitude || '-')}, ${escapeHtml(incident.longitude || '-')}`;
+            const mapSection = coords ? `
+                <div id="detail-map" class="detail-map"></div>
+                <div class="map-actions">
+                    <a class="map-link" href="${gmapsUrl(coords.lat, coords.lng)}" target="_blank" rel="noopener">Open in Google Maps</a>
+                    <a class="map-link osm" href="${osmUrl(coords.lat, coords.lng)}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
+                </div>` : '';
+            document.getElementById('modal-body').innerHTML = `
+                <div class="detail-row"><span class="detail-label">STATUS</span>
+                    <span class="detail-value"><span class="status-badge status-${incident._status || 'recent'}">${(incident._status || 'recent').toUpperCase()}</span></span></div>
+                <div class="detail-row"><span class="detail-label">INCIDENT ID</span><span class="detail-value">${escapeHtml(incident.incident_id || '-')}</span></div>
+                <div class="detail-row"><span class="detail-label">CALL TYPE</span>
+                    <span class="detail-value"><span class="call-type ${getCallClass(callType)}">${escapeHtml(callType)}</span> ${escapeHtml(ctFull)}</span></div>
+                <div class="detail-row"><span class="detail-label">AGENCY</span><span class="detail-value">${escapeHtml(incident.agency_name || incident.agency_id)}</span></div>
+                <div class="detail-row"><span class="detail-label">ADDRESS</span><span class="detail-value">${addrText}</span></div>
+                <div class="detail-row"><span class="detail-label">RECEIVED</span>
+                    <span class="detail-value">${incident.received_time ? new Date(incident.received_time).toLocaleString() : '-'} (${timeAgo(incident.received_time)})</span></div>
+                <div class="detail-row"><span class="detail-label">COORDINATES</span><span class="detail-value">${coordValue}</span></div>
+                <div class="detail-row"><span class="detail-label">UNITS (${incident.unit_count || 0})</span><span class="detail-value"></span></div>
+                <div class="detail-units">${unitsHtml}</div>
+                ${renderIncidentHistorySection(incident.incident_id)}
+                ${mapSection}
+            `;
+            document.getElementById('modal-overlay').classList.add('show');
+            if (coords) initDetailMap(coords.lat, coords.lng, incident.address || '');
+        }
+        function closeModal(event) {
+            if (!event || event.target.id === 'modal-overlay') {
+                document.getElementById('modal-overlay').classList.remove('show');
+                if (detailMap) { detailMap.remove(); detailMap = null; }
+            }
+        }
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+        // ---- event delegation ----------------------------------------------------
+        document.getElementById('incidents-body').addEventListener('click', (e) => {
+            const pin = e.target.closest('[data-pin-toggle]');
+            if (pin) { togglePinned(pin.dataset.pinToggle); return; } // pin control: don't also open the detail modal
+            const agency = e.target.closest('[data-agency-history]');
+            if (agency) { showAgencyHistory(agency.dataset.agencyHistory); return; } // agency name: history, not the incident modal
+            const tr = e.target.closest('tr[data-incident-id]');
+            if (tr) showIncidentDetail(tr.dataset.incidentId);
+        });
+        document.getElementById('incidents-body').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const pin = e.target.closest('[data-pin-toggle]');
+            if (pin) { e.preventDefault(); togglePinned(pin.dataset.pinToggle); return; }
+            const agency = e.target.closest('[data-agency-history]');
+            if (agency) { e.preventDefault(); showAgencyHistory(agency.dataset.agencyHistory); return; }
+            // Only the status badge is focusable/actionable now (not the whole
+            // <tr>) -- a role="button" row containing a real nested <button>
+            // (pin-toggle) is an invalid nested-interactive-control pattern.
+            const badge = e.target.closest('.status-badge[role="button"]');
+            if (!badge) return;
+            const tr = badge.closest('tr[data-incident-id]');
+            if (!tr) return;
+            e.preventDefault();
+            showIncidentDetail(tr.dataset.incidentId);
+        });
+        const agencyGrid = document.getElementById('agency-grid');
+        agencyGrid.addEventListener('change', (e) => {
+            const ag = e.target.closest('input[data-agency-id]');
+            if (ag) { toggleAgency(ag.dataset.agencyId); return; }
+            const co = e.target.closest('input[data-county]');
+            if (co) toggleCounty(co.dataset.county);
+        });
+        function toggleCountyHeader(header) {
+            const county = header.dataset.countyToggle;
+            const group = header.closest('.county-group');
+            if (expandedCounties.has(county)) { expandedCounties.delete(county); group.classList.add('collapsed'); }
+            else { expandedCounties.add(county); group.classList.remove('collapsed'); }
+            const label = header.querySelector('.county-name');
+            if (label) label.setAttribute('aria-expanded', expandedCounties.has(county) ? 'true' : 'false');
+        }
+        agencyGrid.addEventListener('click', (e) => {
+            if (e.target.closest('input')) return;
+            const header = e.target.closest('[data-county-toggle]');
+            if (!header) return;
+            toggleCountyHeader(header);
+        });
+        agencyGrid.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.target.closest('input')) return;
+            const header = e.target.closest('[data-county-toggle]');
+            if (!header) return;
+            e.preventDefault();
+            toggleCountyHeader(header);
+        });
+
+        // ---- full-board map ------------------------------------------------------
+        let boardMap = null, boardLayer = null;
+        const boardMarkers = new Map(); // incident_id -> { marker, status, type }
+
+        // ---- wildland fire layer (NIFC WFIGS) -------------------------------------
+        // Entirely separate L.layerGroup from boardLayer/boardMarkers above — this layer
+        // is never read or written by renderBoardMap()'s incident-marker diffing.
+        let wfigsLayer = null;
+
+        function ensureBoardMap() {
+            if (boardMap || typeof L === 'undefined') return boardMap;
+            boardMap = L.map('board-map', { scrollWheelZoom: true }).setView([44.1, -120.7], 7);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(boardMap);
+            boardLayer = (typeof L.markerClusterGroup === 'function')
+                ? L.markerClusterGroup({ maxClusterRadius: 45, chunkedLoading: true, spiderfyOnMaxZoom: true })
+                : L.layerGroup();
+            boardMap.addLayer(boardLayer);
+            return boardMap;
+        }
+        function incIcon(cls, active) {
+            return L.divIcon({ className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+                html: `<span class="inc-dot inc-${cls}${active ? ' inc-active' : ''}"></span>` });
+        }
+        function renderBoardMap(incidents) {
+            if (boardView !== 'map') return;
+            const note = document.getElementById('map-note');
+            if (typeof L === 'undefined') { note.textContent = 'Loading map…'; return; } // re-renders on window load
+            ensureBoardMap();
+            renderWildlandLayer(); // independent L.layerGroup; safe to (re)attach every render
+            if (incidents.length === 0) {
+                for (const [, rec] of boardMarkers) boardLayer.removeLayer(rec.marker);
+                boardMarkers.clear();
+                note.textContent = (!followAll && selectedAgencies.size === 0)
+                    ? 'No agencies selected — open FILTER AGENCIES to choose.'
+                    : 'No incidents match the current view/filters.';
+                setTimeout(() => { if (boardMap) boardMap.invalidateSize(); }, 60);
+                return;
+            }
+            const desired = new Map();
+            let notMapped = 0;
+            incidents.forEach(i => {
+                const c = parseCoords(i);
+                if (!c) { notMapped++; return; }
+                desired.set(i.incident_id, { i, c });
+            });
+            for (const [id, rec] of boardMarkers) {
+                if (!desired.has(id)) { boardLayer.removeLayer(rec.marker); boardMarkers.delete(id); }
+            }
+            for (const [id, { i, c }] of desired) {
+                const cls = getCallClass(i.call_type).replace('call-', '');
+                const active = i._status === 'active';
+                const existing = boardMarkers.get(id);
+                if (!existing) {
+                    const m = L.marker([c.lat, c.lng], { icon: incIcon(cls, active) });
+                    m.on('click', () => showIncidentDetail(id));
+                    m.bindTooltip(`${escapeHtml(callTypeFull(i.call_type) || i.call_type || '')} · ${escapeHtml(i.agency_name || '')}`);
+                    boardLayer.addLayer(m);
+                    boardMarkers.set(id, { marker: m, status: i._status, type: cls });
+                } else if (existing.status !== i._status || existing.type !== cls) {
+                    existing.marker.setIcon(incIcon(cls, active));
+                    existing.status = i._status; existing.type = cls;
+                }
+            }
+            note.textContent = notMapped > 0 ? `${notMapped} incident(s) without coordinates are not shown on the map.` : '';
+            setTimeout(() => { if (boardMap) boardMap.invalidateSize(); }, 60);
+        }
+
+        // NIFC WFIGS tooltip text — always spells out that this is not live dispatch data.
+        function wfigsTooltip(props) {
+            props = props || {};
+            const name = escapeHtml(props.IncidentName || props.attr_IncidentName || 'Unnamed incident');
+            const contain = (props.PercentContained ?? props.attr_PercentContained);
+            const containLine = (contain !== undefined && contain !== null && contain !== '')
+                ? `<br>Contained: ${escapeHtml(String(contain))}%` : '';
+            return `<strong>${name}</strong>${containLine}<br><em>NIFC WFIGS data — not live dispatch</em>`;
+        }
+        function wfigsFireIcon() {
+            return L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10],
+                html: '<span class="wfigs-fire-icon">🔥</span>' });
+        }
+        function toggleWildlandLayer() {
+            wildlandLayerOn = !wildlandLayerOn;
+            saveState();
+            applyStateToUI();
+        }
+        // Renders wfigsData into its own L.layerGroup, entirely separate from
+        // boardLayer/boardMarkers (never touches the live-incident marker diffing above).
+        function renderWildlandLayer() {
+            if (typeof L === 'undefined' || !boardMap) return;
+            if (!wfigsLayer) wfigsLayer = L.layerGroup();
+            wfigsLayer.clearLayers();
+            if (!wildlandLayerOn || boardView !== 'map') {
+                if (boardMap.hasLayer(wfigsLayer)) boardMap.removeLayer(wfigsLayer);
+                return;
+            }
+            if (wfigsData.perimeters) {
+                const perimLayer = L.geoJSON(wfigsData.perimeters, {
+                    style: { color: '#e67e22', weight: 2, dashArray: '6,4', fillOpacity: 0.08, fillColor: '#e67e22' },
+                    onEachFeature: (feature, layer) => layer.bindTooltip(wfigsTooltip(feature && feature.properties))
+                });
+                wfigsLayer.addLayer(perimLayer);
+            }
+            if (wfigsData.points) {
+                const pointLayer = L.geoJSON(wfigsData.points, {
+                    pointToLayer: (feature, latlng) => L.marker(latlng, { icon: wfigsFireIcon() }),
+                    onEachFeature: (feature, layer) => layer.bindTooltip(wfigsTooltip(feature && feature.properties))
+                });
+                wfigsLayer.addLayer(pointLayer);
+            }
+            if (!boardMap.hasLayer(wfigsLayer)) boardMap.addLayer(wfigsLayer);
+        }
+        async function fetchWfigsData() {
+            try {
+                const response = await fetch(WFIGS_URL + '?t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch WFIGS data');
+                const data = await response.json();
+                wfigsData = { points: data.points || null, perimeters: data.perimeters || null };
+                renderWildlandLayer();
+            } catch (error) {
+                console.error('WFIGS fetch error:', error);
+            }
+        }
+
+        // ---- Resources view (unit roster) -----------------------------------------
+        // IMPORTANT (safety): PulsePoint only ever reports a unit while it is attached
+        // to an incident — there is no in-service/idle ping. So "currently_busy: true"
+        // is the ONLY confirmed real-time fact this data can ever support. Everything
+        // else must be phrased as an explicit inference ("not currently dispatched...").
+        // This view must NEVER render a bare confirmed "AVAILABLE" claim. In particular,
+        // PulsePoint's own status labels for AR/AQ are literally "Available"/"Available
+        // In Quarters" — relabel ONLY those two codes here (not UNIT_STATUS_FULL used
+        // elsewhere) so that string can never leak into the parenthetical below.
+        const RESOURCES_VIEW_STATUS_LABELS = { 'AR': 'Idle (last seen)', 'AQ': 'Idle (last seen)' };
+        function resourcesViewStatusLabel(statusCode, fallbackStatus) {
+            if (RESOURCES_VIEW_STATUS_LABELS[statusCode]) return RESOURCES_VIEW_STATUS_LABELS[statusCode];
+            let label = UNIT_STATUS_FULL[statusCode] || fallbackStatus || statusCode || 'unknown';
+            // Defense-in-depth: whatever the source of `label` (code lookup, or a raw
+            // status string handed to us by the backend), the literal word "available"
+            // must never survive into this view's output — this is a safety-critical
+            // framing constraint, not just a display preference.
+            if (/available/i.test(label)) label = 'Idle (last seen)';
+            return label;
+        }
+        function unitStatusPhrase(rec) {
+            if (rec && rec.currently_busy) {
+                const status = resourcesViewStatusLabel(rec.last_status, rec.last_status);
+                return `BUSY — ${status} on incident`;
+            }
+            const lastSeen = rec && rec.last_seen ? timeAgo(rec.last_seen) : null;
+            const agoText = lastSeen ? `${lastSeen} ago` : 'unknown';
+            const lastKnown = resourcesViewStatusLabel(rec && rec.last_status, rec && rec.last_status);
+            return `Not currently dispatched — last activity ${agoText} (${lastKnown})`;
+        }
+        async function fetchUnitRoster() {
+            try {
+                const response = await fetch(ROSTER_URL + '?t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch unit roster');
+                const data = await response.json();
+                unitRosterData = { units: data.units || data || {} };
+                if (boardView === 'units') renderUnitRoster();
+            } catch (error) {
+                console.error('Unit roster fetch error:', error);
+            }
+        }
+        function renderUnitRoster() {
+            const body = document.getElementById('units-body');
+            if (!body) return;
+            const units = unitRosterData.units || {};
+            // Same agency filter as the board/map view -- selectedAgencies already
+            // reflects "follow all" correctly (it's populated with every known
+            // agency when followAll is true), so a plain .has() check is enough.
+            const recs = Object.values(units).filter(rec => selectedAgencies.has(rec.agency_id));
+            if (recs.length === 0) {
+                const msg = (!followAll && selectedAgencies.size === 0)
+                    ? 'No agencies selected — open FILTER AGENCIES to choose.'
+                    : (Object.keys(units).length === 0 ? 'No unit roster data yet.' : 'No units for the selected agencies.');
+                body.innerHTML = `<div class="units-empty">${msg}</div>`;
+                return;
+            }
+            const byAgency = {};
+            recs.forEach(rec => {
+                const aid = rec.agency_id || 'unknown';
+                (byAgency[aid] = byAgency[aid] || []).push(rec);
+            });
+            // Agencies with the most units NOT currently dispatched first -- this is a
+            // "who's free" view, so surface the most slack up top rather than burying
+            // it under the busiest agencies. Tie-break by total unit count.
+            const agencyIds = Object.keys(byAgency).sort((a, b) => {
+                const freeA = byAgency[a].filter(r => !r.currently_busy).length;
+                const freeB = byAgency[b].filter(r => !r.currently_busy).length;
+                if (freeA !== freeB) return freeB - freeA;
+                return byAgency[b].length - byAgency[a].length;
+            });
+            body.innerHTML = agencyIds.map(aid => {
+                // Not-currently-dispatched units first within each agency, same reasoning.
+                const agencyRecs = byAgency[aid].slice().sort((a, b) => {
+                    if (!!a.currently_busy !== !!b.currently_busy) return a.currently_busy ? 1 : -1;
+                    return (a.unit_id || '').localeCompare(b.unit_id || '');
+                });
+                const busyCount = agencyRecs.filter(r => r.currently_busy).length;
+                const agencyName = (knownAgencies[aid] && knownAgencies[aid].name) || aid;
+                const expanded = expandedResourceAgencies.has(aid);
+                const rows = agencyRecs.map(rec => {
+                    const phrase = unitStatusPhrase(rec);
+                    const isBusy = !!rec.currently_busy;
+                    return `<div class="unit-row${isBusy ? ' is-busy' : ''}" tabindex="0" role="button"
+                            data-unit-id="${escapeHtml(rec.unit_id || '')}" data-agency-id="${escapeHtml(aid)}"
+                            data-incident-id="${escapeHtml(rec.last_incident_id || '')}">
+                        <span class="unit-row-id">${escapeHtml(rec.unit_id || '?')}</span>
+                        <span class="unit-row-phrase">${escapeHtml(phrase)}</span>
+                    </div>`;
+                }).join('');
+                return `<div class="agency-unit-group${expanded ? '' : ' collapsed'}">
+                    <div class="agency-unit-header" data-resource-toggle="${escapeHtml(aid)}" tabindex="0" role="button" aria-expanded="${expanded ? 'true' : 'false'}">
+                        <span>${escapeHtml(agencyName)}</span>
+                        <span class="agency-unit-meta">${busyCount}/${agencyRecs.length} busy<span class="agency-unit-chevron">▾</span></span>
+                    </div>
+                    <div class="unit-rows">${rows}</div>
+                </div>`;
+            }).join('');
+        }
+        function toggleResourceAgency(aid) {
+            if (expandedResourceAgencies.has(aid)) expandedResourceAgencies.delete(aid);
+            else expandedResourceAgencies.add(aid);
+            renderUnitRoster();
+        }
+        function expandAllResourceAgencies() {
+            expandedResourceAgencies = new Set(Object.values(unitRosterData.units || {}).map(r => r.agency_id));
+            renderUnitRoster();
+        }
+        function collapseAllResourceAgencies() { expandedResourceAgencies.clear(); renderUnitRoster(); }
+        // Every incident (open or closed, up to the backend's retention window) where
+        // this unit appears -- checked two ways since a unit present since an incident's
+        // FIRST sighting never gets an explicit "added" event (only the diff-based
+        // updates do), so we also check the record's last known unit snapshot.
+        function unitCallHistory(agencyId, unitId, limit) {
+            limit = limit || 50;
+            const incidents = incidentHistoryData.incidents || {};
+            const idPattern = new RegExp('^' + unitId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+            const matches = [];
+            for (const id in incidents) {
+                const rec = incidents[id];
+                if (!rec || rec.agency_id !== agencyId) continue;
+                const inSnapshot = !!(rec.last_snapshot && rec.last_snapshot.units &&
+                    Object.prototype.hasOwnProperty.call(rec.last_snapshot.units, unitId));
+                const inEvents = (rec.events || []).some(ev => idPattern.test(ev.text || ''));
+                if (inSnapshot || inEvents) matches.push(rec);
+            }
+            matches.sort((a, b) => {
+                const ta = a.received_time || (a.events && a.events[0] && a.events[0].time) || '';
+                const tb = b.received_time || (b.events && b.events[0] && b.events[0].time) || '';
+                return new Date(tb) - new Date(ta);
+            });
+            return matches.slice(0, limit);
+        }
+        // Shared row template for both per-unit and per-agency history lists.
+        function renderHistoryEventRows(records) {
+            return records.map(h => {
+                const t = h.received_time || (h.events && h.events[0] && h.events[0].time);
+                const openable = !!allIncidentsMap[h.incident_id];
+                const ctFull = callTypeFull(h.call_type) || h.call_type || '?';
+                return `<div class="history-event${openable ? ' history-openable' : ''}"
+                        ${openable ? `data-open-incident="${escapeHtml(h.incident_id)}" tabindex="0" role="button"` : ''}>
+                    <span class="history-time">${t ? new Date(t).toLocaleString() : '-'}</span>
+                    <span class="call-type ${getCallClass(h.call_type)}" title="${escapeHtml(ctFull)}">${escapeHtml(CALL_TYPES_SHORT[h.call_type] || h.call_type || '?')}</span>
+                    <span class="history-text">${escapeHtml(h.address || 'No address on file')}</span>
+                </div>`;
+            }).join('');
+        }
+        function historyCaveat() {
+            return `<div class="history-caveat">Only incidents observed since tracking began (up to ${HISTORY_RETENTION_DAYS} days) are listed; times reflect poll observation, not exact dispatch timestamps. Rows in teal can be opened if the incident is still recent enough to have full details.</div>`;
+        }
+        function showUnitDetail(agencyId, unitId) {
+            const rec = (unitRosterData.units || {})[agencyId + '::' + unitId];
+            const agencyName = (knownAgencies[agencyId] && knownAgencies[agencyId].name) || agencyId;
+            document.getElementById('modal-title').textContent = `${unitId} — ${agencyName}`; // textContent is injection-safe as-is; escapeHtml() would double-escape entities here
+            const phrase = rec ? unitStatusPhrase(rec) : 'No roster data for this unit yet.';
+            const canOpenCurrent = rec && rec.currently_busy && rec.last_incident_id && allIncidentsMap[rec.last_incident_id];
+            const currentLink = canOpenCurrent
+                ? `<button type="button" class="filter-btn" data-open-incident="${escapeHtml(rec.last_incident_id)}">View current incident</button>`
+                : '';
+            const history = unitCallHistory(agencyId, unitId);
+            const rows = renderHistoryEventRows(history) || '<div class="units-empty">No calls recorded for this unit in the tracked history window.</div>';
+            document.getElementById('modal-body').innerHTML = `
+                <div class="detail-row"><span class="detail-label">STATUS</span><span class="detail-value">${escapeHtml(phrase)}</span></div>
+                ${currentLink ? `<div class="detail-row"><span class="detail-label"></span><span class="detail-value">${currentLink}</span></div>` : ''}
+                <div class="history-section">
+                    <div class="history-title">CALL HISTORY</div>
+                    <div class="history-list">${rows}</div>
+                    ${historyCaveat()}
+                </div>
+            `;
+            document.getElementById('modal-overlay').classList.add('show');
+        }
+        function showAgencyHistory(agencyId) {
+            const agencyName = (knownAgencies[agencyId] && knownAgencies[agencyId].name) || agencyId;
+            document.getElementById('modal-title').textContent = `${agencyName} — Call History`; // textContent is injection-safe as-is
+            const activeCount = (allData.active_incidents || []).filter(i => i.agency_id === agencyId).length;
+            const recentCount = (allData.recent_incidents || []).filter(i => i.agency_id === agencyId).length;
+            const all = Object.values(incidentHistoryData.incidents || {}).filter(rec => rec.agency_id === agencyId);
+            all.sort((a, b) => {
+                const ta = a.received_time || (a.events && a.events[0] && a.events[0].time) || '';
+                const tb = b.received_time || (b.events && b.events[0] && b.events[0].time) || '';
+                return new Date(tb) - new Date(ta);
+            });
+            const limit = 200;
+            const shown = all.slice(0, limit);
+            const rows = renderHistoryEventRows(shown) || '<div class="units-empty">No incidents recorded for this agency in the tracked history window.</div>';
+            const countNote = all.length > limit ? ` (showing ${limit} most recent of ${all.length})` : '';
+            document.getElementById('modal-body').innerHTML = `
+                <div class="detail-row"><span class="detail-label">RIGHT NOW</span><span class="detail-value">${activeCount} active, ${recentCount} recent (24h)</span></div>
+                <div class="history-section">
+                    <div class="history-title">CALL HISTORY${escapeHtml(countNote)}</div>
+                    <div class="history-list">${rows}</div>
+                    ${historyCaveat()}
+                </div>
+            `;
+            document.getElementById('modal-overlay').classList.add('show');
+        }
+        // Clicking/activating a unit row opens its detail (status + call history);
+        // clicking/activating an agency header toggles that group's expand/collapse.
+        document.getElementById('units-body') && document.getElementById('units-body').addEventListener('click', (e) => {
+            const header = e.target.closest('[data-resource-toggle]');
+            if (header) { toggleResourceAgency(header.dataset.resourceToggle); return; }
+            const row = e.target.closest('.unit-row[data-unit-id]');
+            if (row) showUnitDetail(row.dataset.agencyId, row.dataset.unitId);
+        });
+        document.getElementById('units-body') && document.getElementById('units-body').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const header = e.target.closest('[data-resource-toggle]');
+            if (header) { e.preventDefault(); toggleResourceAgency(header.dataset.resourceToggle); return; }
+            const row = e.target.closest('.unit-row[data-unit-id]');
+            if (!row) return;
+            e.preventDefault();
+            showUnitDetail(row.dataset.agencyId, row.dataset.unitId);
+        });
+        // Any "open this incident" affordance rendered inside the modal (current-incident
+        // link, a call-history row) delegates to the same modal-body regardless of which
+        // view (incident detail / unit detail) is currently showing.
+        document.getElementById('modal-body') && document.getElementById('modal-body').addEventListener('click', (e) => {
+            const el = e.target.closest('[data-open-incident]');
+            if (el) showIncidentDetail(el.dataset.openIncident);
+        });
+        document.getElementById('modal-body') && document.getElementById('modal-body').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const el = e.target.closest('[data-open-incident][role="button"]');
+            if (!el) return;
+            e.preventDefault();
+            showIncidentDetail(el.dataset.openIncident);
+        });
+
+        // ---- Shared ops-note banner -------------------------------------------------
+        // Server-persisted, editable by anyone viewing the board (no auth, no
+        // per-device pref) -- distinct from every other piece of state in this
+        // file, which is either scraped data or a local UI preference.
+        let boardNoteData = { text: '', updated_at: null };
+        let noteEditing = false;
+        async function fetchBoardNote() {
+            try {
+                const response = await fetch(NOTE_GET_URL + '&t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch board note');
+                boardNoteData = await response.json();
+                if (!noteEditing) renderBoardNote(); // don't clobber an in-progress edit
+            } catch (error) {
+                console.error('Board note fetch error:', error);
+            }
+        }
+        function renderBoardNote() {
+            const hasText = !!(boardNoteData.text && boardNoteData.text.trim());
+            const textEl = document.getElementById('board-note-text');
+            textEl.textContent = hasText ? boardNoteData.text : 'No shared notes.';
+            textEl.classList.toggle('board-note-empty', !hasText);
+            document.getElementById('board-note-meta').textContent = boardNoteData.updated_at
+                ? (boardNoteData.saved_by
+                    ? `Last saved by ${boardNoteData.saved_by} at ${new Date(boardNoteData.updated_at).toLocaleString()} (${timeAgo(boardNoteData.updated_at)} ago)`
+                    : `Last saved ${new Date(boardNoteData.updated_at).toLocaleString()} (${timeAgo(boardNoteData.updated_at)} ago)`)
+                : '';
+            document.getElementById('board-note-edit-btn').textContent = hasText ? '✎ Edit' : '+ Add note';
+        }
+        function startEditNote() {
+            noteEditing = true;
+            document.getElementById('board-note-display').style.display = 'none';
+            document.getElementById('board-note-editor').style.display = 'flex';
+            const ta = document.getElementById('board-note-textarea');
+            ta.value = boardNoteData.text || '';
+            updateNoteCharCount();
+            ta.focus();
+        }
+        function cancelEditNote() {
+            noteEditing = false;
+            document.getElementById('board-note-editor').style.display = 'none';
+            document.getElementById('board-note-display').style.display = 'flex';
+        }
+        function updateNoteCharCount() {
+            const ta = document.getElementById('board-note-textarea');
+            document.getElementById('board-note-charcount').textContent = `${ta.value.length}/500`;
+        }
+        async function saveNote() {
+            const ta = document.getElementById('board-note-textarea');
+            const text = ta.value.slice(0, 500);
+            try {
+                const response = await fetch(NOTE_SAVE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+                if (!response.ok) throw new Error('save failed');
+                boardNoteData = await response.json();
+                noteEditing = false;
+                document.getElementById('board-note-editor').style.display = 'none';
+                document.getElementById('board-note-display').style.display = 'flex';
+                renderBoardNote();
+            } catch (error) {
+                console.error('Board note save error:', error);
+                alert('Could not save the note — check your connection and try again.');
+            }
+        }
+        document.getElementById('board-note-textarea').addEventListener('input', updateNoteCharCount);
+        document.getElementById('board-note-textarea').addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); cancelEditNote(); }
+            else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveNote(); }
+        });
+
+        // ---- Incident history (detail modal) --------------------------------------
+        async function fetchIncidentHistory() {
+            try {
+                const response = await fetch(HISTORY_URL + '?t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch incident history');
+                const data = await response.json();
+                incidentHistoryData = { incidents: data.incidents || data || {} };
+            } catch (error) {
+                console.error('Incident history fetch error:', error);
+            }
+        }
+        function renderIncidentHistorySection(id) {
+            const record = (incidentHistoryData.incidents && incidentHistoryData.incidents[id]) || null;
+            const events = (record && record.events) || [];
+            const caveat = '<div class="history-caveat">Times reflect when this board polled the data, not exact dispatch-system timestamps.</div>';
+            if (!events || events.length === 0) {
+                return `<div class="history-section">
+                    <div class="history-title">HISTORY</div>
+                    <div class="units-empty">No history recorded (tracking started after this incident, or it predates this feature).</div>
+                    ${caveat}
+                </div>`;
+            }
+            const sorted = events.slice().sort((a, b) => new Date(a.time || 0) - new Date(b.time || 0));
+            const rows = sorted.map(ev => `<div class="history-event">
+                    <span class="history-time">${ev.time ? new Date(ev.time).toLocaleString() : '-'}</span>
+                    <span class="history-text">${escapeHtml(ev.text || '')}</span>
+                </div>`).join('');
+            return `<div class="history-section">
+                <div class="history-title">HISTORY</div>
+                <div class="history-list">${rows}</div>
+                ${caveat}
+            </div>`;
+        }
+
+        // ---- render --------------------------------------------------------------
+        function filteredIncidents() {
+            let incidents = [];
+            if (currentView === 'all' || currentView === 'active')
+                incidents = incidents.concat((allData.active_incidents || []).map(i => ({ ...i, _status: 'active' })));
+            if (currentView === 'all' || currentView === 'recent')
+                incidents = incidents.concat((allData.recent_incidents || []).map(i => ({ ...i, _status: 'recent' })));
+            incidents = incidents.filter(i => selectedAgencies.has(i.agency_id));
+            incidents = incidents.filter(i => isWithinTimeRange(i.received_time));
+            // Call-type filter chips: empty selectedCallTypes means "show all types" (no filter applied).
+            if (selectedCallTypes.size > 0) incidents = incidents.filter(i => selectedCallTypes.has(i.call_type));
+            incidents.sort((a, b) => {
+                const pa = pinnedIncidents.has(a.incident_id), pb = pinnedIncidents.has(b.incident_id);
+                if (pa !== pb) return pa ? -1 : 1; // pinned incidents sort to the top, ahead of the status sort below
+                if (a._status !== b._status) return a._status === 'active' ? -1 : 1;
+                let va, vb;
+                switch (sortField) {
+                    case 'status': va = a._status; vb = b._status; break;
+                    case 'type': va = a.call_type || ''; vb = b.call_type || ''; break;
+                    case 'agency': va = a.agency_name || ''; vb = b.agency_name || ''; break;
+                    case 'address': va = a.address || ''; vb = b.address || ''; break;
+                    case 'time': default: va = a.received_time || ''; vb = b.received_time || '';
+                }
+                if (va < vb) return sortAsc ? -1 : 1;
+                if (va > vb) return sortAsc ? 1 : -1;
+                return 0;
+            });
+            return incidents;
+        }
+
+        function renderIncidents() {
+            updateSortIndicators();
+            const incidents = filteredIncidents();
+            allIncidentsMap = {};                                   // rebuild fresh each render (no unbounded growth)
+            incidents.forEach(i => { allIncidentsMap[i.incident_id] = i; });
+            const tbody = document.getElementById('incidents-body');
+            const noInc = document.getElementById('no-incidents');
+            const scrollY = window.scrollY;
+            const emptyMsg = (!followAll && selectedAgencies.size === 0)
+                ? 'No agencies selected — open FILTER AGENCIES to choose.'
+                : 'No incidents match the current view/filters.';
+
+            if (incidents.length === 0) {
+                tbody.innerHTML = '';
+                noInc.textContent = emptyMsg;
+                noInc.style.display = boardView === 'table' ? 'block' : 'none';
+            } else {
+                noInc.style.display = 'none';
+                tbody.innerHTML = incidents.map(i => {
+                    const allUnits = i.units || [];
+                    const extraUnitCount = Math.max(0, allUnits.length - MAX_VISIBLE_UNITS);
+                    const units = allUnits.slice(0, MAX_VISIBLE_UNITS).map(u =>
+                        `<span class="unit-badge unit-${escapeHtml(u.status_color || 'gray')}">${escapeHtml(u.unit_id)}</span>`
+                    ).join('') + (extraUnitCount > 0
+                        ? `<span class="unit-badge unit-more" title="${extraUnitCount} more unit${extraUnitCount === 1 ? '' : 's'} — click row for the full list">+${extraUnitCount}</span>`
+                        : '');
+                    const coords = parseCoords(i);
+                    const addrText = escapeHtml(i.address || '-');
+                    const addrTitle = escapeHtml(i.address ? `${i.address} — click row for details + map` : 'Click row for details + map');
+                    const addrCell = coords
+                        ? `<span class="addr-link" title="${addrTitle}">${addrText}<span class="pin">📍</span></span>`
+                        : `<span title="${escapeHtml(i.address || '')}">${addrText}</span>`;
+                    const ctFull = callTypeFull(i.call_type) || i.call_type_description || i.call_type || '';
+                    const isNew = newIncidentIds.has(i.incident_id) ? ' is-new' : '';
+                    const isEsc = isEscalated(i.call_type) ? ' escalated' : '';
+                    const pinned = isPinned(i.incident_id);
+                    const isPin = pinned ? ' is-pinned' : '';
+                    const incNum = i.incident_id ? String(i.incident_id).slice(-6) : '-';
+                    return `<tr class="${i._status}${isNew}${isEsc}${isPin}" data-incident-id="${escapeHtml(i.incident_id)}" title="Click for details">
+                        <td data-label="STATUS"><span class="status-badge status-${i._status}" tabindex="0" role="button" aria-label="View details for this incident">${i._status.toUpperCase()}</span><button type="button" class="pin-toggle${pinned ? ' pinned' : ''}" data-pin-toggle="${escapeHtml(i.incident_id)}" aria-pressed="${pinned ? 'true' : 'false'}" title="${pinned ? 'Unpin this incident' : 'Pin this incident to the top'}">${pinned ? '📌' : '📍'}</button></td>
+                        <td data-label="TIME" class="time-cell">${formatTime(i.received_time)} <span class="time-ago">${timeAgo(i.received_time)}</span></td>
+                        <td data-label="TYPE"><span class="call-type ${getCallClass(i.call_type)}" title="${escapeHtml(ctFull)}">${escapeHtml(CALL_TYPES_SHORT[i.call_type] || i.call_type)}</span></td>
+                        <td data-label="INC #" class="inc-num" title="Full incident #: ${escapeHtml(i.incident_id || '-')}">${escapeHtml(incNum)}</td>
+                        <td data-label="AGENCY"><span class="agency-link" tabindex="0" role="button" data-agency-history="${escapeHtml(i.agency_id)}" title="View this agency's call history">${escapeHtml(i.agency_name || i.agency_id)}</span></td>
+                        <td data-label="ADDRESS">${addrCell}</td>
+                        <td data-label="UNITS" class="units-cell">${units || '-'}</td>
+                    </tr>`;
+                }).join('');
+                if (window.scrollY !== scrollY) window.scrollTo(0, scrollY);
+            }
+
+            // stat counters (reflect the current filter, not just active)
+            const activeFiltered = (allData.active_incidents || []).filter(i => selectedAgencies.has(i.agency_id));
+            const recentFiltered = (allData.recent_incidents || []).filter(i => selectedAgencies.has(i.agency_id));
+            document.getElementById('active-count').textContent = activeFiltered.length;
+            document.getElementById('recent-count').textContent = recentFiltered.length;
+            const unitSet = new Set();
+            incidents.forEach(i => (i.units || []).forEach(u => unitSet.add(i.agency_id + ':' + u.unit_id)));
+            document.getElementById('unit-count').textContent = unitSet.size;
+            document.getElementById('agency-count').textContent = selectedAgencies.size;
+
+            renderBoardMap(incidents);
+            if (boardView === 'units') renderUnitRoster();
+        }
+
+        // Feed age in whole minutes since allData.last_updated, or null if unknown.
+        // Single source of truth for "how old is the feed" — updateLiveStatus() and
+        // setStaleBanner() both call this rather than each recomputing it.
+        function feedAgeMinutes() {
+            if (!allData.last_updated) return null;
+            return Math.floor((Date.now() - new Date(allData.last_updated)) / 60000);
+        }
+
+        function updateLiveStatus() {
+            const el = document.getElementById('refresh-status');
+            const dot = document.querySelector('.live-dot');
+            if (lastFetchOk === false) { el.textContent = 'OFFLINE'; dot.className = 'live-dot error'; return; }
+            const ageMin = feedAgeMinutes();
+            if (ageMin === null) { el.textContent = 'LIVE'; dot.className = 'live-dot'; }
+            else if (ageMin >= STALE_MINUTES) { el.textContent = `STALE ${ageMin}m`; dot.className = 'live-dot stale'; }
+            else { el.textContent = 'LIVE'; dot.className = 'live-dot'; }
+            setStaleBanner(ageMin);
+        }
+
+        // ---- staleness banner (3a) -------------------------------------------------
+        // Shows a clear, explicit message once the feed's age crosses the same
+        // STALE_MINUTES threshold used by updateLiveStatus() — same age calc
+        // (feedAgeMinutes()), no duplicated threshold logic. Hidden otherwise.
+        function setStaleBanner(ageMin) {
+            const banner = document.getElementById('stale-banner');
+            if (!banner) return;
+            if (lastFetchOk !== false && ageMin !== null && ageMin >= STALE_MINUTES) {
+                banner.textContent = `⚠ Feed data is ${ageMin} minute${ageMin === 1 ? '' : 's'} old — incidents shown may be out of date.`;
+                banner.classList.add('show');
+            } else {
+                banner.classList.remove('show');
+            }
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch(DATA_URL + '?t=' + Date.now());
+                if (!response.ok) throw new Error('Failed to fetch');
+                allData = await response.json();
+                lastFetchOk = true;
+
+                const agencies = allData.agencies || {};
+                const activeByAgency = {}, recentByAgency = {};
+                (allData.active_incidents || []).forEach(i => { activeByAgency[i.agency_id] = (activeByAgency[i.agency_id] || 0) + 1; });
+                (allData.recent_incidents || []).forEach(i => { recentByAgency[i.agency_id] = (recentByAgency[i.agency_id] || 0) + 1; });
+                Object.entries(agencies).forEach(([id, info]) => {
+                    if (!knownAgencies[id]) knownAgencies[id] = { name: info.name || `Agency ${id}`, activeCount: 0, recentCount: 0 };
+                    knownAgencies[id].name = info.name || knownAgencies[id].name;
+                    knownAgencies[id].county = info.region || knownAgencies[id].county || 'Other';
+                    knownAgencies[id].activeCount = activeByAgency[id] || 0;
+                    knownAgencies[id].recentCount = recentByAgency[id] || 0;
+                });
+
+                // one-time agency-selection init: URL ?ag= (explicit) > saved explicit set > follow-all
+                if (!agenciesInitialized && Object.keys(knownAgencies).length > 0) {
+                    const urlAg = new URLSearchParams(location.search).get('ag');
+                    let prefs = {};
+                    try { prefs = JSON.parse(localStorage.getItem('orfireems_prefs') || '{}'); } catch (e) {}
+                    if (urlAg !== null) {                 // shared URL pins an explicit set (possibly empty)
+                        followAll = false;
+                        selectedAgencies = new Set(urlAg ? urlAg.split(',').filter(id => knownAgencies[id]) : []);
+                    } else if (prefs.allAg === false) {   // user previously chose an explicit subset
+                        followAll = false;
+                        try {
+                            const saved = JSON.parse(localStorage.getItem('orfireems_agencies') || '[]');
+                            selectedAgencies = new Set(saved.filter(id => knownAgencies[id]));
+                        } catch (e) { selectedAgencies = new Set(); }
+                    } else {
+                        followAll = true;                 // default: show everything, auto-include new agencies
+                    }
+                    agenciesInitialized = true;
+                }
+                // While following all, keep the set synced to every current agency (picks up new ones).
+                if (followAll) selectedAgencies = new Set(Object.keys(knownAgencies));
+
+                // detect incidents new since the previous fetch
+                const curIds = new Set([...(allData.active_incidents || []), ...(allData.recent_incidents || [])].map(i => i.incident_id));
+                const isFirstLoad = !prevAllIds;
+                newIncidentIds = prevAllIds ? new Set([...curIds].filter(id => !prevAllIds.has(id))) : new Set();
+                prevAllIds = curIds;
+
+                updateAgencyFilters();
+                renderIncidents();
+
+                // soft chime when a NEW call appears within the current filter (never on first load) —
+                // escalated (fire-code) new arrivals get the more urgent playPriorityChime() instead.
+                const newFiltered = filteredIncidents().filter(i => newIncidentIds.has(i.incident_id));
+                if (soundEnabled && newFiltered.length > 0) {
+                    if (newFiltered.some(i => isEscalated(i.call_type))) playPriorityChime();
+                    else playChime();
+                }
+                // opt-in browser Notification for new escalated incidents while this tab is
+                // backgrounded (see maybeNotifyEscalated() for the visibility/permission gating).
+                if (!isFirstLoad) {
+                    newFiltered.filter(i => isEscalated(i.call_type)).forEach(maybeNotifyEscalated);
+                }
+                // aria-live="assertive" announcement for screen-reader users (never on first load)
+                if (!isFirstLoad && newIncidentIds.size > 0) {
+                    announce(`${newIncidentIds.size} new incident${newIncidentIds.size === 1 ? '' : 's'} received`);
+                }
+                document.getElementById('last-update').textContent = allData.last_updated
+                    ? `Last updated: ${new Date(allData.last_updated).toLocaleString()}` : 'Loading...';
+                updateLiveStatus();
+            } catch (error) {
+                console.error('Fetch error:', error);
+                lastFetchOk = false;
+                updateLiveStatus();
+            }
+        }
+    </script>
+</body>
+</html>
